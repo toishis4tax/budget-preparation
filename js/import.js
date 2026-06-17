@@ -104,6 +104,110 @@ function parseNum(v) {
   return parseFloat(s) || 0;
 }
 
+// ===== 仕訳帳パーサー =====
+// 列: No, 日付, 借方科目名, 借方補助, 借方部門, 借方税区分, 借方インボイス, ?, 借方金額, 貸方科目名, ..., 貸方金額
+function isJournalFormat(data) {
+  for (let ri = 0; ri < Math.min(5, data.length); ri++) {
+    const row = data[ri];
+    const joined = row.join(',');
+    if (joined.includes('借方') && joined.includes('貸方') && joined.includes('金額')) return true;
+    if (joined.includes('日付') && joined.includes('科目')) return true;
+  }
+  return false;
+}
+
+function parseJournalData(data, startMonth) {
+  // ヘッダー行を探す
+  let headerRow = null, headerIdx = -1;
+  for (let ri = 0; ri < Math.min(5, data.length); ri++) {
+    const joined = data[ri].join('');
+    if (joined.includes('借方') && joined.includes('貸方')) {
+      headerRow = data[ri];
+      headerIdx = ri;
+      break;
+    }
+  }
+  if (!headerRow) return { rows: {}, unmapped: [], error: '仕訳帳のヘッダーを検出できませんでした。' };
+
+  // 列インデックスを特定
+  let dateCol=-1, drAccCol=-1, drAmtCol=-1, crAccCol=-1, crAmtCol=-1;
+  headerRow.forEach((h, i) => {
+    const s = String(h).replace(/\s/g,'');
+    if (dateCol < 0 && (s.includes('日付') || s.includes('伝票日付') || s === '日')) dateCol = i;
+    if (drAccCol < 0 && (s.includes('借方科目名') || s === '借方科目')) drAccCol = i;
+    if (drAmtCol < 0 && (s.includes('借方金額') || s === '借方')) drAmtCol = i;
+    if (crAccCol < 0 && (s.includes('貸方科目名') || s === '貸方科目')) crAccCol = i;
+    if (crAmtCol < 0 && (s.includes('貸方金額') || s === '貸方')) crAmtCol = i;
+  });
+
+  // 列が検出できない場合は位置推定（MJS仕訳帳の典型列）
+  if (dateCol < 0) dateCol = 1;
+  if (drAccCol < 0) drAccCol = 2;
+  if (drAmtCol < 0) drAmtCol = 8;
+  if (crAccCol < 0) crAccCol = 9;
+  if (crAmtCol < 0) crAmtCol = 15;
+
+  // 月ごと・科目ごとに集計
+  // accMonthMap[accName][monthIdx] = { dr: 0, cr: 0 }
+  const accMonthMap = {};
+
+  for (let ri = headerIdx + 1; ri < data.length; ri++) {
+    const row = data[ri];
+    const dateStr = String(row[dateCol] || '').trim();
+    if (!dateStr) continue;
+
+    // 日付から月を取得 (YYYY/MM/DD or YYYY-MM-DD or MM/DD)
+    let month = -1;
+    const m1 = dateStr.match(/\d{4}[\/\-](\d{1,2})[\/\-]\d{1,2}/);
+    const m2 = dateStr.match(/^(\d{1,2})[\/\-]\d{1,2}$/);
+    if (m1) month = parseInt(m1[1]) - 1; // 0-indexed
+    else if (m2) month = parseInt(m2[1]) - 1;
+    if (month < 0 || month > 11) continue;
+
+    // 予算インデックス（startMonthからの相対）
+    const budgetIdx = (month - (startMonth - 1) + 12) % 12;
+
+    const drAcc = String(row[drAccCol] || '').trim().replace(/\s+/g,'');
+    const crAcc = String(row[crAccCol] || '').trim().replace(/\s+/g,'');
+    const drAmt = parseNum(row[drAmtCol]);
+    const crAmt = parseNum(row[crAmtCol]);
+
+    if (drAcc && drAmt) {
+      if (!accMonthMap[drAcc]) accMonthMap[drAcc] = Array.from({length:12}, ()=>({dr:0,cr:0}));
+      accMonthMap[drAcc][budgetIdx].dr += drAmt;
+    }
+    if (crAcc && crAmt) {
+      if (!accMonthMap[crAcc]) accMonthMap[crAcc] = Array.from({length:12}, ()=>({dr:0,cr:0}));
+      accMonthMap[crAcc][budgetIdx].cr += crAmt;
+    }
+  }
+
+  // 科目性質に応じて金額を決定
+  // 収益科目: cr - dr（貸方残）
+  // 費用・資産科目: dr - cr（借方残）
+  const CREDIT_NATURE = new Set(['sales','sales_ec','sales_store','sales_other','int_income','misc_income','extra_income']);
+  const result = {};
+  const unmapped = [];
+
+  for (const [accName, months] of Object.entries(accMonthMap)) {
+    const accId = matchAccount(accName);
+    const values = months.map(({dr, cr}) => {
+      if (!accId) return Math.abs(dr - cr);
+      return CREDIT_NATURE.has(accId) ? (cr - dr) : (dr - cr);
+    });
+    const hasData = values.some(v => v !== 0);
+    if (!hasData) continue;
+    if (accId) {
+      if (!result[accId]) result[accId] = new Array(12).fill(0);
+      result[accId] = result[accId].map((v, i) => v + values[i]);
+    } else {
+      unmapped.push({ name: accName, values });
+    }
+  }
+
+  return { rows: result, unmapped, error: null };
+}
+
 // 汎用CSV/Excelパーサー
 function parseImportData(data, source, startMonth) {
   // data: 2D配列 (rows × cols)
@@ -230,8 +334,17 @@ function renderImport(container) {
         <input type="file" id="import_file_input" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportFile(this.files[0])">
       </div>
 
+
       <div id="import_preview"></div>
+
+      <div class="card">
+        <div class="flex-between" style="margin-bottom:12px">
+          <h3 style="margin:0">📁 インポート履歴</h3>
+        </div>
+        <div id="import_history"></div>
+      </div>
     </div>`;
+  setTimeout(renderImportHistory, 0);
 }
 
 function setImportSource(src, el) {
@@ -305,7 +418,16 @@ function parseCSV(text) {
 function runImportPreview() {
   if (!_importState.parsedData) return;
   const startMonth = parseInt(document.getElementById('import_start_month')?.value || 4);
-  const result = parseImportData(_importState.parsedData, _importState.source, startMonth);
+
+  // 仕訳帳か月次推移表かを自動判別
+  let result;
+  if (isJournalFormat(_importState.parsedData)) {
+    result = parseJournalData(_importState.parsedData, startMonth);
+    _importState.detectedFormat = '仕訳帳';
+  } else {
+    result = parseImportData(_importState.parsedData, _importState.source, startMonth);
+    _importState.detectedFormat = '月次推移表';
+  }
   _importState.importResult = { ...result, startMonth };
 
   const el = document.getElementById('import_preview');
@@ -343,7 +465,7 @@ function runImportPreview() {
   el.innerHTML = `
     <div class="card-h">
       <div class="flex-between" style="margin-bottom:14px">
-        <h3>📋 インポートプレビュー：${_importState.fileName}</h3>
+        <h3>📋 インポートプレビュー：${_importState.fileName} <span class="tag tag-indigo" style="font-size:10px;margin-left:6px">${_importState.detectedFormat || ''}</span></h3>
         <div style="display:flex;gap:8px;align-items:center">
           <span class="tag tag-green">認識済み ${mappedCount}科目</span>
           ${unmappedCount ? `<span class="tag tag-orange">未マッピング ${unmappedCount}科目</span>` : ''}
@@ -408,23 +530,34 @@ function executeImport() {
   let budget = getBudget(company.id, year);
   if (!budget) budget = createDefaultBudget(company.id, year);
 
-  // マージ（既存データ上書き）
   Object.assign(budget.rows, result.rows);
   budget.startMonth = result.startMonth;
   saveBudget(budget);
 
-  // 現在の年度と一致すればAppに反映
   if (year === window.App.currentYear) {
     window.App.currentBudget = budget;
-    // 年度セレクトを更新
     renderYearSelect(getYearsForCompany(company.id));
   }
 
+  // 履歴保存
+  const mapped = Object.keys(result.rows).length;
+  saveImportHistory({
+    id: generateId(),
+    companyId: company.id,
+    fileName: _importState.fileName,
+    format: _importState.detectedFormat || '月次推移表',
+    source: _importState.source,
+    year,
+    startMonth: result.startMonth,
+    mappedCount: mapped,
+    unmappedCount: result.unmapped.length,
+    importedAt: Date.now(),
+  });
+
   const el = document.getElementById('import_preview');
   if (el) {
-    const mapped = Object.keys(result.rows).length;
     el.insertAdjacentHTML('afterbegin', `
-      <div class="card" style="background:var(--green-light);border-color:var(--green);margin-bottom:12px;padding:14px 18px">
+      <div class="card" style="background:#f0fdf4;border-color:#6ee7b7;margin-bottom:12px;padding:14px 18px">
         <strong style="color:#065f46">✅ インポート完了</strong>
         <span style="font-size:12px;color:#065f46;margin-left:10px">
           ${year}年度に ${mapped}科目 をインポートしました。
@@ -435,4 +568,48 @@ function executeImport() {
         </button>
       </div>`);
   }
+
+  renderImportHistory();
+}
+
+function renderImportHistory() {
+  const el = document.getElementById('import_history');
+  if (!el) return;
+  const company = window.App?.currentCompany;
+  if (!company) { el.innerHTML = ''; return; }
+
+  const history = getImportHistory(company.id);
+  if (!history.length) {
+    el.innerHTML = `<p class="text-muted text-sm" style="padding:8px 0">まだインポート履歴がありません</p>`;
+    return;
+  }
+
+  const sourceLabel = { mjs: 'MJS', mf: 'MoneyForward', generic: '汎用' };
+  const rows = history.map(h => {
+    const dt = new Date(h.importedAt);
+    const dateStr = `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+    return `
+    <tr>
+      <td>${dateStr}</td>
+      <td><span class="tag tag-indigo">${escHtml(h.format)}</span></td>
+      <td><span class="tag tag-green">${sourceLabel[h.source] || h.source}</span></td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(h.fileName)}">${escHtml(h.fileName)}</td>
+      <td>${h.year}年度</td>
+      <td>${h.mappedCount}科目</td>
+      <td style="color:var(--text-muted)">${h.unmappedCount ? h.unmappedCount + '科目未対応' : '−'}</td>
+      <td>
+        <button class="btn-xs btn-danger btn-ghost" onclick="deleteImportHistory('${h.id}');renderImportHistory()">削除</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <table class="result-table" style="font-size:11.5px">
+      <thead>
+        <tr>
+          <th>日時</th><th>種別</th><th>ソース</th><th>ファイル名</th><th>対象年度</th><th>取込科目</th><th>未対応</th><th></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }

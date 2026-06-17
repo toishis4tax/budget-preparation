@@ -63,3 +63,29 @@ function getYearsForCompany(companyId) {
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
+
+// インポート履歴
+function getImportHistory(companyId) {
+  const data = loadData();
+  return (data.importHistory || []).filter(h => h.companyId === companyId).reverse();
+}
+
+function saveImportHistory(entry) {
+  const data = loadData();
+  if (!data.importHistory) data.importHistory = [];
+  data.importHistory.push(entry);
+  // 会社ごとに最大50件
+  const compId = entry.companyId;
+  const filtered = data.importHistory.filter(h => h.companyId === compId);
+  if (filtered.length > 50) {
+    const oldest = filtered[0];
+    data.importHistory = data.importHistory.filter(h => h !== oldest);
+  }
+  saveData(data);
+}
+
+function deleteImportHistory(id) {
+  const data = loadData();
+  data.importHistory = (data.importHistory || []).filter(h => h.id !== id);
+  saveData(data);
+}
