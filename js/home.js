@@ -21,38 +21,48 @@ function renderHome(container) {
     ? `${updatedAt.getFullYear()}/${String(updatedAt.getMonth()+1).padStart(2,'0')}/${String(updatedAt.getDate()).padStart(2,'0')} ${String(updatedAt.getHours()).padStart(2,'0')}:${String(updatedAt.getMinutes()).padStart(2,'0')}`
     : '未保存';
 
-  // ===== 業績サマリー計算 =====
-  let sales = 0, ordProfit = 0, netProfit = 0, cashEnd = 0;
-  let pretaxTotal = 0;
+  // ===== 3期分の業績データ取得 =====
+  const curYear  = window.App?.currentYear || new Date().getFullYear();
+  const budgetPrev1 = getBudget(company.id, curYear - 1);
+  const budgetPrev2 = getBudget(company.id, curYear - 2);
 
-  if (budget) {
-    const allVals = budget.dynamicAccounts
-      ? calcAllValuesDynamic(budget)
-      : calcAllValues(budget.rows);
-
-    const sum12 = id => (allVals[id] || []).reduce((a,b)=>a+b,0);
-    const last12 = id => (allVals[id] || new Array(12).fill(0))[11];
-
-    if (budget.dynamicAccounts) {
-      // 動的インポート科目から集計
-      const secRevId = budget.dynamicAccounts.find(a => a.id === 'sec_revenue')?.id;
-      sales      = secRevId ? sum12(secRevId) : 0;
-      ordProfit  = sum12('calc_ord') || sum12('calc_op');
-      pretaxTotal= sum12('calc_pretax') || ordProfit;
-      netProfit  = sum12('calc_net');
-      // BSのキャッシュ残高（最終月）
-      const cashAcc = budget.dynamicAccounts.find(a =>
+  const extractMetrics = b => {
+    if (!b) return null;
+    const allVals = b.dynamicAccounts ? calcAllValuesDynamic(b) : calcAllValues(b.rows);
+    const sum12 = id => (allVals[id] || []).reduce((a,v)=>a+v,0);
+    const last  = id => (allVals[id] || new Array(12).fill(0))[11];
+    if (b.dynamicAccounts) {
+      const cashAcc = b.dynamicAccounts.find(a =>
         a.section?.startsWith('bs') && a.name.replace(/\s/g,'').match(/現金|預金|現預金/)
       );
-      cashEnd = cashAcc ? last12(cashAcc.id) : 0;
-    } else {
-      sales       = sum12('sales');
-      ordProfit   = sum12('ord_profit');
-      pretaxTotal = sum12('pretax_profit');
-      netProfit   = sum12('net_profit');
-      cashEnd     = last12('cash');
+      return {
+        sales:      sum12('sec_revenue'),
+        gross:      sum12('calc_gross'),
+        op:         sum12('calc_op'),
+        ord:        sum12('calc_ord'),
+        pretax:     sum12('calc_pretax'),
+        net:        sum12('calc_net'),
+        cashEnd:    cashAcc ? last(cashAcc.id) : 0,
+      };
     }
-  }
+    const pl = calcPL(b.rows);
+    return {
+      sales:   pl.sales.reduce((a,v)=>a+v,0),
+      gross:   pl.gross_profit.reduce((a,v)=>a+v,0),
+      op:      pl.op_profit.reduce((a,v)=>a+v,0),
+      ord:     pl.ord_profit.reduce((a,v)=>a+v,0),
+      pretax:  pl.pretax_profit.reduce((a,v)=>a+v,0),
+      net:     pl.net_profit.reduce((a,v)=>a+v,0),
+      cashEnd: (allVals['cash'] || new Array(12).fill(0))[11],
+    };
+  };
+
+  const mCur   = extractMetrics(budget);
+  const mPrev1 = extractMetrics(budgetPrev1);
+  const mPrev2 = extractMetrics(budgetPrev2);
+
+  // 税額は当期のみ
+  const pretaxTotal = mCur?.pretax || 0;
 
   // ===== 税額計算 =====
   let taxTotal = 0, taxBreak = null;
@@ -160,22 +170,54 @@ function renderHome(container) {
         </div>
       </div>
 
-      <!-- 3カラム サマリー -->
+      <!-- 業績＋税務サマリー -->
       <div class="home-summary-grid">
 
-        <!-- 業績サマリー -->
-        <div class="home-card">
-          <div class="home-card-title">📈 業績サマリー（通期予測）</div>
-          ${[
-            { label: '売上高',         val: sales,       color: 'var(--emerald)' },
-            { label: '経常利益',       val: ordProfit,   color: ordProfit>=0?'#059669':'#dc2626' },
-            { label: '税引後利益（予）', val: netProfit || pretaxTotal - taxTotal, color: (netProfit||pretaxTotal-taxTotal)>=0?'#059669':'#dc2626' },
-            { label: '期末現預金残高', val: cashEnd,     color: cashEnd>0?'#0284c7':'#dc2626' },
-          ].map(item => `
-            <div class="summary-kpi">
-              <div class="kpi-label">${item.label}</div>
-              <div class="kpi-value" style="color:${item.color}">${fmtHome(item.val)}</div>
-            </div>`).join('')}
+        <!-- 業績サマリー（3期比較） -->
+        <div class="home-card home-card-wide">
+          <div class="home-card-title">📈 業績サマリー（3期比較）</div>
+          <table class="yr3-table">
+            <thead>
+              <tr>
+                <th class="yr3-label-col">科目</th>
+                <th class="yr3-num-col">${curYear-2}年度</th>
+                <th class="yr3-num-col">${curYear-1}年度</th>
+                <th class="yr3-num-col yr3-cur">${curYear}年度<br><span class="yr3-badge">当期予算</span></th>
+                <th class="yr3-num-col yr3-diff">前期比</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${[
+                { label:'売上高',      key:'sales',  profit:false },
+                { label:'売上総利益',  key:'gross',  profit:true  },
+                { label:'営業利益',    key:'op',     profit:true  },
+                { label:'経常利益',    key:'ord',    profit:true  },
+                { label:'税引前利益',  key:'pretax', profit:true  },
+                { label:'当期純利益',  key:'net',    profit:true  },
+              ].map(row => {
+                const v2 = mPrev2?.[row.key] ?? null;
+                const v1 = mPrev1?.[row.key] ?? null;
+                const v0 = mCur?.[row.key] ?? null;
+                const diffPct = (v1 && v0 !== null) ? Math.round((v0 - v1) / Math.abs(v1) * 100) : null;
+                const diffStr = diffPct !== null
+                  ? `<span style="color:${diffPct>=0?'#059669':'#dc2626'}">${diffPct>=0?'+':''}${diffPct}%</span>`
+                  : '—';
+                const fmtCell = (v, profit) => {
+                  if (v === null) return '<span class="yr3-nodata">—</span>';
+                  const c = profit ? (v>=0?'#059669':'#dc2626') : 'inherit';
+                  return `<span style="color:${c}">${fmtHome(v)}</span>`;
+                };
+                return `<tr class="yr3-row${row.profit?' yr3-profit':''}">
+                  <td class="yr3-label">${row.label}</td>
+                  <td class="yr3-num">${fmtCell(v2, row.profit)}</td>
+                  <td class="yr3-num">${fmtCell(v1, row.profit)}</td>
+                  <td class="yr3-num yr3-cur">${fmtCell(v0, row.profit)}</td>
+                  <td class="yr3-num yr3-diff">${diffStr}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+          <div style="margin-top:6px;font-size:10px;color:var(--text-muted)">単位：万円　前期比は前期→当期予算の変化率</div>
         </div>
 
         <!-- 税額サマリー -->

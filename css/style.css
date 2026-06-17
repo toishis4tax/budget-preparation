@@ -501,6 +501,21 @@ input[type=range]::-webkit-slider-thumb {
 .home-card { background: var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow-xs); border: 1px solid var(--border); padding: 16px 20px; }
 .home-card-title { font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: .04em; margin-bottom: 14px; text-transform: uppercase; }
 .home-summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.home-card-wide { grid-column: 1 / -1; }
+
+/* 3期比較テーブル */
+.yr3-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.yr3-table th { padding: 6px 12px; text-align: right; font-size: 11px; font-weight: 700; color: var(--text-muted); border-bottom: 2px solid var(--border); white-space: nowrap; }
+.yr3-table th.yr3-label-col { text-align: left; }
+.yr3-table td { padding: 7px 12px; border-bottom: 1px solid var(--border); }
+.yr3-label { font-size: 12px; color: var(--text); white-space: nowrap; }
+.yr3-num { text-align: right; font-variant-numeric: tabular-nums; }
+.yr3-nodata { color: var(--text-muted); }
+.yr3-row.yr3-profit td { font-weight: 600; }
+.yr3-cur { background: rgba(29,111,184,.04); }
+.yr3-diff { color: var(--text-muted); }
+.yr3-badge { display: inline-block; background: var(--primary); color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 700; margin-top: 2px; vertical-align: middle; }
+.yr3-num-col { min-width: 90px; }
 
 /* 予算進捗 */
 .home-progress-card {}
