@@ -439,13 +439,234 @@ function parseMjsMonthlySmart(data, startMonth) {
   return { dynamicAccounts: accts, rows, unmapped: [], error: null };
 }
 
+// ===== ミロク 月次推移財務報告書パーサー =====
+// 形式: col0=帳票種別, col1=コード, col2=科目名, col5-16=累計推移/4月〜3月
+// 累計値を月次に変換: monthly[0]=cum[0], monthly[i]=cum[i]-cum[i-1]
+function parseMirokuMonthlySmart(data, startMonth) {
+  const hdrRow = data[0] || [];
+
+  // 累計推移列を検出 (累計推移/4月 等)
+  const cumCols = {};
+  for (let i = 0; i < hdrRow.length; i++) {
+    const s = String(hdrRow[i] || '').trim();
+    const m = s.match(/累計推移[\/\/](\d+)月/);
+    if (m) cumCols[parseInt(m[1])] = i;
+  }
+  if (Object.keys(cumCols).length < 6) {
+    return { dynamicAccounts: [], rows: {}, unmapped: [], error: '累計推移列を検出できませんでした。' };
+  }
+
+  // 予算月順に列インデックス配列を作成
+  const budgetCumCols = [];
+  for (let i = 0; i < 12; i++) {
+    const m = ((startMonth - 1 + i) % 12) + 1;
+    budgetCumCols.push(cumCols[m] ?? -1);
+  }
+
+  // 累計→月次変換
+  const deCumulate = cumVals => cumVals.map((v, i) => i === 0 ? v : v - cumVals[i - 1]);
+  const getVals = row => deCumulate(budgetCumCols.map(col => col >= 0 ? parseNum(row[col]) : 0));
+
+  // PL セクション情報
+  const PL_SECTIONS = {
+    sec_revenue:    { name: '売上高',               section: 'pl', sign:  1 },
+    sec_cogs:       { name: '売上原価',             section: 'pl', sign: -1 },
+    sec_sga:        { name: '販売費及び一般管理費', section: 'pl', sign: -1 },
+    sec_non_op_inc: { name: '営業外収益',           section: 'pl', sign:  1 },
+    sec_non_op_exp: { name: '営業外費用',           section: 'pl', sign: -1 },
+    sec_extra_inc:  { name: '特別利益',             section: 'pl', sign:  1 },
+    sec_extra_exp:  { name: '特別損失',             section: 'pl', sign: -1 },
+    sec_tax_etc:    { name: '法人税等',             section: 'pl', sign: -1 },
+  };
+
+  // PL 【】〔〕マーカー → アクション定義
+  const PL_BRACKET_ACTIONS = {
+    '【純売上高】':              { nextSection: 'sec_cogs' },
+    '【売上原価】':              {},
+    '〔売上総利益〕':            { nextSection: 'sec_sga',         calc: { id:'calc_gross',  name:'売上総利益',       formula:'sec_revenue - sec_cogs',                    bold:true } },
+    '【販売費及び一般管理費】':  {},
+    '〔営業利益〕':              { nextSection: 'sec_non_op_inc',  calc: { id:'calc_op',     name:'営業利益',         formula:'calc_gross - sec_sga',                      bold:true } },
+    '【営業外収益】':            { nextSection: 'sec_non_op_exp' },
+    '【営業外費用】':            {},
+    '〔経常利益〕':              { nextSection: 'sec_extra_inc',   calc: { id:'calc_ord',    name:'経常利益',         formula:'calc_op + sec_non_op_inc - sec_non_op_exp', bold:true } },
+    '【特別利益】':              {},
+    '【特別損失】':              {},
+    '〔税引前当期純利益〕':      { nextSection: 'sec_tax_etc',     calc: { id:'calc_pretax', name:'税引前当期純利益', formula:'calc_ord + sec_extra_inc - sec_extra_exp',  bold:true } },
+    '〔当期純利益〕':            {},
+    '〔期首繰越利益剰余金〕':    {},
+    '〔期末繰越利益剰余金〕':    {},
+  };
+
+  // BS メインセクション 【】 → セクションID
+  const BS_MAIN_BRACKETS = {
+    '【流動資産】':           'sec_cur_asset',
+    '【固定資産】':           'sec_fix_asset',
+    '【流動負債】':           'sec_cur_liab',
+    '【固定負債】':           'sec_fix_liab',
+    '【純資産の部】':         'sec_equity',
+    '【株主資本】':           'sec_equity',
+  };
+  const BS_SECTIONS = {
+    sec_cur_asset: { name: '流動資産', section: 'bs_asset', sign: 1 },
+    sec_fix_asset: { name: '固定資産', section: 'bs_asset', sign: 1 },
+    sec_cur_liab:  { name: '流動負債', section: 'bs_liab',  sign: 1 },
+    sec_fix_liab:  { name: '固定負債', section: 'bs_liab',  sign: 1 },
+    sec_equity:    { name: '純資産',   section: 'bs_equity', sign: 1 },
+  };
+
+  const accts = [], rows = {};
+  let ctr = 0;
+  const mkId = prefix => `${prefix}${++ctr}`;
+  const seenSecs = new Set();
+
+  const ensureSection = (secId, sections) => {
+    if (seenSecs.has(secId)) return;
+    seenSecs.add(secId);
+    const info = sections[secId];
+    if (info) accts.push({ id: secId, name: info.name, type: 'section', indent: 0, section: info.section, sign: info.sign });
+  };
+
+  // PL状態
+  let plSection = null;   // 現在のPLセクションID (最初はnull→sec_revenue)
+  let plLastParent = null;
+
+  // BS: バッファ方式（セクション確定まで保留）
+  let bsPending = [];     // { id, name, indent, parentId, sign, vals }
+  let bsLastParent = null;
+
+  for (let ri = 1; ri < data.length; ri++) {
+    const row = data[ri];
+    if (!row || !row.length) continue;
+
+    const colType = String(row[0] || '').trim();
+    const colName = String(row[2] || '').trim().replace(/^"+|"+$/g, '');
+    if (!colType || !colName) continue;
+
+    const isIndented = colName.startsWith('　');
+    const nameTrim = colName.trim();
+    const hasBracket = /^【|^〔/.test(nameTrim);
+
+    if (colType === '損益計算書') {
+      if (hasBracket) {
+        const action = PL_BRACKET_ACTIONS[nameTrim] || PL_BRACKET_ACTIONS[nameTrim.replace(/\s/g, '')];
+        if (action) {
+          if (action.calc && !accts.find(a => a.id === action.calc.id)) {
+            accts.push({ ...action.calc, type: 'calculated', indent: 0, section: 'pl' });
+          }
+          if (action.nextSection) {
+            plSection = action.nextSection;
+            ensureSection(plSection, PL_SECTIONS);
+            plLastParent = null;
+          }
+        }
+        continue;
+      }
+
+      // 最初のPL行でsec_revenueを作成
+      if (plSection === null) {
+        plSection = 'sec_revenue';
+        ensureSection(plSection, PL_SECTIONS);
+      }
+
+      const vals = getVals(row);
+      if (!vals.some(v => v !== 0)) {
+        if (!isIndented) plLastParent = null;
+        continue;
+      }
+
+      const sInfo = PL_SECTIONS[plSection];
+      const aid = mkId('p');
+      if (isIndented && plLastParent) {
+        accts.push({ id: aid, name: nameTrim, type: 'input', indent: 2, parentId: plLastParent.id, section: sInfo?.section || 'pl', sign: sInfo?.sign ?? 1 });
+      } else {
+        const a = { id: aid, name: nameTrim, type: 'input', indent: 1, parentId: plSection, section: sInfo?.section || 'pl', sign: sInfo?.sign ?? 1 };
+        accts.push(a);
+        plLastParent = a;
+      }
+      rows[aid] = vals;
+
+    } else if (colType === '貸借対照表') {
+      if (hasBracket) {
+        const bsSecId = BS_MAIN_BRACKETS[nameTrim] || BS_MAIN_BRACKETS[nameTrim.replace(/\s/g, '')];
+        if (bsSecId) {
+          // バッファをこのセクションに確定
+          ensureSection(bsSecId, BS_SECTIONS);
+          const sInfo = BS_SECTIONS[bsSecId];
+          bsPending.forEach(pa => {
+            pa.parentId = pa.parentId || bsSecId;
+            pa.section = sInfo?.section;
+            accts.push(pa);
+          });
+          bsPending = [];
+          bsLastParent = null;
+        }
+        // すべての【】行をスキップ
+        continue;
+      }
+
+      const vals = getVals(row);
+      if (!vals.some(v => v !== 0)) {
+        if (!isIndented) bsLastParent = null;
+        continue;
+      }
+
+      const aid = mkId('b');
+      if (isIndented && bsLastParent) {
+        const pa = { id: aid, name: nameTrim, type: 'input', indent: 2, parentId: bsLastParent.id, section: null, sign: 1 };
+        bsPending.push(pa);
+      } else {
+        const pa = { id: aid, name: nameTrim, type: 'input', indent: 1, parentId: null, section: null, sign: 1 };
+        bsPending.push(pa);
+        bsLastParent = pa;
+      }
+      rows[aid] = vals;
+    }
+  }
+
+  // post-process: 補助科目を持つ親をtypeをparentに
+  const childParents = new Set();
+  accts.forEach(a => { if (a.indent === 2) childParents.add(a.parentId); });
+  accts.forEach(a => { if (childParents.has(a.id)) a.type = 'parent'; });
+
+  // 当期純利益の計算行を追加
+  if (!accts.find(a => a.id === 'calc_net')) {
+    const corpTax = accts.find(a => a.type !== 'calculated' && a.name.replace(/\s+/g,'').includes('法人税'));
+    const pretaxIdx = accts.findIndex(a => a.id === 'calc_pretax');
+    if (pretaxIdx >= 0) {
+      const insAfter = corpTax ? accts.findIndex(a => a.id === corpTax.id) : pretaxIdx;
+      const formula = corpTax ? `calc_pretax - ${corpTax.id}` : 'calc_pretax';
+      accts.splice(insAfter + 1, 0, { id: 'calc_net', name: '当期純利益', type: 'calculated', indent: 0, section: 'pl', bold: true, formula });
+    }
+  }
+
+  // BS計算行
+  const insertBsCalc = (afterSec, calcDef) => {
+    if (!seenSecs.has(afterSec) || accts.find(a => a.id === calcDef.id)) return;
+    let ins = accts.findIndex(a => a.id === afterSec);
+    for (let i = ins + 1; i < accts.length; i++) {
+      if (accts[i].type === 'section' || accts[i].type === 'calculated') break;
+      ins = i;
+    }
+    accts.splice(ins + 1, 0, { ...calcDef, type: 'calculated', indent: 0, bold: true });
+  };
+  insertBsCalc('sec_fix_asset', { id:'calc_total_assets', name:'資産合計',       section:'bs_asset',  formula:'sec_cur_asset + sec_fix_asset' });
+  insertBsCalc('sec_fix_liab',  { id:'calc_total_liab',   name:'負債合計',       section:'bs_liab',   formula:'sec_cur_liab + sec_fix_liab' });
+  insertBsCalc('sec_equity',    { id:'calc_liab_eq',      name:'負債純資産合計', section:'bs_equity', formula:'calc_total_liab + sec_equity' });
+
+  return { dynamicAccounts: accts, rows, unmapped: [], error: null };
+}
+
 // ===== 汎用CSV/Excelパーサー =====
 function parseImportData(data, source, startMonth) {
   const result = {};
   const unmapped = [];
 
-  // ミロク・MoneyForwardの月次推移表は同じ列構造（col0=大区分, col1=勘定科目, col2=補助科目）
   if (source === 'mjs' || source === 'mf') {
+    // ミロク 月次推移財務報告書 (帳票種別形式) を自動検出
+    const firstCell = String(data[0]?.[0] || '').trim();
+    if (firstCell === '帳票種別') {
+      return parseMirokuMonthlySmart(data, startMonth);
+    }
     return parseMjsMonthlySmart(data, startMonth);
   }
 
