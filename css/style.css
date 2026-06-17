@@ -292,6 +292,48 @@ body {
 .header-row { background: #f9fafb; }
 .section-row td { background: #e5e7eb !important; font-weight: 800; color: #374151; font-size: 12px; letter-spacing: .03em; border-top: 2px solid #9ca3af; }
 .section-row td.sticky-col { background: #e5e7eb !important; }
+
+/* ===== 実績/予算 列色分け ===== */
+.actual-hdr { background: #dbeafe !important; color: #1e40af !important; font-size: 11px; }
+.budget-hdr { background: #f0fdf4 !important; }
+.actual-label-row th { padding: 1px 4px; font-size: 10px; font-weight: 600; border-bottom: 2px solid var(--border); }
+.actual-label-cell.actual-hdr { color: #1d4ed8; }
+.actual-label-cell.budget-hdr { color: #059669; }
+.actual-col { background: #eff6ff !important; }
+.actual-col .cell-input, .actual-input { background: transparent; color: #1e3a8a; }
+.actual-col .cell-input:focus { background: #dbeafe; }
+
+/* ===== 折りたたみボタン ===== */
+.collapse-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; margin-right: 2px;
+  border: none; background: transparent; cursor: pointer;
+  font-size: 9px; color: var(--text-muted); padding: 0;
+  border-radius: 3px; flex-shrink: 0;
+}
+.collapse-btn:hover { background: var(--border); color: var(--text); }
+.collapse-spacer { display: inline-block; width: 18px; flex-shrink: 0; }
+
+/* ===== 行選択 ===== */
+.selected-row td { background: #fef3c7 !important; }
+.selected-row td.sticky-col { background: #fde68a !important; }
+.acc-name { cursor: pointer; }
+.toolbar-hint { font-size: 11px; color: var(--emerald); font-weight: 600; margin-left: 4px; }
+.toolbar-label { font-size: 11px; color: var(--text-muted); margin-right: 4px; }
+
+/* ===== PL/BSモードタブ ===== */
+.grid-mode-tabs {
+  display: flex; gap: 0; border-bottom: 2px solid var(--border);
+  background: var(--bg-card); padding: 0 16px;
+}
+.grid-mode-tab {
+  padding: 8px 20px; font-size: 12px; font-weight: 600;
+  border: none; background: transparent; cursor: pointer;
+  color: var(--text-muted); border-bottom: 2px solid transparent;
+  margin-bottom: -2px; transition: color .15s, border-color .15s;
+}
+.grid-mode-tab.active { color: var(--emerald); border-bottom-color: var(--emerald); }
+.grid-mode-tab:hover:not(.active) { color: var(--text); }
 .bold-row td { font-weight: 800; }
 .input-row td.sticky-col { background: #fff; }
 .cell-input {
