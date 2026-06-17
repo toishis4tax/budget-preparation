@@ -101,27 +101,58 @@ function renderExecComp(container, budget) {
 
       <!-- ①利益ゼロ化 -->
       <div id="exec_tab_zero" style="display:${_execTab==='zero'?'block':'none'}">
-        <div class="sim-grid">
-          <div class="card-h">
-            <h3>📋 今期の着地予測</h3>
-            <div class="form-group">
-              <label>現状の税引前利益（予算ベース）</label>
-              <input type="number" id="zero_pretax" value="${pretax}" step="100000" class="form-input" oninput="calcZeroOut()">
+        <div style="display:grid;grid-template-columns:340px 1fr;gap:18px">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="card-h">
+              <h3>📋 今期の着地予測</h3>
+              <div class="form-group">
+                <label>現状の税引前利益（予算ベース）</label>
+                <input type="number" id="zero_pretax" value="${pretax}" step="100000" class="form-input" oninput="calcZeroOut()">
+              </div>
+              <div class="form-group">
+                <label>協会けんぽ（都道府県）</label>
+                <select id="zero_pref" class="form-input" onchange="calcZeroOut()">${prefOptions}</select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>配分方法</label>
+                <select id="zero_split_mode" class="form-input" onchange="calcZeroOut()">
+                  <option value="equal">均等分割（50:50）</option>
+                  <option value="ratio">比率指定</option>
+                  <option value="officer1">役員①のみ</option>
+                  <option value="officer2">役員②のみ</option>
+                </select>
+              </div>
+              <div id="zero_ratio_row" style="display:none;margin-top:10px;padding:10px;background:var(--bg);border-radius:8px">
+                <label style="font-size:11px;font-weight:600;color:var(--text-muted)">役員①の配分比率 (%)</label>
+                <input type="number" id="zero_ratio1" value="60" min="0" max="100" class="form-input" style="margin-top:4px" oninput="calcZeroOut()">
+              </div>
             </div>
-            <div class="form-group">
-              <label>協会けんぽ（都道府県）</label>
-              <select id="zero_pref" class="form-input" onchange="calcZeroOut()">${prefOptions}</select>
+
+            <div class="card-h">
+              <h3>👤 役員①</h3>
+              <div class="form-group">
+                <label>月額報酬（円）</label>
+                <input type="number" id="zero_monthly1" value="${_execState.officers[0]?.monthly || 800000}" step="10000" class="form-input" oninput="calcZeroOut()">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>年齢</label>
+                <input type="number" id="zero_age1" value="${_execState.officers[0]?.age || 50}" class="form-input" oninput="calcZeroOut()">
+              </div>
             </div>
-            <div class="form-group">
-              <label>対象役員の月額報酬（円）</label>
-              <input type="number" id="zero_monthly" value="${_execState.officers[0]?.monthly || 800000}" step="10000" class="form-input" oninput="calcZeroOut()">
-              <div style="font-size:10px;color:var(--text-muted);margin-top:3px">社会保険料の標準報酬月額算定に使用します</div>
-            </div>
-            <div class="form-group">
-              <label>対象役員の年齢</label>
-              <input type="number" id="zero_age" value="${_execState.officers[0]?.age || 50}" class="form-input" oninput="calcZeroOut()">
+
+            <div class="card-h">
+              <h3>👤 役員②</h3>
+              <div class="form-group">
+                <label>月額報酬（円）</label>
+                <input type="number" id="zero_monthly2" value="${_execState.officers[1]?.monthly || 500000}" step="10000" class="form-input" oninput="calcZeroOut()">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>年齢</label>
+                <input type="number" id="zero_age2" value="${_execState.officers[1]?.age || 45}" class="form-input" oninput="calcZeroOut()">
+              </div>
             </div>
           </div>
+
           <div class="card-h" id="zero_result">
             <h3>💡 推奨役員賞与・調整額</h3>
             <div class="no-data-small">左の値を入力してください</div>
@@ -439,47 +470,83 @@ function switchExecTab(tab) {
   });
 }
 
-// ===== ①利益ゼロ化計算 =====
+// ===== ①利益ゼロ化計算（2名対応） =====
 function calcZeroOut() {
   const el = document.getElementById('zero_result');
   if (!el) return;
 
-  const pretax  = parseFloat(document.getElementById('zero_pretax')?.value  || 0);
-  const monthly = parseFloat(document.getElementById('zero_monthly')?.value || 800000);
-  const age     = parseFloat(document.getElementById('zero_age')?.value     || 50);
-  const pref    = document.getElementById('zero_pref')?.value || '東京都';
+  const pretax    = parseFloat(document.getElementById('zero_pretax')?.value || 0);
+  const pref      = document.getElementById('zero_pref')?.value || '東京都';
+  const splitMode = document.getElementById('zero_split_mode')?.value || 'equal';
+  const monthly1  = parseFloat(document.getElementById('zero_monthly1')?.value || 800000);
+  const age1      = parseFloat(document.getElementById('zero_age1')?.value || 50);
+  const monthly2  = parseFloat(document.getElementById('zero_monthly2')?.value || 500000);
+  const age2      = parseFloat(document.getElementById('zero_age2')?.value || 45);
+
+  // 比率行の表示切替
+  const ratioRow = document.getElementById('zero_ratio_row');
+  if (ratioRow) ratioRow.style.display = splitMode === 'ratio' ? 'block' : 'none';
 
   if (pretax <= 0) {
     el.innerHTML = '<h3>💡 推奨役員賞与・調整額</h3><div class="no-data-small">利益がありません。賞与調整は不要です。</div>';
     return;
   }
 
-  // 社会保険料率（会社負担）を賞与ベースで試算
-  // 賞与B、法定福利費（賞与分）= B × si_rate
-  // B + B × si_rate = pretax → B = pretax / (1 + si_rate)
-  // si_rateを求めるため、月額報酬の標準報酬で計算（簡易）
-  const siBase  = calcSocialInsurance(monthly, 0, age, pref);
-  const siRate  = monthly > 0 ? siBase.annual / (monthly * 12) : 0.145;
+  // 各役員の社会保険料率（会社負担）を算出
+  const si1 = calcSocialInsurance(monthly1, 0, age1, pref);
+  const rate1 = monthly1 > 0 ? si1.annual / (monthly1 * 12) : 0.145;
+  const si2 = calcSocialInsurance(monthly2, 0, age2, pref);
+  const rate2 = monthly2 > 0 ? si2.annual / (monthly2 * 12) : 0.145;
 
-  const bonus   = Math.round(pretax / (1 + siRate));
-  const welfare = pretax - bonus;
-  const remain  = pretax - bonus - welfare;
+  // 配分比率を決定
+  let ratio1 = 0.5, ratio2 = 0.5;
+  if (splitMode === 'equal')   { ratio1 = 0.5;  ratio2 = 0.5; }
+  if (splitMode === 'officer1'){ ratio1 = 1.0;  ratio2 = 0.0; }
+  if (splitMode === 'officer2'){ ratio1 = 0.0;  ratio2 = 1.0; }
+  if (splitMode === 'ratio') {
+    const r = Math.min(100, Math.max(0, parseFloat(document.getElementById('zero_ratio1')?.value || 60)));
+    ratio1 = r / 100; ratio2 = 1 - ratio1;
+  }
 
-  // 税額比較（賞与なし vs 賞与あり）
+  // 全体の賞与総額を計算
+  // 賞与B全体、各人に r1×B, r2×B 支給
+  // 法定福利費 = r1×B×rate1 + r2×B×rate2
+  // B + r1×B×rate1 + r2×B×rate2 = pretax
+  // B × (1 + r1×rate1 + r2×rate2) = pretax
+  const combinedRate = ratio1 * rate1 + ratio2 * rate2;
+  const totalBonus   = Math.round(pretax / (1 + combinedRate));
+  const bonus1  = Math.round(totalBonus * ratio1);
+  const bonus2  = Math.round(totalBonus * ratio2);
+  const welfare1 = Math.round(bonus1 * rate1);
+  const welfare2 = Math.round(bonus2 * rate2);
+  const totalWelfare = welfare1 + welfare2;
+  const remain = pretax - totalBonus - totalWelfare;
+
   const capital = window.App?.currentCompany?.capital || 10_000_000;
   const taxBefore = calcAllTax(pretax, capital);
   const taxAfter  = calcAllTax(Math.max(0, remain), capital);
-
   const fmtV = v => Math.round(v).toLocaleString();
+
+  const officerRow = (label, bonus, welfare) => bonus === 0 ? '' : `
+    <div style="background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:12px;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:#065f46;margin-bottom:8px">${label}</div>
+      <div class="tax-kpi-row"><span>役員賞与</span><span style="font-weight:700">${fmtV(bonus)}円</span></div>
+      <div class="tax-kpi-row"><span>法定福利費（賞与分）</span><span>${fmtV(welfare)}円</span></div>
+    </div>`;
 
   el.innerHTML = `
     <h3>💡 推奨役員賞与・調整額</h3>
     <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:16px;margin-bottom:14px">
-      <div style="font-size:11px;color:#166534;font-weight:700;margin-bottom:10px">推奨内訳</div>
-      <div class="tax-kpi-row"><span>役員賞与（損金算入）</span><span style="font-weight:700;color:#166534">${fmtV(bonus)}円</span></div>
-      <div class="tax-kpi-row"><span>法定福利費（賞与分）</span><span style="font-weight:700;color:#166534">${fmtV(welfare)}円</span></div>
-      <div class="tax-kpi-total"><span>合計</span><span>${fmtV(bonus+welfare)}円</span></div>
-      <div class="tax-kpi-row" style="margin-top:6px"><span>調整後　税引前利益</span><span style="font-weight:700;color:${remain===0?'#166534':'#dc2626'}">${fmtV(remain)}円</span></div>
+      <div style="font-size:11px;color:#166534;font-weight:700;margin-bottom:10px">合計</div>
+      <div class="tax-kpi-row"><span>役員賞与 合計</span><span style="font-weight:700;color:#166534">${fmtV(totalBonus)}円</span></div>
+      <div class="tax-kpi-row"><span>法定福利費 合計</span><span style="font-weight:700;color:#166534">${fmtV(totalWelfare)}円</span></div>
+      <div class="tax-kpi-total"><span>支出合計</span><span>${fmtV(totalBonus + totalWelfare)}円</span></div>
+      <div class="tax-kpi-row" style="margin-top:6px"><span>調整後　税引前利益</span>
+        <span style="font-weight:700;color:${Math.abs(remain)<1000?'#166534':'#dc2626'}">${fmtV(remain)}円</span></div>
+    </div>
+    <div style="margin-bottom:12px">
+      ${officerRow('👤 役員①', bonus1, welfare1)}
+      ${officerRow('👤 役員②', bonus2, welfare2)}
     </div>
     <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">法人税の変化（概算）</div>
     <div class="tax-kpi-row"><span>賞与なし　法人税等</span><span>${fmtV(taxBefore.total)}円</span></div>
@@ -489,7 +556,7 @@ function calcZeroOut() {
       ※役員賞与を損金算入するには事前確定届出給与の届出が必要です<br>
       ※社会保険料率は月額報酬の標準報酬月額から概算
     </div>
-    <button class="btn-solid" onclick="applyZeroOutToAdj(${bonus}, ${welfare})">調整列に反映する →</button>`;
+    <button class="btn-solid" onclick="applyZeroOutToAdj(${totalBonus}, ${totalWelfare})">調整列に反映する →</button>`;
 }
 
 // 調整列（col 12）へ反映

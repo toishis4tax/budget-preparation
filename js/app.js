@@ -9,8 +9,9 @@ window.App = {
 };
 
 // 共通フォーマット関数（全モジュールから参照）
-window.fmt  = v => Math.round(v).toLocaleString('ja-JP') + '円';
-window.fmtK = v => Math.round(v / 1000).toLocaleString('ja-JP');
+const _safeN = v => (isNaN(v) || !isFinite(v)) ? 0 : v;
+window.fmt  = v => Math.round(_safeN(v)).toLocaleString('ja-JP') + '円';
+window.fmtK = v => Math.round(_safeN(v) / 1000).toLocaleString('ja-JP');
 
 document.addEventListener('DOMContentLoaded', () => {
   loadApp();
@@ -163,6 +164,7 @@ function showPage(page) {
   switch (page) {
     case 'home':       renderHome(container);                             break;
     case 'budget':     renderGrid(container, budget);                     break;
+    case 'revenue':    renderRevenue(container);                          break;
     case 'import':     renderImport(container);                           break;
     case 'simulation': renderSimulation(container, budget);               break;
     case 'nextyear':   renderNextYearSim(container, budget);              break;

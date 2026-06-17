@@ -1,8 +1,11 @@
 // Excelライク入力グリッド
 
+const safeRound = v => (isNaN(v) || !isFinite(v)) ? 0 : Math.round(v);
+
 let _copyBuffer    = null;
 let _selectedCell  = null;
 let _selectedRows  = new Set();   // 選択中の行 (accId)
+let _selAnchor     = null;        // Shift選択のアンカー行 (accId)
 let _collapsedParents = new Set(); // 折りたたみ中の親 (accId)
 let _gridMode      = 'pl';        // 'pl' | 'bs'
 
@@ -15,28 +18,67 @@ function setGridMode(mode) {
   _selectedRows.clear();
   const budget = window.App?.currentBudget;
   if (!budget) return;
-  const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
+  const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(getMergedRows(budget));
   renderGridRows(budget, allVals, getMonthLabels(budget.startMonth || 4));
 }
 
-// ===== 実績確定月 =====
-function setActualThrough(val) {
+// ===== 実績/予算データ統合 =====
+// actualColsで「実」の月はactualRows、「予」の月はrowsの値を使う
+function getMergedRows(budget) {
+  const cols = getActualCols(budget);
+  const base = budget.rows || {};
+  const actual = budget.actualRows || {};
+  const merged = {};
+  const allIds = new Set([...Object.keys(base), ...Object.keys(actual)]);
+  allIds.forEach(id => {
+    merged[id] = Array.from({length: 13}, (_, i) => {
+      if (i >= 12) return (base[id]?.[i] || 0); // 調整列は予算のまま
+      return cols[i] ? (actual[id]?.[i] || 0) : (base[id]?.[i] || 0);
+    });
+  });
+  return merged;
+}
+
+// ===== 実績/予算トグル =====
+function getActualCols(budget) {
+  // 新形式: budget.actualCols = [bool x 12]
+  if (budget.actualCols) return budget.actualCols;
+  // 旧形式 actualThrough から移行
+  const at = budget.actualThrough ?? -1;
+  return Array.from({length: 12}, (_, i) => i <= at);
+}
+
+function toggleActualCol(colIdx) {
   const budget = window.App?.currentBudget;
   if (!budget) return;
-  budget.actualThrough = parseInt(val);
+  const cols = getActualCols(budget);
+  cols[colIdx] = !cols[colIdx];
+  budget.actualCols = cols;
   saveBudget(budget);
-  // ヘッダー色を更新（再描画）
-  const at = budget.actualThrough ?? -1;
-  document.querySelectorAll('#budget_grid thead th.month-col').forEach((th, i) => {
-    th.classList.toggle('actual-hdr', i <= at);
-    th.classList.toggle('budget-hdr', i > at);
+  _applyActualStyles(cols);
+}
+
+function _applyActualStyles(cols) {
+  // ヘッダーバッジ更新
+  document.querySelectorAll('#budget_grid thead th.month-col[data-col]').forEach(th => {
+    const i = parseInt(th.dataset.col);
+    if (i < 0 || i >= 12) return;
+    const isActual = cols[i];
+    th.classList.toggle('actual-hdr', isActual);
+    th.classList.toggle('budget-hdr', !isActual);
+    const badge = th.querySelector('.act-badge');
+    if (badge) {
+      badge.textContent = isActual ? '実' : '予';
+      badge.className = 'act-badge ' + (isActual ? 'act-actual' : 'act-budget');
+    }
   });
-  document.querySelectorAll('#budget_grid thead th.actual-label').forEach(th => th.remove());
-  // 入力セルの背景更新
-  document.querySelectorAll('#grid_tbody .val-cell').forEach(td => {
-    const col = parseInt(td.dataset.col ?? td.querySelector('.cell-input')?.dataset.col ?? -1);
-    if (col < 0) return;
-    td.classList.toggle('actual-col', col <= at);
+  // セル背景更新
+  document.querySelectorAll('#grid_tbody .val-cell[data-col]').forEach(td => {
+    const col = parseInt(td.dataset.col);
+    if (col < 0 || col >= 12) return;
+    td.classList.toggle('actual-col', !!cols[col]);
+    const inp = td.querySelector('.cell-input');
+    if (inp) inp.classList.toggle('actual-input', !!cols[col]);
   });
 }
 
@@ -48,7 +90,7 @@ function toggleCollapse(parentId, e) {
 
   const budget = window.App?.currentBudget;
   if (!budget) return;
-  const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
+  const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(getMergedRows(budget));
   renderGridRows(budget, allVals, getMonthLabels(budget.startMonth || 4));
 }
 
@@ -110,8 +152,8 @@ function renderGrid(container, budget) {
   }
 
   const months = getMonthLabels(budget.startMonth || 4);
-  const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
-  const at = budget.actualThrough ?? -1;
+  const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(getMergedRows(budget));
+  const actualCols = getActualCols(budget);
   const hasDynamic = !!(budget.dynamicAccounts?.length);
 
   // PL/BSタブ（動的インポート時のみ）
@@ -126,6 +168,7 @@ function renderGrid(container, budget) {
       <div class="toolbar-left">
         <button class="btn btn-sm" onclick="addSubAccount()">＋補助科目追加</button>
         <button class="btn btn-sm" onclick="deleteSelectedRow()">行削除</button>
+        <button class="btn btn-sm" onclick="clearRowSelection()" title="選択解除">✕ 選択解除</button>
         <span class="sep">|</span>
         <select id="fill_type" class="toolbar-select">
           <option value="copy">横引きコピー（選択値）</option>
@@ -139,12 +182,7 @@ function renderGrid(container, budget) {
         <span class="toolbar-hint" id="fill_hint"></span>
       </div>
       <div class="toolbar-right">
-        <label class="toolbar-label">実績確定月:</label>
-        <select id="actual_through" class="toolbar-select" onchange="setActualThrough(this.value)">
-          <option value="-1"${at===-1?' selected':''}>なし</option>
-          ${months.map((m,i)=>`<option value="${i}"${at===i?' selected':''}>${m}まで</option>`).join('')}
-        </select>
-        <span class="sep">|</span>
+        <button class="btn-solid btn-sm" onclick="showBudgetCompleteModal()" style="gap:5px">✅ 入力完了 →</button>
         <button class="btn btn-sm" onclick="exportCSV(window.App?.currentBudget)">CSV出力</button>
         <button class="btn btn-sm" onclick="exportExcel(window.App?.currentBudget)">Excel出力</button>
         <button class="btn btn-sm" onclick="printBudget()">印刷</button>
@@ -155,16 +193,18 @@ function renderGrid(container, budget) {
       <table class="budget-grid" id="budget_grid" cellspacing="0">
         <thead>
           <tr>
-            <th class="acc-col sticky-col">科目</th>
-            ${months.map((m,i) => `<th class="month-col${i<=at?' actual-hdr':' budget-hdr'}" data-col="${i}">${m}</th>`).join('')}
+            <th class="acc-col sticky-col" style="font-size:10px;color:var(--text-muted);font-weight:400;padding:0 6px">科目名クリックで行選択</th>
+            ${months.map((m,i) => {
+              const isA = actualCols[i];
+              return `<th class="month-col${isA?' actual-hdr':' budget-hdr'}" data-col="${i}" onclick="toggleActualCol(${i})" style="cursor:pointer" title="クリックで実績/予算を切替">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.2">
+                  <span>${m}</span>
+                  <span class="act-badge ${isA?'act-actual':'act-budget'}">${isA?'実':'予'}</span>
+                </div>
+              </th>`;
+            }).join('')}
             <th class="month-col adj-col" data-col="12">調整</th>
             <th class="total-col">合計</th>
-          </tr>
-          <tr class="actual-label-row">
-            <th class="acc-col sticky-col" style="font-size:10px;color:var(--text-muted);font-weight:400;padding:0 6px">科目名クリックで行選択</th>
-            ${months.map((_,i) => `<th class="actual-label-cell${i<=at?' actual-hdr':' budget-hdr'}">${i<=at?'実':'予'}</th>`).join('')}
-            <th class="actual-label-cell adj-col"></th>
-            <th class="total-col" style="background:#d1fae5"></th>
           </tr>
         </thead>
         <tbody id="grid_tbody"></tbody>
@@ -181,7 +221,7 @@ function renderGridRows(budget, allVals, months) {
   if (!tbody) return;
   tbody.innerHTML = '';
 
-  const at = budget.actualThrough ?? -1;
+  const actualCols = getActualCols(budget);
   const accounts = getAccountsForMode(budget);
   // 子供を持つ親のSet
   const parentIds = new Set(accounts.filter(a => a.parentId).map(a => a.parentId));
@@ -214,9 +254,10 @@ function renderGridRows(budget, allVals, months) {
     tr.className = [
       isCalc    ? 'calc-row'   : '',
       (isHeader || isSection) ? 'header-row' : '',
-      isSection ? 'section-row': '',
-      acc.bold  ? 'bold-row'   : '',
-      isInput   ? 'input-row'  : '',
+      isSection    ? 'section-row'  : '',
+      acc.bold     ? 'bold-row'    : '',
+      isInput      ? 'input-row'   : '',
+      acc.tentative? 'tentative-row':'',
       _selectedRows.has(acc.id) ? 'selected-row' : '',
     ].filter(Boolean).join(' ');
 
@@ -240,7 +281,7 @@ function renderGridRows(budget, allVals, months) {
 
     const nonInputCell = (v, colIdx) => {
       const isAdj = colIdx === 12;
-      return `<td class="val-cell calc-val${colIdx<=at?' actual-col':''}${isAdj?' adj-col':''}" data-col="${colIdx}" style="text-align:right">${v === 0 ? '–' : Math.round(v).toLocaleString()}</td>`;
+      return `<td class="val-cell calc-val${actualCols[colIdx]?' actual-col':''}${isAdj?' adj-col':''}" data-col="${colIdx}" style="text-align:right">${v === 0 ? '–' : safeRound(v).toLocaleString()}</td>`;
     };
 
     const isTaxRow = /tax|corp|法人税/.test(acc.id) || (acc.name || '').includes('法人税');
@@ -251,10 +292,10 @@ function renderGridRows(budget, allVals, months) {
 
     const monthCells = isInput
       ? monthVals.map((v, colIdx) => `
-          <td class="val-cell${colIdx<=at?' actual-col':''}" data-acc-id="${acc.id}" data-col="${colIdx}">
+          <td class="val-cell${actualCols[colIdx]?' actual-col':''}" data-acc-id="${acc.id}" data-col="${colIdx}">
             <input type="text"
-              class="cell-input${colIdx<=at?' actual-input':''}"
-              value="${v === 0 ? '' : Math.round(v).toLocaleString()}"
+              class="cell-input${actualCols[colIdx]?' actual-input':''}"
+              value="${v === 0 ? '' : safeRound(v).toLocaleString()}"
               data-acc-id="${acc.id}"
               data-col="${colIdx}"
               data-raw="${v}"
@@ -300,7 +341,7 @@ function updateFillHint() {
 function refreshCalcRows() {
   const budget = window.App?.currentBudget;
   if (!budget) return;
-  const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
+  const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(getMergedRows(budget));
 
   document.querySelectorAll('#grid_tbody tr.calc-row, #grid_tbody tr.header-row').forEach(tr => {
     const accId = tr.dataset.accId;
@@ -333,6 +374,7 @@ function attachGridEvents() {
     const input = e.target.closest('.cell-input');
     if (!input) return;
     _selectedCell = input;
+    _selAnchor = input.dataset.accId; // Shift選択のアンカーをリセット
     input.parentElement.classList.add('selected');
     input.select();
   });
@@ -406,18 +448,67 @@ function handleGridKeydown(e, input) {
       break;
     }
     case 'ArrowDown': {
-      e.preventDefault(); commitCell(input);
-      const nr = nextInputRow(accId, 1);
-      if (nr) focusCell(nr, col);
+      e.preventDefault();
+      if (e.shiftKey) {
+        // Shift+↓: アンカーから下に範囲選択拡張
+        _extendRowSelection(accId, 1);
+      } else {
+        commitCell(input);
+        _selectedRows.clear();
+        document.querySelectorAll('#grid_tbody tr.selected-row').forEach(tr => tr.classList.remove('selected-row'));
+        const nr = nextInputRow(accId, 1);
+        if (nr) focusCell(nr, col);
+      }
       break;
     }
     case 'ArrowUp': {
-      e.preventDefault(); commitCell(input);
-      const pr = nextInputRow(accId, -1);
-      if (pr) focusCell(pr, col);
+      e.preventDefault();
+      if (e.shiftKey) {
+        // Shift+↑: アンカーから上に範囲選択拡張
+        _extendRowSelection(accId, -1);
+      } else {
+        commitCell(input);
+        _selectedRows.clear();
+        document.querySelectorAll('#grid_tbody tr.selected-row').forEach(tr => tr.classList.remove('selected-row'));
+        const pr = nextInputRow(accId, -1);
+        if (pr) focusCell(pr, col);
+      }
       break;
     }
   }
+}
+
+function _extendRowSelection(currentAccId, dir) {
+  // アンカーが未設定なら現在行をアンカーにする
+  if (!_selAnchor) _selAnchor = currentAccId;
+
+  const rows = Array.from(document.querySelectorAll('#grid_tbody tr[data-acc-id].input-row'));
+  const ids  = rows.map(tr => tr.dataset.accId);
+  const anchorIdx  = ids.indexOf(_selAnchor);
+  const currentIdx = ids.indexOf(currentAccId);
+  const nextIdx    = currentIdx + dir;
+  if (nextIdx < 0 || nextIdx >= ids.length) return;
+
+  const nextAccId = ids[nextIdx];
+
+  // アンカー〜nextの範囲を選択
+  const lo = Math.min(anchorIdx, nextIdx);
+  const hi = Math.max(anchorIdx, nextIdx);
+  _selectedRows.clear();
+  document.querySelectorAll('#grid_tbody tr.selected-row').forEach(tr => tr.classList.remove('selected-row'));
+  for (let i = lo; i <= hi; i++) {
+    _selectedRows.add(ids[i]);
+    document.querySelectorAll(`#grid_tbody tr[data-acc-id="${ids[i]}"]`).forEach(tr => tr.classList.add('selected-row'));
+  }
+
+  // フォーカスを次の行に移動（セルは編集しない）
+  const nextInput = document.querySelector(`#grid_tbody input[data-acc-id="${nextAccId}"][data-col="${_selectedCell ? parseInt(_selectedCell.dataset.col) : 0}"]`);
+  if (nextInput) {
+    nextInput.focus();
+    nextInput.select();
+  }
+
+  updateSelectionHint();
 }
 
 function commitCell(input) {
@@ -428,11 +519,16 @@ function commitCell(input) {
 
   const budget = window.App?.currentBudget;
   if (!budget) return;
-  if (!budget.rows[accId]) budget.rows[accId] = new Array(13).fill(0);
-  if (budget.rows[accId].length < 13) budget.rows[accId].push(0);
-  budget.rows[accId][col] = raw;
 
-  input.value = raw === 0 ? '' : Math.round(raw).toLocaleString();
+  const cols = getActualCols(budget);
+  const isActualCol = col < 12 && cols[col];
+  const store = isActualCol ? 'actualRows' : 'rows';
+  if (!budget[store]) budget[store] = {};
+  if (!budget[store][accId]) budget[store][accId] = new Array(13).fill(0);
+  if (budget[store][accId].length < 13) budget[store][accId].push(0);
+  budget[store][accId][col] = raw;
+
+  input.value = raw === 0 ? '' : safeRound(raw).toLocaleString();
   saveBudget(budget);
   refreshCalcRows();
 }
@@ -550,7 +646,7 @@ function applyFill() {
     if (tr) {
       tr.querySelectorAll('.cell-input').forEach((inp, i) => {
         const v = vals[i] || 0;
-        inp.value = v === 0 ? '' : Math.round(v).toLocaleString();
+        inp.value = v === 0 ? '' : safeRound(v).toLocaleString();
         inp.dataset.raw = v;
       });
       const totalTd = tr.querySelector('td.total-col');
@@ -627,7 +723,119 @@ function addSubAccount() {
   }
 }
 
+// ===== 入力完了モーダル =====
+function showBudgetCompleteModal() {
+  const budget = window.App?.currentBudget;
+  if (!budget) return;
+
+  const merged = getMergedRows(budget);
+  const pl = calcPL(merged);
+  const fmtK = v => Math.round((isNaN(v)||!isFinite(v)?0:v) / 1000).toLocaleString();
+  const pct  = (a, b) => b ? (a / b * 100).toFixed(1) + '%' : '–';
+
+  const sales     = pl.sales?.reduce((s,v)=>s+v,0) || 0;
+  const gross     = pl.gross_profit?.reduce((s,v)=>s+v,0) || 0;
+  const op        = pl.op_profit?.reduce((s,v)=>s+v,0) || 0;
+  const net       = pl.net_profit?.reduce((s,v)=>s+v,0) || 0;
+
+  const kpiColor = v => v >= 0 ? '#065f46' : '#dc2626';
+
+  // モーダルを動的生成
+  let modal = document.getElementById('budget_complete_modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'budget_complete_modal';
+    modal.className = 'modal';
+    modal.onclick = e => { if (e.target === modal) modal.classList.remove('open'); };
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `
+    <div class="modal-box" style="width:480px;max-width:95vw">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:40px;margin-bottom:8px">✅</div>
+        <h2 style="font-size:20px;margin:0">予算入力完了！</h2>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:4px">${window.App?.currentYear || ''}年度　${window.App?.currentCompany?.name || ''}</p>
+      </div>
+
+      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px 16px;margin-bottom:20px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <div style="font-size:10px;color:#6b7280;font-weight:600;margin-bottom:2px">売上高</div>
+            <div style="font-size:18px;font-weight:800;color:#0f172a">${fmtK(sales)}<span style="font-size:11px;font-weight:400">千円</span></div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#6b7280;font-weight:600;margin-bottom:2px">粗利益</div>
+            <div style="font-size:18px;font-weight:800;color:${kpiColor(gross)}">${fmtK(gross)}<span style="font-size:11px;font-weight:400">千円</span></div>
+            <div style="font-size:10px;color:#6b7280">${pct(gross, sales)}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#6b7280;font-weight:600;margin-bottom:2px">営業利益</div>
+            <div style="font-size:18px;font-weight:800;color:${kpiColor(op)}">${fmtK(op)}<span style="font-size:11px;font-weight:400">千円</span></div>
+            <div style="font-size:10px;color:#6b7280">${pct(op, sales)}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#6b7280;font-weight:600;margin-bottom:2px">当期純利益</div>
+            <div style="font-size:18px;font-weight:800;color:${kpiColor(net)}">${fmtK(net)}<span style="font-size:11px;font-weight:400">千円</span></div>
+            <div style="font-size:10px;color:#6b7280">${pct(net, sales)}</div>
+          </div>
+        </div>
+      </div>
+
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;text-align:center">次のステップに進みましょう</p>
+
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+        <button class="btn-solid" style="justify-content:flex-start;gap:12px;padding:12px 16px"
+          onclick="document.getElementById('budget_complete_modal').classList.remove('open');showPage('simulation')">
+          <span style="font-size:18px">📊</span>
+          <div style="text-align:left">
+            <div style="font-weight:700">単年度 PL / BS を確認</div>
+            <div style="font-size:11px;opacity:.8">損益・貸借対照表をグラフで確認</div>
+          </div>
+        </button>
+        <button class="btn-outline" style="justify-content:flex-start;gap:12px;padding:12px 16px"
+          onclick="document.getElementById('budget_complete_modal').classList.remove('open');showPage('nextyear')">
+          <span style="font-size:18px">🔮</span>
+          <div style="text-align:left">
+            <div style="font-weight:700">翌年度予測</div>
+            <div style="font-size:11px;color:var(--text-muted)">成長率を設定して来期を試算</div>
+          </div>
+        </button>
+        <button class="btn-outline" style="justify-content:flex-start;gap:12px;padding:12px 16px"
+          onclick="document.getElementById('budget_complete_modal').classList.remove('open');showPage('fiveyear')">
+          <span style="font-size:18px">📅</span>
+          <div style="text-align:left">
+            <div style="font-weight:700">5か年計画</div>
+            <div style="font-size:11px;color:var(--text-muted)">中期的な業績推移をシミュレーション</div>
+          </div>
+        </button>
+        <button class="btn-outline" style="justify-content:flex-start;gap:12px;padding:12px 16px"
+          onclick="document.getElementById('budget_complete_modal').classList.remove('open');showPage('health')">
+          <span style="font-size:18px">💊</span>
+          <div style="text-align:left">
+            <div style="font-weight:700">財務健康診断</div>
+            <div style="font-size:11px;color:var(--text-muted)">財務比率を自動採点・コメント</div>
+          </div>
+        </button>
+      </div>
+
+      <button class="btn-ghost" style="width:100%;justify-content:center"
+        onclick="document.getElementById('budget_complete_modal').classList.remove('open')">
+        後で確認する
+      </button>
+    </div>`;
+
+  modal.classList.add('open');
+}
+
 // ===== 行削除 =====
+function clearRowSelection() {
+  _selectedRows.clear();
+  _selAnchor = null;
+  document.querySelectorAll('#grid_tbody tr.selected-row').forEach(tr => tr.classList.remove('selected-row'));
+  updateSelectionHint();
+}
+
 function deleteSelectedRow() {
   const input = document.querySelector('#grid_tbody .cell-input:focus') || _selectedCell;
   if (!input) { alert('削除する行のセルを選択してください'); return; }

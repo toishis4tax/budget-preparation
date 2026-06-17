@@ -1011,7 +1011,23 @@ function executeImport() {
   let budget = getBudget(company.id, year);
   if (!budget) budget = createDefaultBudget(company.id, year);
 
-  Object.assign(budget.rows, result.rows);
+  const actualCols = getActualCols(budget);
+  const hasAnyActual = actualCols.some(Boolean);
+
+  if (hasAnyActual) {
+    if (!budget.actualRows) budget.actualRows = {};
+    Object.entries(result.rows).forEach(([id, vals]) => {
+      if (!budget.actualRows[id]) budget.actualRows[id] = new Array(13).fill(0);
+      if (!budget.rows[id]) budget.rows[id] = new Array(13).fill(0);
+      vals.forEach((v, i) => {
+        if (i < 12 && actualCols[i]) budget.actualRows[id][i] = v;
+        else if (v !== 0) budget.rows[id][i] = v;
+      });
+    });
+  } else {
+    Object.assign(budget.rows, result.rows);
+  }
+
   budget.startMonth = result.startMonth;
 
   // 動的科目リストをマージ保存

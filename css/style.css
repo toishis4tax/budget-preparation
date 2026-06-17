@@ -403,6 +403,27 @@ body {
 .badge-orange { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
 .ctax-notes   { list-style: disc; padding-left: 20px; font-size: 12px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.9; }
 
+/* ===== 未確定行ハイライト ===== */
+.tentative-row td { background: #fffbeb !important; }
+.tentative-row td.sticky-col { background: #fffbeb !important; }
+.tentative-row td.sticky-col::before {
+  content: '▲';
+  font-size: 8px;
+  color: #d97706;
+  margin-right: 3px;
+  vertical-align: middle;
+}
+
+/* ===== 実績/予算バッジ ===== */
+.act-badge {
+  display: inline-block; padding: 1px 5px; border-radius: 3px;
+  font-size: 9.5px; font-weight: 700; cursor: pointer; user-select: none;
+  transition: opacity .12s;
+}
+.act-badge:hover { opacity: .75; }
+.act-actual { background: #d1fae5; color: #065f46; }
+.act-budget { background: #dbeafe; color: #1e40af; }
+
 /* ===== CF ===== */
 .shortage-row { background: #fff1f2 !important; }
 .shortage-val { color: var(--rose); font-weight: 700; }
