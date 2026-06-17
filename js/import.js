@@ -2,17 +2,21 @@
 
 // 勘定科目名 → 内部ID マッピング
 const ACCOUNT_NAME_MAP = {
-  // ===== 売上 =====
-  '売上高': 'sales', '売上': 'sales', '総売上': 'sales', '経常売上高': 'sales',
-  '売上高合計': 'sales', '売上合計': 'sales', '経常売上高合計': 'sales',
-  '顧問料': 'sales', '顧問報酬': 'sales', '顧問契約料': 'sales', '月次顧問料': 'sales',
-  'コンプライアンス費': 'sales', 'コンプライアンス報酬': 'sales', 'コンプライアンス料': 'sales',
-  'コンサルティング費': 'sales', 'コンサルティング報酬': 'sales', 'コンサルティング料': 'sales',
-  '税務顧問料': 'sales', '会計顧問料': 'sales', '税務報酬': 'sales', '会計報酬': 'sales',
-  '記帳代行料': 'sales', '記帳代行報酬': 'sales', '巡回監査料': 'sales',
-  '決算報酬': 'sales', '申告報酬': 'sales', '税務申告報酬': 'sales',
+  // ===== 売上（ヘッダー型のsalesではなく入力型に振り分ける） =====
+  // EC・ネット系
   'EC売上': 'sales_ec', 'ネット売上': 'sales_ec', 'オンライン売上': 'sales_ec',
+  // 店舗系
   '店舗売上': 'sales_store', '小売売上': 'sales_store',
+  // サービス業・士業系（顧問・コンサル・報酬 → その他売上）
+  '顧問料': 'sales_other', '顧問報酬': 'sales_other', '顧問契約料': 'sales_other', '月次顧問料': 'sales_other',
+  'コンプライアンス費': 'sales_other', 'コンプライアンス報酬': 'sales_other', 'コンプライアンス料': 'sales_other',
+  'コンサルティング費': 'sales_other', 'コンサルティング報酬': 'sales_other', 'コンサルティング料': 'sales_other',
+  '税務顧問料': 'sales_other', '会計顧問料': 'sales_other', '税務報酬': 'sales_other', '会計報酬': 'sales_other',
+  '記帳代行料': 'sales_other', '記帳代行報酬': 'sales_other', '巡回監査料': 'sales_other',
+  '決算報酬': 'sales_other', '申告報酬': 'sales_other', '税務申告報酬': 'sales_other',
+  // 汎用売上合計行 → その他売上（単一科目で売上を管理している場合）
+  '売上高': 'sales_other', '売上': 'sales_other', '総売上': 'sales_other',
+  '売上高合計': 'sales_other', '売上合計': 'sales_other', '経常売上高': 'sales_other', '経常売上高合計': 'sales_other',
   'その他売上': 'sales_other', '雑収益': 'sales_other',
 
   // ===== 売上原価 =====
