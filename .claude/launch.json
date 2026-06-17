@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "budget-app",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["server.js"],
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "3500", "--directory", "C:\\Users\\toish\\OneDrive\\デスクトップ\\Claude\\budget-preparation"],
       "port": 3500
     }
   ]

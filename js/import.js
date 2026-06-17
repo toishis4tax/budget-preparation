@@ -2,71 +2,110 @@
 
 // 勘定科目名 → 内部ID マッピング
 const ACCOUNT_NAME_MAP = {
-  // 売上
-  '売上高': 'sales', '売上': 'sales', '総売上': 'sales',
+  // ===== 売上 =====
+  '売上高': 'sales', '売上': 'sales', '総売上': 'sales', '経常売上高': 'sales',
+  '売上高合計': 'sales', '売上合計': 'sales', '経常売上高合計': 'sales',
+  '顧問料': 'sales', 'コンプライアンス費': 'sales', 'コンサルティング費': 'sales',
+  'コンサルティング料': 'sales', '顧問契約料': 'sales', '月次顧問料': 'sales',
   'EC売上': 'sales_ec', 'ネット売上': 'sales_ec', 'オンライン売上': 'sales_ec',
   '店舗売上': 'sales_store', '小売売上': 'sales_store',
   'その他売上': 'sales_other', '雑収益': 'sales_other',
 
-  // 売上原価
+  // ===== 売上原価 =====
   '売上原価': 'cogs', '商品原価': 'cogs',
   '期首商品棚卸高': 'cogs_open', '期首棚卸高': 'cogs_open',
   '当期仕入高': 'cogs_purchase', '商品仕入高': 'cogs_purchase', '仕入高': 'cogs_purchase', '仕入': 'cogs_purchase',
   '期末商品棚卸高': 'cogs_close', '期末棚卸高': 'cogs_close',
 
-  // 販管費
+  // ===== 販管費 - 人件費 =====
+  '役員報酬': 'sga_exec', '役員給与': 'sga_exec', '取締役報酬': 'sga_exec',
   '給与手当': 'sga_emp', '給与': 'sga_emp', '給料手当': 'sga_emp', '給料': 'sga_emp',
-  '役員報酬': 'sga_exec', '役員給与': 'sga_exec',
-  '賞与': 'sga_bonus', '従業員賞与': 'sga_bonus',
+  '従業員給与': 'sga_emp', '管理職手当': 'sga_emp', '残業手当': 'sga_emp',
+  '賞与': 'sga_bonus', '従業員賞与': 'sga_bonus', '決算賞与': 'sga_bonus',
   '法定福利費': 'sga_welfare', '社会保険料': 'sga_welfare',
+  '健康保険料': 'sga_welfare', '厚生年金保険料': 'sga_welfare',
+  '雇用保険料': 'sga_welfare', '労働保険料': 'sga_welfare',
   '福利厚生費': 'sga_fringe', '厚生費': 'sga_fringe',
-  '旅費交通費': 'sga_travel', '旅費': 'sga_travel', '交通費': 'sga_travel',
-  '通信費': 'sga_comm', '電話代': 'sga_comm',
-  '広告宣伝費': 'sga_ad', '広告費': 'sga_ad', '宣伝費': 'sga_ad',
-  '接待交際費': 'sga_entertain', '交際費': 'sga_entertain',
-  '地代家賃': 'sga_rent', '家賃': 'sga_rent', '賃借料': 'sga_rent',
-  '減価償却費': 'sga_depr', '償却費': 'sga_depr',
-  'その他経費': 'sga_other', '雑費': 'sga_other', '消耗品費': 'sga_other',
-  '水道光熱費': 'sga_other', '事務用品費': 'sga_other',
-  '外注費': 'sga_other', '外注工賃': 'sga_other',
+  '慶弔費': 'sga_fringe', '採用費': 'sga_fringe', '研修費': 'sga_fringe',
 
-  // 営業外
+  // ===== 販管費 - その他 =====
+  '旅費交通費': 'sga_travel', '旅費': 'sga_travel', '交通費': 'sga_travel', '出張旅費': 'sga_travel',
+  '通信費': 'sga_comm', '電話代': 'sga_comm', '電話通信費': 'sga_comm',
+  '広告宣伝費': 'sga_ad', '広告費': 'sga_ad', '宣伝費': 'sga_ad',
+  '接待交際費': 'sga_entertain', '交際費': 'sga_entertain', '接待費': 'sga_entertain',
+  '地代家賃': 'sga_rent', '家賃': 'sga_rent', '賃借料': 'sga_rent',
+  'リース料': 'sga_rent', '駐車場代': 'sga_rent',
+  '減価償却費': 'sga_depr', '償却費': 'sga_depr',
+  'ソフトウェア償却': 'sga_depr', '無形固定資産償却': 'sga_depr',
+  'その他経費': 'sga_other', '雑費': 'sga_other',
+  '消耗品費': 'sga_other', '事務用品費': 'sga_other',
+  '水道光熱費': 'sga_other', '光熱費': 'sga_other',
+  '外注費': 'sga_other', '外注工賃': 'sga_other',
+  '業務委託費': 'sga_other', '業務委託料': 'sga_other',
+  '会議費': 'sga_other', '新聞図書費': 'sga_other', '図書費': 'sga_other',
+  '支払手数料': 'sga_other', '手数料': 'sga_other',
+  '租税公課': 'sga_other', '税金': 'sga_other',
+  '損害保険料': 'sga_other', '保険料': 'sga_other',
+  '修繕費': 'sga_other', '諸会費': 'sga_other',
+
+  // ===== 営業外 =====
   '受取利息': 'int_income', '受取利息配当金': 'int_income',
   '雑収入': 'misc_income', '営業外収益その他': 'misc_income',
   '支払利息': 'int_expense', '借入金利息': 'int_expense',
   '雑損失': 'misc_expense', '営業外費用その他': 'misc_expense',
 
-  // 特別
+  // ===== 特別 =====
   '特別利益': 'extra_income', '固定資産売却益': 'extra_income',
   '特別損失': 'extra_expense', '固定資産除却損': 'extra_expense',
 
-  // 法人税
+  // ===== 法人税 =====
   '法人税等': 'corp_tax', '法人税、住民税及び事業税': 'corp_tax',
 
-  // BS 資産
-  '現金及び預金': 'cash', '現金預金': 'cash', '現金': 'cash', '預金': 'cash',
-  '売掛金': 'ar', '売掛': 'ar',
+  // ===== BS 資産（流動） =====
+  '現金及び預金': 'cash', '現金預金': 'cash', '現金': 'cash',
+  '普通預金': 'cash', '当座預金': 'cash', '小口現金': 'cash',
+  '現金及び預金合計': 'cash',
+  '売掛金': 'ar', '売掛': 'ar', '未収入金': 'ar',
   '棚卸資産': 'inventory', '商品': 'inventory', '製品': 'inventory',
-  'その他流動資産': 'other_ca', '前払費用': 'other_ca', '未収入金': 'other_ca',
+  'その他流動資産': 'other_ca', '前払費用': 'other_ca', '仮払金': 'other_ca',
+  '短期貸付金': 'other_ca', '立替金': 'other_ca', '未収収益': 'other_ca',
+
+  // ===== BS 資産（固定） =====
   '建物': 'building', '建物附属設備': 'building',
   '機械装置': 'machinery', '機械及び装置': 'machinery',
   '工具器具備品': 'equipment', '器具備品': 'equipment',
+  'ソフトウェア': 'equipment',
   '土地': 'land',
   '投資有価証券': 'invest', '有価証券': 'invest',
   '差入保証金': 'deposit', '敷金': 'deposit', '保証金': 'deposit',
 
-  // BS 負債
+  // ===== BS 負債 =====
   '買掛金': 'ap', '買掛': 'ap',
   '短期借入金': 'short_loan', '銀行短期借入': 'short_loan',
   '未払金': 'unpaid', '未払費用': 'unpaid',
+  '預り金': 'unpaid', '仮受金': 'unpaid', '前受金': 'unpaid',
   '未払法人税等': 'unpaid_tax',
-  '未払消費税': 'unpaid_ct', '仮受消費税': 'unpaid_ct',
+  '未払消費税': 'unpaid_ct', '仮受消費税': 'unpaid_ct', '未払消費税等': 'unpaid_ct',
   '長期借入金': 'long_loan', '銀行長期借入': 'long_loan',
 
-  // BS 純資産
+  // ===== BS 純資産 =====
   '資本金': 'capital',
   '利益剰余金': 'retained', '繰越利益剰余金': 'retained',
 };
+
+// ミロク月次推移表: 合計行のうち二重計上になるためスキップする科目名
+const MJS_SKIP_TOTALS = new Set([
+  '流動資産合計', '固定資産合計', '投資その他の資産合計', '資産合計',
+  '流動負債合計', '固定負債合計', '負債合計',
+  '純資産合計', '株主資本合計', '負債及び純資産合計',
+  '売上原価合計', '販売費及び一般管理費合計',
+  '営業外収益合計', '営業外費用合計',
+  '特別利益合計', '特別損失合計',
+  '売上総利益', '営業利益', '経常利益',
+  '税引前当期純利益', '当期純利益',
+  '売上総利益合計', '営業利益合計', '経常利益合計',
+  '税引前当期純利益合計',
+]);
 
 // 月名 → インデックス
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -74,7 +113,6 @@ const MONTH_PATS  = [/^1月|jan/i,/^2月|feb/i,/^3月|mar/i,/^4月|apr/i,/^5月|
                      /^7月|jul/i,/^8月|aug/i,/^9月|sep/i,/^10月|oct/i,/^11月|nov/i,/^12月|dec/i];
 
 function detectMonthCol(header) {
-  // ヘッダー行のどの列が月かを検出 → { colIdx: monthIdx(0-11) }[]
   const monthCols = [];
   header.forEach((cell, i) => {
     const s = String(cell || '').trim();
@@ -105,7 +143,6 @@ function parseNum(v) {
 }
 
 // ===== 仕訳帳パーサー =====
-// 列: No, 日付, 借方科目名, 借方補助, 借方部門, 借方税区分, 借方インボイス, ?, 借方金額, 貸方科目名, ..., 貸方金額
 function isJournalFormat(data) {
   for (let ri = 0; ri < Math.min(5, data.length); ri++) {
     const row = data[ri];
@@ -117,7 +154,6 @@ function isJournalFormat(data) {
 }
 
 function parseJournalData(data, startMonth) {
-  // ヘッダー行を探す
   let headerRow = null, headerIdx = -1;
   for (let ri = 0; ri < Math.min(5, data.length); ri++) {
     const joined = data[ri].join('');
@@ -129,7 +165,6 @@ function parseJournalData(data, startMonth) {
   }
   if (!headerRow) return { rows: {}, unmapped: [], error: '仕訳帳のヘッダーを検出できませんでした。' };
 
-  // 列インデックスを特定
   let dateCol=-1, drAccCol=-1, drAmtCol=-1, crAccCol=-1, crAmtCol=-1;
   headerRow.forEach((h, i) => {
     const s = String(h).replace(/\s/g,'');
@@ -140,33 +175,26 @@ function parseJournalData(data, startMonth) {
     if (crAmtCol < 0 && (s.includes('貸方金額') || s === '貸方')) crAmtCol = i;
   });
 
-  // 列が検出できない場合は位置推定（MJS仕訳帳の典型列）
   if (dateCol < 0) dateCol = 1;
   if (drAccCol < 0) drAccCol = 2;
   if (drAmtCol < 0) drAmtCol = 8;
   if (crAccCol < 0) crAccCol = 9;
   if (crAmtCol < 0) crAmtCol = 15;
 
-  // 月ごと・科目ごとに集計
-  // accMonthMap[accName][monthIdx] = { dr: 0, cr: 0 }
   const accMonthMap = {};
-
   for (let ri = headerIdx + 1; ri < data.length; ri++) {
     const row = data[ri];
     const dateStr = String(row[dateCol] || '').trim();
     if (!dateStr) continue;
 
-    // 日付から月を取得 (YYYY/MM/DD or YYYY-MM-DD or MM/DD)
     let month = -1;
     const m1 = dateStr.match(/\d{4}[\/\-](\d{1,2})[\/\-]\d{1,2}/);
     const m2 = dateStr.match(/^(\d{1,2})[\/\-]\d{1,2}$/);
-    if (m1) month = parseInt(m1[1]) - 1; // 0-indexed
+    if (m1) month = parseInt(m1[1]) - 1;
     else if (m2) month = parseInt(m2[1]) - 1;
     if (month < 0 || month > 11) continue;
 
-    // 予算インデックス（startMonthからの相対）
     const budgetIdx = (month - (startMonth - 1) + 12) % 12;
-
     const drAcc = String(row[drAccCol] || '').trim().replace(/\s+/g,'');
     const crAcc = String(row[crAccCol] || '').trim().replace(/\s+/g,'');
     const drAmt = parseNum(row[drAmtCol]);
@@ -182,9 +210,6 @@ function parseJournalData(data, startMonth) {
     }
   }
 
-  // 科目性質に応じて金額を決定
-  // 収益科目: cr - dr（貸方残）
-  // 費用・資産科目: dr - cr（借方残）
   const CREDIT_NATURE = new Set(['sales','sales_ec','sales_store','sales_other','int_income','misc_income','extra_income']);
   const result = {};
   const unmapped = [];
@@ -208,21 +233,100 @@ function parseJournalData(data, startMonth) {
   return { rows: result, unmapped, error: null };
 }
 
-// 汎用CSV/Excelパーサー
-function parseImportData(data, source, startMonth) {
-  // data: 2D配列 (rows × cols)
-  // source: 'mjs' | 'mf' | 'generic'
-  // returns: { rows: {accId: [12 months]}, unmapped: [{name, values}] }
+// ===== ミロク財務大将 月次推移表パーサー =====
+// 構造: col0=大区分ヘッダー/合計行, col1=勘定科目, col2=補助科目, col3+=月次残高
+function parseMjsMonthly(data, startMonth) {
+  // ヘッダー行を探す（月名が6つ以上ある行）
+  let headerRowIdx = -1;
+  let monthCols = [];
+  for (let ri = 0; ri < Math.min(5, data.length); ri++) {
+    const mc = detectMonthCol(data[ri]);
+    if (mc.length >= 6) {
+      headerRowIdx = ri;
+      monthCols = mc;
+      break;
+    }
+  }
+  if (headerRowIdx < 0 || monthCols.length === 0) {
+    return { rows: {}, unmapped: [], error: '月次データの列を検出できませんでした。' };
+  }
+
+  // 月→予算インデックスのマッピング
+  const budgetMonthMap = new Array(12).fill(-1);
+  monthCols.forEach(({ col, month }) => {
+    const budgetIdx = (month - (startMonth - 1) + 12) % 12;
+    if (budgetIdx < 12) budgetMonthMap[budgetIdx] = col;
+  });
 
   const result = {};
   const unmapped = [];
+  // 合計行で上書き済みのaccIdを記録（二重計上防止）
+  const overriddenByTotal = new Set();
 
-  // ヘッダー行を探す（月名が含まれる行）
+  // 第1パス: col1（勘定科目）行を処理
+  for (let ri = headerRowIdx + 1; ri < data.length; ri++) {
+    const row = data[ri];
+    const col1 = String(row[1] || '').trim();
+    const col2 = String(row[2] || '').trim();
+    if (!col1 || col2) continue; // 補助科目行 or 空行はスキップ
+
+    const clean = col1.replace(/\s+/g, '').replace(/（.*?）/g, '').replace(/\(.*?\)/g, '');
+    if (clean === '合計' || clean === '計' || clean === '小計') continue;
+
+    const accId = matchAccount(clean);
+    const values = budgetMonthMap.map(col => col >= 0 ? parseNum(row[col]) : 0);
+    if (!values.some(v => v !== 0)) continue;
+
+    if (accId) {
+      if (!result[accId]) result[accId] = new Array(12).fill(0);
+      result[accId] = result[accId].map((v, i) => v + values[i]);
+    } else {
+      unmapped.push({ name: col1, values });
+    }
+  }
+
+  // 第2パス: col0（合計行）を処理 - 重要な集計行で上書き
+  for (let ri = headerRowIdx + 1; ri < data.length; ri++) {
+    const row = data[ri];
+    const col0 = String(row[0] || '').trim();
+    const col1 = String(row[1] || '').trim();
+    if (!col0 || col1) continue; // col1がある行は勘定科目行なのでスキップ
+    if (!col0.includes('合計') && !col0.includes('計')) continue;
+
+    // 二重計上になるセクション合計はスキップ
+    const clean0 = col0.replace(/\s+/g, '');
+    if (MJS_SKIP_TOTALS.has(clean0)) continue;
+
+    const accId = matchAccount(clean0);
+    if (!accId) continue;
+
+    const values = budgetMonthMap.map(col => col >= 0 ? parseNum(row[col]) : 0);
+    if (!values.some(v => v !== 0)) continue;
+
+    // 合計行で上書き（個別科目の集計より正確なため）
+    result[accId] = values;
+    overriddenByTotal.add(accId);
+  }
+
+  return { rows: result, unmapped, error: null };
+}
+
+// ===== 汎用CSV/Excelパーサー =====
+function parseImportData(data, source, startMonth) {
+  const result = {};
+  const unmapped = [];
+
+  // ミロク月次推移表は専用パーサーを使用
+  if (source === 'mjs') {
+    return parseMjsMonthly(data, startMonth);
+  }
+
+  // MoneyForward / 汎用: ヘッダー行を探す
   let headerRowIdx = -1;
   let monthCols = [];
   for (let ri = 0; ri < Math.min(10, data.length); ri++) {
     const mc = detectMonthCol(data[ri]);
-    if (mc.length >= 6) { // 6か月以上の列があればヘッダー行とみなす
+    if (mc.length >= 6) {
       headerRowIdx = ri;
       monthCols = mc;
       break;
@@ -232,27 +336,16 @@ function parseImportData(data, source, startMonth) {
     return { rows: result, unmapped, error: '月次データの列を検出できませんでした。' };
   }
 
-  // 科目名列を推定（最初の文字列列）
-  const headerRow = data[headerRowIdx];
-  let nameCol = 0;
-  // MJS: 科目コード(col0), 科目名(col1)
-  // MF: 科目名(col0)
-  if (source === 'mjs') {
-    nameCol = 1; // 通常col1が科目名
-  } else {
-    nameCol = 0;
-  }
-
-  // 決算月・開始月から12か月のmapping
-  // monthCols: [{col, month(0-11)}]
-  // 予算データは startMonth から12か月 → budgetIdx=0はstartMonth
+  // 月→予算インデックスのマッピング
   const budgetMonthMap = new Array(12).fill(-1);
   monthCols.forEach(({ col, month }) => {
     const budgetIdx = (month - (startMonth - 1) + 12) % 12;
     if (budgetIdx < 12) budgetMonthMap[budgetIdx] = col;
   });
 
-  // データ行を処理
+  // MF: 科目名はcol0
+  const nameCol = 0;
+
   for (let ri = headerRowIdx + 1; ri < data.length; ri++) {
     const row = data[ri];
     const name = String(row[nameCol] || '').trim().replace(/\s+/g,'');
@@ -260,14 +353,13 @@ function parseImportData(data, source, startMonth) {
 
     const accId = matchAccount(name);
     const values = budgetMonthMap.map(col => col >= 0 ? parseNum(row[col]) : 0);
-    const hasData = values.some(v => v !== 0);
-    if (!hasData) continue;
+    if (!values.some(v => v !== 0)) continue;
 
     if (accId) {
       if (!result[accId]) result[accId] = new Array(12).fill(0);
       result[accId] = result[accId].map((v, i) => v + values[i]);
     } else {
-      unmapped.push({ name, values });
+      unmapped.push({ name: String(row[nameCol] || '').trim(), values });
     }
   }
 
@@ -277,8 +369,8 @@ function parseImportData(data, source, startMonth) {
 // ====== レンダリング ======
 
 let _importState = {
-  source: 'generic',
-  parsedData: null, // 2D array
+  source: 'mjs',
+  parsedData: null,
   importResult: null,
   fileName: '',
 };
@@ -296,19 +388,19 @@ function renderImport(container) {
 
       <div class="card-h">
         <div class="source-tabs">
-          <div class="source-tab active" data-src="generic" onclick="setImportSource('generic',this)">
-            汎用CSV/Excel
-          </div>
-          <div class="source-tab" data-src="mjs" onclick="setImportSource('mjs',this)">
+          <div class="source-tab active" data-src="mjs" onclick="setImportSource('mjs',this)">
             ミロク(MJS)財務大将
           </div>
           <div class="source-tab" data-src="mf" onclick="setImportSource('mf',this)">
             MoneyForward
           </div>
+          <div class="source-tab" data-src="generic" onclick="setImportSource('generic',this)">
+            汎用CSV/Excel
+          </div>
         </div>
 
         <div id="import_source_note" class="text-sm text-muted mt-1" style="margin-bottom:12px">
-          会計ソフトから「月次推移表（試算表）」をCSVまたはExcelでエクスポートしてください。
+          財務大将の「月次推移表」→「CSV出力」でエクスポートしたファイルを選択してください。BS（貸借対照表）とPL（損益計算書）の両方をインポートできます。
         </div>
 
         <div class="form-group" style="max-width:200px">
@@ -326,7 +418,7 @@ function renderImport(container) {
              ondrop="handleImportDrop(event)">
           <div class="upload-zone-icon">📂</div>
           <h2>ファイルをドロップまたはクリックして選択</h2>
-          <p>CSV・Excel(.xlsx/.xls)対応 ／ 過去3年分まで対応</p>
+          <p>CSV・Excel(.xlsx/.xls)対応　複数ファイル連続インポート可</p>
           <button class="upload-btn-pill" onclick="event.stopPropagation();document.getElementById('import_file_input').click()">
             ファイルを選択
           </button>
@@ -352,9 +444,9 @@ function setImportSource(src, el) {
   document.querySelectorAll('.source-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   const notes = {
-    generic: 'CSV/Excelの1行目またはそれ以降に月名（4月、5月…）が含まれていれば自動認識します。',
-    mjs:     '財務大将の「月次推移表」→「CSV出力」でエクスポートしたファイルを選択してください。',
+    mjs:     '財務大将の「月次推移表」→「CSV出力」でエクスポートしたファイルを選択してください。BS（貸借対照表）とPL（損益計算書）の両方をインポートできます。',
     mf:      'MoneyForwardの「帳票・数字」→「試算表」→「月次推移」→「CSV」でエクスポートしたファイル。',
+    generic: 'CSV/Excelの1行目またはそれ以降に月名（4月、5月…）が含まれていれば自動認識します。',
   };
   document.getElementById('import_source_note').textContent = notes[src] || '';
 }
@@ -366,6 +458,27 @@ function handleImportDrop(e) {
   if (file) handleImportFile(file);
 }
 
+// Journal-Checkerと同じ堅牢なエンコーディング自動判定
+function decodeBuffer(buf) {
+  const head = new Uint8Array(buf, 0, 3);
+  // BOM付きUTF-8
+  if (head[0] === 0xEF && head[1] === 0xBB && head[2] === 0xBF) {
+    return new TextDecoder('utf-8').decode(buf);
+  }
+  // UTF-8として厳密にデコード試行、失敗したらShift-JIS（ミロクはShift-JIS）
+  let text;
+  try {
+    text = new TextDecoder('utf-8', { fatal: true }).decode(buf);
+  } catch (_) {
+    return new TextDecoder('shift_jis').decode(buf);
+  }
+  // 文字化けチェック（置換文字が混じっていたらShift-JISで読み直す）
+  if (text.includes('�')) {
+    try { return new TextDecoder('shift_jis').decode(buf); } catch (_) {}
+  }
+  return text;
+}
+
 function handleImportFile(file) {
   if (!file) return;
   _importState.fileName = file.name;
@@ -374,12 +487,12 @@ function handleImportFile(file) {
   const reader = new FileReader();
   if (ext === 'csv') {
     reader.onload = e => {
-      const text = detectEncoding(e.target.result) || e.target.result;
+      const text = decodeBuffer(e.target.result);
       const data = parseCSV(text);
       _importState.parsedData = data;
       runImportPreview();
     };
-    reader.readAsText(file, 'Shift-JIS');
+    reader.readAsArrayBuffer(file); // ArrayBufferで読んでから自前デコード
   } else {
     reader.onload = e => {
       const wb = XLSX.read(e.target.result, { type: 'array' });
@@ -392,15 +505,10 @@ function handleImportFile(file) {
   }
 }
 
-function detectEncoding(text) {
-  // Shift-JIS → UTF-8 変換は readAsText('Shift-JIS') で行う
-  // 文字化けチェック（簡易）
-  if (text.includes('縺') || text.includes('繧')) return null; // UTF-8で読んで化けてる
-  return text;
-}
-
 function parseCSV(text) {
-  const lines = text.split(/\r?\n/);
+  // BOMを除去
+  const cleaned = text.startsWith('﻿') ? text.slice(1) : text;
+  const lines = cleaned.split(/\r?\n/);
   return lines.map(line => {
     const cells = [];
     let inQuote = false, cur = '';
@@ -419,7 +527,6 @@ function runImportPreview() {
   if (!_importState.parsedData) return;
   const startMonth = parseInt(document.getElementById('import_start_month')?.value || 4);
 
-  // 仕訳帳か月次推移表かを自動判別
   let result;
   if (isJournalFormat(_importState.parsedData)) {
     result = parseJournalData(_importState.parsedData, startMonth);
@@ -441,7 +548,6 @@ function runImportPreview() {
     return;
   }
 
-  // マッピング結果プレビュー
   const mappedRows = ACCOUNTS
     .filter(a => a.type === 'input' && result.rows[a.id])
     .map(a => {
@@ -454,7 +560,7 @@ function runImportPreview() {
       </tr>`;
     }).join('');
 
-  const unmappedRows = result.unmapped.map(u => `
+  const unmappedRows = result.unmapped.slice(0, 20).map(u => `
     <tr>
       <td class="text-muted">${u.name}</td>
       <td colspan="13" class="text-muted text-sm">← マッピング不可（手動入力が必要）</td>
@@ -539,7 +645,6 @@ function executeImport() {
     renderYearSelect(getYearsForCompany(company.id));
   }
 
-  // 履歴保存
   const mapped = Object.keys(result.rows).length;
   saveImportHistory({
     id: generateId(),
