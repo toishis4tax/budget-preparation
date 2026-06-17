@@ -1,10 +1,13 @@
 // 勘定科目マスタ
 const ACCOUNTS = [
   // ===== 損益計算書 =====
-  { id: 'sales',           name: '売上高',             type: 'header',     indent: 0, section: 'pl', sign: 1 },
-  { id: 'sales_ec',        name: 'EC売上',              type: 'input',      indent: 1, parentId: 'sales',           section: 'pl', sign: 1 },
-  { id: 'sales_store',     name: '店舗売上',            type: 'input',      indent: 1, parentId: 'sales',           section: 'pl', sign: 1 },
-  { id: 'sales_other',     name: 'その他売上',          type: 'input',      indent: 1, parentId: 'sales',           section: 'pl', sign: 1 },
+  { id: 'sales',             name: '売上高',               type: 'header',     indent: 0, section: 'pl', sign: 1 },
+  { id: 'sales_advisory',   name: '顧問報酬',             type: 'input',      indent: 1, parentId: 'sales',           section: 'pl', sign: 1 },
+  { id: 'sales_compliance', name: 'コンプライアンス報酬', type: 'input',      indent: 1, parentId: 'sales',           section: 'pl', sign: 1 },
+  { id: 'sales_consulting', name: 'コンサルティング報酬', type: 'input',      indent: 1, parentId: 'sales',           section: 'pl', sign: 1 },
+  { id: 'sales_ec',         name: 'EC売上',              type: 'input',      indent: 1, parentId: 'sales',           section: 'pl', sign: 1 },
+  { id: 'sales_store',      name: '店舗売上',            type: 'input',      indent: 1, parentId: 'sales',           section: 'pl', sign: 1 },
+  { id: 'sales_other',      name: 'その他売上',          type: 'input',      indent: 1, parentId: 'sales',           section: 'pl', sign: 1 },
 
   { id: 'cogs',            name: '売上原価',             type: 'header',     indent: 0, section: 'pl', sign: -1 },
   { id: 'cogs_open',       name: '期首商品棚卸高',       type: 'input',      indent: 1, parentId: 'cogs',            section: 'pl', sign: 1 },

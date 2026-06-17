@@ -8,10 +8,10 @@ const ACCOUNT_NAME_MAP = {
   // 店舗系
   '店舗売上': 'sales_store', '小売売上': 'sales_store',
   // サービス業・士業系（顧問・コンサル・報酬 → その他売上）
-  '顧問料': 'sales_other', '顧問報酬': 'sales_other', '顧問契約料': 'sales_other', '月次顧問料': 'sales_other',
-  'コンプライアンス費': 'sales_other', 'コンプライアンス報酬': 'sales_other', 'コンプライアンス料': 'sales_other',
-  'コンサルティング費': 'sales_other', 'コンサルティング報酬': 'sales_other', 'コンサルティング料': 'sales_other',
-  '税務顧問料': 'sales_other', '会計顧問料': 'sales_other', '税務報酬': 'sales_other', '会計報酬': 'sales_other',
+  '顧問報酬': 'sales_advisory', '顧問料': 'sales_advisory', '顧問契約料': 'sales_advisory', '月次顧問料': 'sales_advisory',
+  'コンプライアンス報酬': 'sales_compliance', 'コンプライアンス費': 'sales_compliance', 'コンプライアンス料': 'sales_compliance',
+  'コンサルティング報酬': 'sales_consulting', 'コンサルティング費': 'sales_consulting', 'コンサルティング料': 'sales_consulting',
+  '税務顧問料': 'sales_advisory', '会計顧問料': 'sales_advisory', '税務報酬': 'sales_advisory', '会計報酬': 'sales_advisory',
   '記帳代行料': 'sales_other', '記帳代行報酬': 'sales_other', '巡回監査料': 'sales_other',
   '決算報酬': 'sales_other', '申告報酬': 'sales_other', '税務申告報酬': 'sales_other',
   // 汎用売上合計行 → その他売上（単一科目で売上を管理している場合）
@@ -59,6 +59,8 @@ const ACCOUNT_NAME_MAP = {
   // ===== 営業外 =====
   '受取利息': 'int_income', '受取利息配当金': 'int_income',
   '雑収入': 'misc_income', '営業外収益その他': 'misc_income',
+  '支払報酬': 'sga_other', '外部報酬': 'sga_other',
+  '荷造運賃': 'sga_other', '荷造発送費': 'sga_other', '発送費': 'sga_other',
   '支払利息': 'int_expense', '借入金利息': 'int_expense',
   '雑損失': 'misc_expense', '営業外費用その他': 'misc_expense',
 
