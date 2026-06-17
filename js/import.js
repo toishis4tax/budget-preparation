@@ -316,12 +316,12 @@ function parseImportData(data, source, startMonth) {
   const result = {};
   const unmapped = [];
 
-  // ミロク月次推移表は専用パーサーを使用
-  if (source === 'mjs') {
+  // ミロク・MoneyForwardの月次推移表は同じ列構造（col0=大区分, col1=勘定科目, col2=補助科目）
+  if (source === 'mjs' || source === 'mf') {
     return parseMjsMonthly(data, startMonth);
   }
 
-  // MoneyForward / 汎用: ヘッダー行を探す
+  // 汎用: ヘッダー行を探す
   let headerRowIdx = -1;
   let monthCols = [];
   for (let ri = 0; ri < Math.min(10, data.length); ri++) {
