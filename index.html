@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>予算・資金繰りシミュレーション</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- SheetJS for Excel export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<!-- ===== サイドバー ===== -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    予算・資金繰り<br>
+    <small>シミュレーター</small>
+  </div>
+
+  <div class="sidebar-section">予算入力</div>
+  <div class="nav-item active" data-page="budget">
+    <span class="icon">📊</span>月次予算
+  </div>
+  <div class="nav-item" data-page="simulation">
+    <span class="icon">📈</span>単年度シミュレーション
+  </div>
+
+  <div class="sidebar-section">予測</div>
+  <div class="nav-item" data-page="nextyear">
+    <span class="icon">🔮</span>翌年度予測
+  </div>
+  <div class="nav-item" data-page="fiveyear">
+    <span class="icon">📅</span>5か年計画
+  </div>
+  <div class="nav-item" data-page="cashflow">
+    <span class="icon">💰</span>キャッシュフロー予測
+  </div>
+
+  <div class="sidebar-section">税務計算</div>
+  <div class="nav-item" data-page="tax">
+    <span class="icon">🧾</span>法人税額シミュレーション
+  </div>
+  <div class="nav-item" data-page="ctax">
+    <span class="icon">📋</span>消費税判定
+  </div>
+  <div class="nav-item" data-page="welfare">
+    <span class="icon">🏥</span>法定福利費計算
+  </div>
+
+  <div class="sidebar-section">分析</div>
+  <div class="nav-item" data-page="health">
+    <span class="icon">🩺</span>財務健康診断
+  </div>
+</aside>
+
+<!-- ===== メインエリア ===== -->
+<div class="main-wrapper">
+
+  <!-- ヘッダー -->
+  <header class="app-header">
+    <select id="company_select" class="header-select" onchange="selectCompany(this.value)">
+      <option value="">-- 会社を選択 --</option>
+    </select>
+    <select id="year_select" class="header-select">
+      <option value="2025">2025年度</option>
+    </select>
+    <button class="btn btn-sm" onclick="openCompanyModal('')">＋会社追加</button>
+    <button class="btn btn-sm" onclick="openCompanyModal(App.currentCompany?.id)" id="btn_edit_company">編集</button>
+    <button class="btn btn-sm btn-danger" onclick="deleteCurrentCompany()">削除</button>
+    <span class="header-spacer"></span>
+    <span style="font-size:11px;color:#64748b">Excelライク予算管理 | 税理士向け</span>
+  </header>
+
+  <!-- コンテンツ -->
+  <div id="main_content">
+    <div class="no-data">
+      会社を追加して予算入力を始めてください。<br>
+      <button class="btn btn-primary" style="margin-top:16px" onclick="openCompanyModal('')">＋会社を追加する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 会社追加/編集モーダル ===== -->
+<div class="modal" id="company_modal">
+  <div class="modal-box">
+    <h2>会社情報</h2>
+    <input type="hidden" id="modal_company_id">
+    <div class="form-group">
+      <label>会社名 *</label>
+      <input type="text" id="modal_company_name" class="form-input" placeholder="株式会社○○">
+    </div>
+    <div class="form-group">
+      <label>資本金（円）</label>
+      <input type="number" id="modal_capital" class="form-input" value="10000000" step="100000">
+    </div>
+    <div class="form-group">
+      <label>協会けんぽ（都道府県）</label>
+      <select id="modal_pref" class="form-input">
+        <option>東京都</option><option>大阪府</option><option>神奈川県</option>
+        <option>愛知県</option><option>福岡県</option><option>北海道</option>
+        <option>宮城県</option><option>埼玉県</option><option>千葉県</option>
+        <option>京都府</option><option>兵庫県</option><option>広島県</option>
+        <option>静岡県</option><option>茨城県</option><option>新潟県</option>
+        <option>長野県</option><option>栃木県</option><option>群馬県</option>
+        <option>岡山県</option><option>沖縄県</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>決算月</label>
+      <select id="modal_fiscal" class="form-input">
+        <option value="1">1月</option><option value="2">2月</option>
+        <option value="3" selected>3月</option><option value="4">4月</option>
+        <option value="5">5月</option><option value="6">6月</option>
+        <option value="7">7月</option><option value="8">8月</option>
+        <option value="9">9月</option><option value="10">10月</option>
+        <option value="11">11月</option><option value="12">12月</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeCompanyModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveCompanyForm()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== JS ===== -->
+<script src="js/accounts.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/calculations.js"></script>
+<script src="js/tax.js"></script>
+<script src="js/welfare.js"></script>
+<script src="js/simulation.js"></script>
+<script src="js/health.js"></script>
+<script src="js/grid.js"></script>
+<script src="js/export.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
