@@ -169,17 +169,53 @@ function runTaxSim() {
   }
 }
 
-// 消費税判定
+// 消費税関連ページ
 function renderCtaxJudge(container) {
+  const company = window.App?.currentCompany;
+  const budget  = window.App?.currentBudget;
+  const ctaxEst = (company && budget) ? calcCtaxEstimate(budget, company) : null;
+
+  const estHtml = (() => {
+    if (!ctaxEst) return '<div class="no-data-small">会社情報・予算データがありません</div>';
+    if (ctaxEst.exempt) return '<div class="no-data-small">免税事業者のため消費税概算は不要です</div>';
+    if (ctaxEst.noData) return '<div class="no-data-small">仮払・仮受消費税のデータがありません。<br>Mirokuからインポートすると自動計算されます。</div>';
+    const balance = ctaxEst.ctax - (ctaxEst.ctaxPrepaid || 0);
+    return `
+      <div class="tax-kpi-row"><span>計算方法</span><span>${ctaxEst.method === 'kani' ? `簡易課税（第${ctaxEst.businessType}種・みなし${Math.round(ctaxEst.minasRate*100)}%）` : '本則課税'}</span></div>
+      ${ctaxEst.method === 'kani' ? `
+        <div class="tax-kpi-row"><span>売上高（年換算）</span><span>${Math.round(ctaxEst.salesTotal/1000).toLocaleString()}千円</span></div>
+        <div class="tax-kpi-row"><span>仮受消費税相当</span><span>${Math.round(ctaxEst.outputTax/1000).toLocaleString()}千円</span></div>
+        <div class="tax-kpi-row"><span>みなし仕入税額控除</span><span>▲${Math.round(ctaxEst.outputTax*ctaxEst.minasRate/1000).toLocaleString()}千円</span></div>
+      ` : `
+        <div class="tax-kpi-row"><span>仮受消費税（年換算）</span><span>${Math.round(ctaxEst.kariUke/1000).toLocaleString()}千円</span></div>
+        <div class="tax-kpi-row"><span>仮払消費税（年換算）</span><span>▲${Math.round(ctaxEst.kariHarai/1000).toLocaleString()}千円</span></div>
+      `}
+      ${ctaxEst.filledMonths < 12 ? `<div class="tax-kpi-row" style="font-size:10px;color:var(--text-muted)"><span>※${ctaxEst.filledMonths}か月データ→12か月換算</span><span></span></div>` : ''}
+      <div class="tax-kpi-total"><span>消費税額（概算）</span><span>${Math.round(ctaxEst.ctax/1000).toLocaleString()}千円</span></div>
+      <div class="tax-kpi-row"><span>中間納付額</span><span>▲${Math.round((ctaxEst.ctaxPrepaid||0)/1000).toLocaleString()}千円</span></div>
+      <div class="tax-kpi-row ${balance>=0?'tax-pay':'tax-refund'}">
+        <span>${balance>=0?'確定申告　納付見込':'確定申告　還付見込'}</span>
+        <span><strong>${Math.round(Math.abs(balance)/1000).toLocaleString()}千円</strong></span>
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:var(--text-muted)">
+        ※概算値。予定納税・中間納付の設定は「会社情報を編集」から変更できます。
+      </div>`;
+  })();
+
   container.innerHTML = `
     <div class="sim-panel">
-      <h2 class="section-title">消費税判定</h2>
+      <h2 class="section-title">消費税関連</h2>
       <div class="sim-grid">
-        <div class="sim-inputs card">
-          <h3>入力</h3>
+        <div class="card-h">
+          <h3>💰 消費税額概算</h3>
+          ${estHtml}
+          ${company ? `<div style="margin-top:12px"><button class="btn btn-sm btn-outline" onclick="openCompanyModal('${company.id}')">会社情報を編集（業種・中間納付）</button></div>` : ''}
+        </div>
+        <div class="card-h">
+          <h3>📋 課税区分チェック</h3>
           <div class="form-group">
             <label>基準期間の課税売上高（円）</label>
-            <input type="number" id="ct_base_sales" value="30000000" class="form-input" step="100000">
+            <input type="number" id="ct_base_sales" value="${company?.kijunUriage || 30000000}" class="form-input" step="100000">
           </div>
           <div class="form-group">
             <label>特定期間の課税売上高（円）</label>
@@ -188,22 +224,19 @@ function renderCtaxJudge(container) {
           <div class="form-group">
             <label>インボイス登録</label>
             <select id="ct_invoice" class="form-input">
-              <option value="0">未登録</option>
-              <option value="1">登録済</option>
+              <option value="0" ${!company?.invoiceRegistered?'selected':''}>未登録</option>
+              <option value="1" ${company?.invoiceRegistered?'selected':''}>登録済</option>
             </select>
           </div>
           <div class="form-group">
             <label>簡易課税届出</label>
             <select id="ct_simplified" class="form-input">
-              <option value="0">届出なし</option>
-              <option value="1">届出あり</option>
+              <option value="0" ${!company?.kanijukazei?'selected':''}>届出なし</option>
+              <option value="1" ${company?.kanijukazei?'selected':''}>届出あり</option>
             </select>
           </div>
           <button class="btn btn-primary" onclick="runCtaxJudge()">判定</button>
-        </div>
-        <div class="sim-results card">
-          <h3>判定結果</h3>
-          <div id="ctax_result" class="ctax-result"></div>
+          <div id="ctax_result" class="ctax-result" style="margin-top:14px"></div>
         </div>
       </div>
     </div>`;

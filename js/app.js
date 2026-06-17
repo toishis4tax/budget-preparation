@@ -94,11 +94,13 @@ function openCompanyModal(editId) {
   document.getElementById('modal_capital').value      = company?.capital || 10000000;
   document.getElementById('modal_pref').value         = company?.prefecture || '東京都';
   document.getElementById('modal_fiscal').value       = company?.fiscalMonth || 3;
-  document.getElementById('modal_invoice').value      = company?.invoiceRegistered ? '1' : '0';
-  document.getElementById('modal_kani').value         = company?.kanijukazei ? '1' : '0';
-  document.getElementById('modal_kijun').value        = company?.kijunUriage || 0;
-  document.getElementById('modal_prepaid1').value     = company?.prepaid1 || 0;
-  document.getElementById('modal_prepaid2').value     = company?.prepaid2 || 0;
+  document.getElementById('modal_invoice').value           = company?.invoiceRegistered ? '1' : '0';
+  document.getElementById('modal_kani').value               = company?.kanijukazei ? '1' : '0';
+  document.getElementById('modal_kijun').value              = company?.kijunUriage || 0;
+  document.getElementById('modal_business_type').value      = company?.businessType || 5;
+  document.getElementById('modal_prepaid1').value           = company?.prepaid1 || 0;
+  document.getElementById('modal_prepaid2').value           = company?.prepaid2 || 0;
+  document.getElementById('modal_ctax_prepaid').value       = company?.ctaxPrepaid || 0;
   modal.classList.add('open');
 }
 
@@ -114,13 +116,15 @@ function saveCompanyForm() {
   const fiscal  = parseInt(document.getElementById('modal_fiscal').value) || 3;
   if (!name) { alert('会社名を入力してください'); return; }
 
-  const invoice  = document.getElementById('modal_invoice')?.value === '1';
-  const kani     = document.getElementById('modal_kani')?.value === '1';
-  const kijun    = parseFloat(document.getElementById('modal_kijun')?.value) || 0;
-  const prepaid1 = parseFloat(document.getElementById('modal_prepaid1')?.value) || 0;
-  const prepaid2 = parseFloat(document.getElementById('modal_prepaid2')?.value) || 0;
+  const invoice       = document.getElementById('modal_invoice')?.value === '1';
+  const kani          = document.getElementById('modal_kani')?.value === '1';
+  const kijun         = parseFloat(document.getElementById('modal_kijun')?.value) || 0;
+  const businessType  = parseInt(document.getElementById('modal_business_type')?.value) || 5;
+  const prepaid1      = parseFloat(document.getElementById('modal_prepaid1')?.value) || 0;
+  const prepaid2      = parseFloat(document.getElementById('modal_prepaid2')?.value) || 0;
+  const ctaxPrepaid   = parseFloat(document.getElementById('modal_ctax_prepaid')?.value) || 0;
   const company = { id: id || generateId(), name, capital, prefecture: pref, fiscalMonth: fiscal,
-    invoiceRegistered: invoice, kanijukazei: kani, kijunUriage: kijun, prepaid1, prepaid2 };
+    invoiceRegistered: invoice, kanijukazei: kani, kijunUriage: kijun, businessType, prepaid1, prepaid2, ctaxPrepaid };
   saveCompany(company);
   App.companies = getCompanies();
   renderCompanyList();

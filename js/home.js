@@ -92,11 +92,13 @@ function renderHome(container) {
       ctaxColor = 'var(--emerald)';
     }
   }
-  // インボイス登録で強制課税
   if (invoice && kijun <= 10000000) {
     ctaxJudge = 'インボイス登録→課税事業者';
     ctaxColor = '#e11d48';
   }
+
+  // ===== 消費税概算 =====
+  const ctaxEst = calcCtaxEstimate(budget, company);
 
   // ===== 予算進捗 =====
   const progressItems = calcBudgetProgress(budget);
@@ -220,37 +222,92 @@ function renderHome(container) {
           <div style="margin-top:6px;font-size:10px;color:var(--text-muted)">単位：万円　前期比は前期→当期予算の変化率</div>
         </div>
 
-        <!-- 税額サマリー -->
+        <!-- 税額概算（法人税＋消費税） -->
         <div class="home-card">
-          <div class="home-card-title">🧾 法人税額（概算）</div>
+          <div class="home-card-title">🧾 税額概算</div>
+
+          <!-- 法人税ブロック -->
+          <div class="tax-block-label">法人税等</div>
           ${taxBreak ? `
             ${[
-              { label:'法人税',         val: taxBreak.corp },
-              { label:'地方法人税',     val: taxBreak.localCorp },
-              { label:'法人住民税',     val: taxBreak.inhabitant },
-              { label:'法人事業税',     val: taxBreak.business + taxBreak.special },
+              { label:'法人税',     val: taxBreak.corp },
+              { label:'地方法人税', val: taxBreak.localCorp },
+              { label:'法人住民税', val: taxBreak.inhabitant },
+              { label:'法人事業税', val: taxBreak.business + taxBreak.special },
             ].map(t=>`
               <div class="tax-kpi-row">
                 <span>${t.label}</span>
                 <span>${Math.round(t.val/1000).toLocaleString()}千円</span>
               </div>`).join('')}
             <div class="tax-kpi-total">
-              <span>税額合計</span>
+              <span>法人税合計</span>
               <span>${Math.round(taxTotal/1000).toLocaleString()}千円</span>
             </div>
+            <div class="tax-kpi-row">
+              <span style="color:var(--text-muted)">予定納税①②</span>
+              <span style="color:var(--text-muted)">▲${Math.round((prepaid1+prepaid2)/1000).toLocaleString()}千円</span>
+            </div>
             <div class="tax-kpi-row ${taxBalance>=0?'tax-pay':'tax-refund'}">
-              <span>${taxBalance>=0?'追加納付見込':'還付見込'}</span>
+              <span>${taxBalance>=0?'法人税　納付見込':'法人税　還付見込'}</span>
               <span><strong>${Math.round(Math.abs(taxBalance)/1000).toLocaleString()}千円</strong></span>
             </div>
           ` : '<div class="no-data-small">予算データがありません</div>'}
-          <div style="margin-top:10px;font-size:10px;color:var(--text-muted)">
-            ※概算。予定納税: ${Math.round((prepaid1+prepaid2)/1000).toLocaleString()}千円を控除済
-          </div>
+
+          <!-- 消費税ブロック -->
+          <div class="tax-block-label" style="margin-top:14px">消費税等</div>
+          ${ctaxEst?.exempt ? `
+            <div class="no-data-small">免税事業者（概算不要）</div>
+          ` : ctaxEst?.noData ? `
+            <div class="no-data-small">仮払・仮受消費税のデータがありません<br><span style="font-size:10px">Mirokuからインポートすると自動計算</span></div>
+          ` : ctaxEst ? `
+            ${ctaxEst.method === 'kani' ? `
+              <div class="tax-kpi-row">
+                <span>計算方法</span><span>簡易課税（第${ctaxEst.businessType}種・${Math.round(ctaxEst.minasRate*100)}%）</span>
+              </div>
+              <div class="tax-kpi-row">
+                <span>売上高（年換算）</span><span>${Math.round(ctaxEst.salesTotal/1000).toLocaleString()}千円</span>
+              </div>
+              <div class="tax-kpi-row">
+                <span>仮受消費税相当</span><span>${Math.round(ctaxEst.outputTax/1000).toLocaleString()}千円</span>
+              </div>
+              <div class="tax-kpi-row">
+                <span>みなし仕入控除</span><span>▲${Math.round(ctaxEst.outputTax*ctaxEst.minasRate/1000).toLocaleString()}千円</span>
+              </div>
+            ` : `
+              <div class="tax-kpi-row">
+                <span>計算方法</span><span>本則課税</span>
+              </div>
+              <div class="tax-kpi-row">
+                <span>仮受消費税（年換算）</span><span>${Math.round(ctaxEst.kariUke/1000).toLocaleString()}千円</span>
+              </div>
+              <div class="tax-kpi-row">
+                <span>仮払消費税（年換算）</span><span>▲${Math.round(ctaxEst.kariHarai/1000).toLocaleString()}千円</span>
+              </div>
+            `}
+            ${ctaxEst.filledMonths < 12 ? `
+              <div class="tax-kpi-row" style="font-size:10px;color:var(--text-muted)">
+                <span>※${ctaxEst.filledMonths}か月→12か月換算</span><span></span>
+              </div>` : ''}
+            <div class="tax-kpi-total">
+              <span>消費税合計</span>
+              <span>${Math.round(ctaxEst.ctax/1000).toLocaleString()}千円</span>
+            </div>
+            <div class="tax-kpi-row">
+              <span style="color:var(--text-muted)">消費税中間納付</span>
+              <span style="color:var(--text-muted)">▲${Math.round((ctaxEst.ctaxPrepaid||0)/1000).toLocaleString()}千円</span>
+            </div>
+            <div class="tax-kpi-row ${(ctaxEst.ctax-(ctaxEst.ctaxPrepaid||0))>=0?'tax-pay':'tax-refund'}">
+              <span>${(ctaxEst.ctax-(ctaxEst.ctaxPrepaid||0))>=0?'消費税　納付見込':'消費税　還付見込'}</span>
+              <span><strong>${Math.round(Math.abs(ctaxEst.ctax-(ctaxEst.ctaxPrepaid||0))/1000).toLocaleString()}千円</strong></span>
+            </div>
+          ` : '<div class="no-data-small">会社情報を設定してください</div>'}
+
+          <div style="margin-top:10px;font-size:10px;color:var(--text-muted)">※概算値。実際の申告額とは異なる場合があります</div>
         </div>
 
-        <!-- 消費税判定 -->
+        <!-- 消費税ステータス -->
         <div class="home-card">
-          <div class="home-card-title">📋 消費税判定</div>
+          <div class="home-card-title">📋 消費税ステータス</div>
           <div class="ctax-items">
             <div class="ctax-row">
               <span>インボイス登録</span>
@@ -266,7 +323,8 @@ function renderHome(container) {
             </div>
           </div>
           <div class="ctax-judge" style="color:${ctaxColor}">${ctaxJudge}</div>
-          <div style="margin-top:8px">
+          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-xs btn-outline" onclick="showPage('ctax')">消費税関連 →</button>
             <button class="btn btn-xs btn-outline" onclick="openCompanyModal('${company.id}')">設定を更新</button>
           </div>
         </div>
@@ -313,6 +371,67 @@ function calcBudgetProgress(budget) {
     { label: '販管費',   done: hasRows('sga_travel','sga_comm','sga_ad','sga_rent','sga_depr','sga_other') },
     { label: 'BS残高',   done: hasRows('cash','ar','ap','long_loan','short_loan') },
   ];
+}
+
+// ===== 消費税概算計算 =====
+function calcCtaxEstimate(budget, company) {
+  if (!budget || !company) return null;
+
+  const kijun   = company.kijunUriage || 0;
+  const invoice  = company.invoiceRegistered ?? false;
+  const kani     = company.kanijukazei ?? false;
+
+  // 免税事業者かどうか判定
+  const isTaxable = invoice || kijun > 10000000;
+  if (!isTaxable) return { exempt: true };
+
+  const allVals   = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
+  const rows      = budget.rows || {};
+
+  // 入力済み月数（按分用）: actualThrough が設定されていればそれ+1、なければ売上の非ゼロ月数
+  let filledMonths = 12;
+  if (budget.actualThrough != null) {
+    filledMonths = budget.actualThrough + 1;
+  } else {
+    const salesArr = allVals['sec_revenue'] || allVals['sales'] || [];
+    const nonZero  = salesArr.filter(v => v !== 0).length;
+    if (nonZero > 0 && nonZero < 12) filledMonths = nonZero;
+  }
+  const annualFactor = filledMonths > 0 && filledMonths < 12 ? 12 / filledMonths : 1;
+  const ctaxPrepaid  = company.ctaxPrepaid || 0;
+
+  // 簡易課税（kani届出かつ基準期間売上5000万以下）
+  if (kani && kijun <= 50000000) {
+    const MINAS = { 1: 0.90, 2: 0.80, 3: 0.70, 4: 0.60, 5: 0.50, 6: 0.40 };
+    const businessType = company.businessType || 5;
+    const minasRate    = MINAS[businessType] || 0.50;
+
+    const salesArr   = allVals['sec_revenue'] || allVals['sales'] || [];
+    const salesTotal = salesArr.reduce((a, v) => a + v, 0) * annualFactor;
+    // 売上高は税抜想定: 消費税 = 税抜売上 × 10%
+    const outputTax  = salesTotal * 0.10;
+    const ctax       = outputTax * (1 - minasRate);
+    return { method: 'kani', businessType, minasRate, salesTotal, outputTax, ctax, filledMonths, annualFactor, ctaxPrepaid };
+  }
+
+  // 本則課税: 仮払消費税・仮受消費税をBS動的科目から探す
+  if (budget.dynamicAccounts) {
+    let kariHarai = 0, kariUke = 0, foundH = false, foundU = false;
+    for (const acc of budget.dynamicAccounts) {
+      const name = acc.name.replace(/\s/g, '');
+      const vals = allVals[acc.id] || rows[acc.id] || new Array(12).fill(0);
+      const total = vals.reduce((a, v) => a + v, 0);
+      if (name.includes('仮払消費税')) { kariHarai += Math.abs(total); foundH = true; }
+      if (name.includes('仮受消費税')) { kariUke   += Math.abs(total); foundU = true; }
+    }
+    if (!foundH && !foundU) return { method: 'honzoku', noData: true };
+    const k = annualFactor;
+    const ctax = (kariUke * k) - (kariHarai * k);
+    return { method: 'honzoku', kariHarai: kariHarai * k, kariUke: kariUke * k, ctax, filledMonths, annualFactor, ctaxPrepaid };
+  }
+
+  // 静的科目の場合: 仮払/仮受がないのでデータ不足
+  return { method: 'honzoku', noData: true };
 }
 
 // ===== ホーム用フォーマット =====

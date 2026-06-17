@@ -539,6 +539,7 @@ input[type=range]::-webkit-slider-thumb {
 .tax-kpi-total { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; padding: 6px 0; border-top: 2px solid var(--border); margin-top: 2px; }
 .tax-pay    { color: #dc2626 !important; font-weight: 600; }
 .tax-refund { color: #059669 !important; font-weight: 600; }
+.tax-block-label { font-size: 10px; font-weight: 700; color: var(--text-muted); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; padding-bottom: 3px; border-bottom: 1px solid var(--border); }
 .no-data-small { color: var(--text-muted); font-size: 12px; padding: 12px 0; }
 
 /* 消費税 */

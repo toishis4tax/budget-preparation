@@ -55,7 +55,7 @@
     <span class="icon">🧾</span>法人税シミュレーション
   </div>
   <div class="nav-item" data-page="ctax">
-    <span class="icon">📋</span>消費税判定
+    <span class="icon">📋</span>消費税関連
   </div>
 
   <div class="sidebar-section">分析</div>
@@ -160,18 +160,35 @@
           </select>
         </div>
       </div>
-      <div class="form-group" style="margin-top:10px">
-        <label>基準期間売上高（円）</label>
-        <input type="number" id="modal_kijun" class="form-input" value="0" step="100000">
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
         <div class="form-group" style="margin:0">
-          <label>第1回予定納税（円）</label>
+          <label>基準期間売上高（円）</label>
+          <input type="number" id="modal_kijun" class="form-input" value="0" step="100000">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>業種区分（簡易課税用）</label>
+          <select id="modal_business_type" class="form-input">
+            <option value="1">第1種：卸売業（90%）</option>
+            <option value="2">第2種：小売業（80%）</option>
+            <option value="3">第3種：製造業等（70%）</option>
+            <option value="4">第4種：その他（60%）</option>
+            <option value="5" selected>第5種：サービス業等（50%）</option>
+            <option value="6">第6種：不動産業（40%）</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px">
+        <div class="form-group" style="margin:0">
+          <label>法人税予定納税①（円）</label>
           <input type="number" id="modal_prepaid1" class="form-input" value="0" step="10000">
         </div>
         <div class="form-group" style="margin:0">
-          <label>第2回予定納税（円）</label>
+          <label>法人税予定納税②（円）</label>
           <input type="number" id="modal_prepaid2" class="form-input" value="0" step="10000">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>消費税中間納付（円）</label>
+          <input type="number" id="modal_ctax_prepaid" class="form-input" value="0" step="10000">
         </div>
       </div>
     </div>
