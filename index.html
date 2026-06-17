@@ -3,11 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>予算・資金繰りシミュレーション</title>
+  <title>予算・資金繰りシミュレーター</title>
   <link rel="stylesheet" href="css/style.css">
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <!-- SheetJS for Excel export -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -15,19 +13,22 @@
 <!-- ===== サイドバー ===== -->
 <aside class="sidebar">
   <div class="sidebar-logo">
-    予算・資金繰り<br>
-    <small>シミュレーター</small>
+    <div class="logo-main">予算・資金繰り</div>
+    <div class="logo-sub">シミュレーター for 税理士</div>
   </div>
 
-  <div class="sidebar-section">予算入力</div>
+  <div class="sidebar-section">データ入力</div>
   <div class="nav-item active" data-page="budget">
-    <span class="icon">📊</span>月次予算
+    <span class="icon">📊</span>月次予算入力
   </div>
-  <div class="nav-item" data-page="simulation">
-    <span class="icon">📈</span>単年度シミュレーション
+  <div class="nav-item" data-page="import">
+    <span class="icon">📂</span>試算表インポート
   </div>
 
-  <div class="sidebar-section">予測</div>
+  <div class="sidebar-section">シミュレーション</div>
+  <div class="nav-item" data-page="simulation">
+    <span class="icon">📈</span>単年度 PL/BS
+  </div>
   <div class="nav-item" data-page="nextyear">
     <span class="icon">🔮</span>翌年度予測
   </div>
@@ -35,18 +36,21 @@
     <span class="icon">📅</span>5か年計画
   </div>
   <div class="nav-item" data-page="cashflow">
-    <span class="icon">💰</span>キャッシュフロー予測
+    <span class="icon">💰</span>CF予測
   </div>
 
-  <div class="sidebar-section">税務計算</div>
-  <div class="nav-item" data-page="tax">
-    <span class="icon">🧾</span>法人税額シミュレーション
-  </div>
-  <div class="nav-item" data-page="ctax">
-    <span class="icon">📋</span>消費税判定
+  <div class="sidebar-section">役員・税務</div>
+  <div class="nav-item" data-page="execcomp">
+    <span class="icon">👔</span>役員報酬最適化
   </div>
   <div class="nav-item" data-page="welfare">
     <span class="icon">🏥</span>法定福利費計算
+  </div>
+  <div class="nav-item" data-page="tax">
+    <span class="icon">🧾</span>法人税シミュレーション
+  </div>
+  <div class="nav-item" data-page="ctax">
+    <span class="icon">📋</span>消費税判定
   </div>
 
   <div class="sidebar-section">分析</div>
@@ -60,29 +64,35 @@
 
   <!-- ヘッダー -->
   <header class="app-header">
-    <select id="company_select" class="header-select" onchange="selectCompany(this.value)">
+    <select id="company_select" class="header-select">
       <option value="">-- 会社を選択 --</option>
     </select>
     <select id="year_select" class="header-select">
       <option value="2025">2025年度</option>
     </select>
     <button class="btn btn-sm" onclick="openCompanyModal('')">＋会社追加</button>
-    <button class="btn btn-sm" onclick="openCompanyModal(App.currentCompany?.id)" id="btn_edit_company">編集</button>
-    <button class="btn btn-sm btn-danger" onclick="deleteCurrentCompany()">削除</button>
+    <button class="btn btn-sm" onclick="openCompanyModal(App.currentCompany?.id)">編集</button>
+    <button class="btn btn-sm" style="border-color:rgba(255,100,100,.5);color:#ffaaaa" onclick="deleteCurrentCompany()">削除</button>
     <span class="header-spacer"></span>
-    <span style="font-size:11px;color:#64748b">Excelライク予算管理 | 税理士向け</span>
+    <span class="header-label">税理士向け予算管理システム</span>
   </header>
 
   <!-- コンテンツ -->
   <div id="main_content">
     <div class="no-data">
-      会社を追加して予算入力を始めてください。<br>
-      <button class="btn btn-primary" style="margin-top:16px" onclick="openCompanyModal('')">＋会社を追加する</button>
+      <div style="font-size:48px;margin-bottom:16px">📊</div>
+      <div style="font-size:16px;font-weight:700;color:var(--primary-dark);margin-bottom:8px">
+        予算・資金繰りシミュレーター
+      </div>
+      <div style="color:var(--gray-500);margin-bottom:24px">
+        会社を追加して予算入力を始めてください
+      </div>
+      <button class="btn-solid" onclick="openCompanyModal('')">＋ 会社を追加する</button>
     </div>
   </div>
 </div>
 
-<!-- ===== 会社追加/編集モーダル ===== -->
+<!-- ===== 会社モーダル ===== -->
 <div class="modal" id="company_modal">
   <div class="modal-box">
     <h2>会社情報</h2>
@@ -98,13 +108,22 @@
     <div class="form-group">
       <label>協会けんぽ（都道府県）</label>
       <select id="modal_pref" class="form-input">
-        <option>東京都</option><option>大阪府</option><option>神奈川県</option>
-        <option>愛知県</option><option>福岡県</option><option>北海道</option>
-        <option>宮城県</option><option>埼玉県</option><option>千葉県</option>
-        <option>京都府</option><option>兵庫県</option><option>広島県</option>
-        <option>静岡県</option><option>茨城県</option><option>新潟県</option>
-        <option>長野県</option><option>栃木県</option><option>群馬県</option>
-        <option>岡山県</option><option>沖縄県</option>
+        <option>北海道</option><option>青森県</option><option>岩手県</option>
+        <option>宮城県</option><option>秋田県</option><option>山形県</option>
+        <option>福島県</option><option>茨城県</option><option>栃木県</option>
+        <option>群馬県</option><option>埼玉県</option><option>千葉県</option>
+        <option selected>東京都</option><option>神奈川県</option><option>新潟県</option>
+        <option>富山県</option><option>石川県</option><option>福井県</option>
+        <option>山梨県</option><option>長野県</option><option>静岡県</option>
+        <option>愛知県</option><option>三重県</option><option>滋賀県</option>
+        <option>京都府</option><option>大阪府</option><option>兵庫県</option>
+        <option>奈良県</option><option>和歌山県</option><option>鳥取県</option>
+        <option>島根県</option><option>岡山県</option><option>広島県</option>
+        <option>山口県</option><option>徳島県</option><option>香川県</option>
+        <option>愛媛県</option><option>高知県</option><option>福岡県</option>
+        <option>佐賀県</option><option>長崎県</option><option>熊本県</option>
+        <option>大分県</option><option>宮崎県</option><option>鹿児島県</option>
+        <option>沖縄県</option>
       </select>
     </div>
     <div class="form-group">
@@ -119,8 +138,8 @@
       </select>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeCompanyModal()">キャンセル</button>
-      <button class="btn btn-primary" onclick="saveCompanyForm()">保存</button>
+      <button class="btn-outline" onclick="closeCompanyModal()">キャンセル</button>
+      <button class="btn-solid" onclick="saveCompanyForm()">保存</button>
     </div>
   </div>
 </div>
@@ -135,6 +154,8 @@
 <script src="js/health.js"></script>
 <script src="js/grid.js"></script>
 <script src="js/export.js"></script>
+<script src="js/import.js"></script>
+<script src="js/exec-comp.js"></script>
 <script src="js/app.js"></script>
 
 </body>

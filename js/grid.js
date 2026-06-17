@@ -494,6 +494,4 @@ function applyFillFromMenu(type) {
   applyFill();
 }
 
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+// escHtml は app.js で定義
