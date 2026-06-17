@@ -26,10 +26,12 @@ const ACCOUNT_NAME_MAP = {
   '期末商品棚卸高': 'cogs_close', '期末棚卸高': 'cogs_close',
 
   // ===== 販管費 - 人件費 =====
-  '役員報酬': 'sga_exec', '役員給与': 'sga_exec', '取締役報酬': 'sga_exec',
+  '役員報酬': 'sga_exec', '役員給与': 'sga_exec', '役員賞与': 'sga_exec', '取締役報酬': 'sga_exec',
   '給与手当': 'sga_emp', '給与': 'sga_emp', '給料手当': 'sga_emp', '給料': 'sga_emp',
-  '従業員給与': 'sga_emp', '管理職手当': 'sga_emp', '残業手当': 'sga_emp',
+  '給料賃金': 'sga_emp', '従業員給与': 'sga_emp', '雑給': 'sga_emp',
+  '管理職手当': 'sga_emp', '残業手当': 'sga_emp',
   '賞与': 'sga_bonus', '従業員賞与': 'sga_bonus', '決算賞与': 'sga_bonus',
+  '退職給付費用': 'sga_bonus', '退職金': 'sga_bonus',
   '法定福利費': 'sga_welfare', '社会保険料': 'sga_welfare',
   '健康保険料': 'sga_welfare', '厚生年金保険料': 'sga_welfare',
   '雇用保険料': 'sga_welfare', '労働保険料': 'sga_welfare',
@@ -39,7 +41,8 @@ const ACCOUNT_NAME_MAP = {
   // ===== 販管費 - その他 =====
   '旅費交通費': 'sga_travel', '旅費': 'sga_travel', '交通費': 'sga_travel', '出張旅費': 'sga_travel',
   '通信費': 'sga_comm', '電話代': 'sga_comm', '電話通信費': 'sga_comm',
-  '広告宣伝費': 'sga_ad', '広告費': 'sga_ad', '宣伝費': 'sga_ad',
+  '広告宣伝費': 'sga_ad', '広告費': 'sga_ad', '宣伝費': 'sga_ad', '販売促進費': 'sga_ad',
+  '荷造運賃': 'sga_ad', '荷造発送費': 'sga_ad', '発送費': 'sga_ad',
   '接待交際費': 'sga_entertain', '交際費': 'sga_entertain', '接待費': 'sga_entertain',
   '地代家賃': 'sga_rent', '家賃': 'sga_rent', '賃借料': 'sga_rent',
   'リース料': 'sga_rent', '駐車場代': 'sga_rent',
@@ -57,11 +60,10 @@ const ACCOUNT_NAME_MAP = {
   '修繕費': 'sga_other', '諸会費': 'sga_other',
 
   // ===== 営業外 =====
-  '受取利息': 'int_income', '受取利息配当金': 'int_income',
+  '受取利息': 'int_income', '受取利息配当金': 'int_income', '受取配当金': 'int_income',
   '雑収入': 'misc_income', '営業外収益その他': 'misc_income',
-  '支払報酬': 'sga_other', '外部報酬': 'sga_other',
-  '荷造運賃': 'sga_other', '荷造発送費': 'sga_other', '発送費': 'sga_other',
-  '支払利息': 'int_expense', '借入金利息': 'int_expense',
+  '支払報酬': 'sga_other', '支払報酬料': 'sga_other', '外部報酬': 'sga_other',
+  '支払利息': 'int_expense', '借入金利息': 'int_expense', '社債利息': 'int_expense',
   '雑損失': 'misc_expense', '営業外費用その他': 'misc_expense',
 
   // ===== 特別 =====
@@ -71,36 +73,42 @@ const ACCOUNT_NAME_MAP = {
   // ===== 法人税 =====
   '法人税等': 'corp_tax', '法人税、住民税及び事業税': 'corp_tax',
 
-  // ===== BS 資産（流動） =====
+  // ===== BS 資産（流動）　Journal-Checker PL_BS_ACCTS ベース =====
   '現金及び預金': 'cash', '現金預金': 'cash', '現金': 'cash',
-  '普通預金': 'cash', '当座預金': 'cash', '小口現金': 'cash',
+  '小口現金': 'cash', '普通預金': 'cash', '当座預金': 'cash',
+  '定期預金': 'cash', '外貨預金': 'cash', '預金': 'cash',
   '現金及び預金合計': 'cash',
-  '売掛金': 'ar', '売掛': 'ar', '未収入金': 'ar',
+  '売掛金': 'ar', '売掛': 'ar', '受取手形': 'ar',
+  '未収入金': 'ar', '未収金': 'ar', '電子記録債権': 'ar',
   '棚卸資産': 'inventory', '商品': 'inventory', '製品': 'inventory',
-  'その他流動資産': 'other_ca', '前払費用': 'other_ca', '仮払金': 'other_ca',
-  '短期貸付金': 'other_ca', '立替金': 'other_ca', '未収収益': 'other_ca',
+  '原材料': 'inventory', '仕掛品': 'inventory',
+  '前払費用': 'other_ca', '前払金': 'other_ca', '長期前払費用': 'other_ca',
+  '仮払金': 'other_ca', '立替金': 'other_ca', '未収収益': 'other_ca',
+  '短期貸付金': 'other_ca', 'その他流動資産': 'other_ca',
 
-  // ===== BS 資産（固定） =====
-  '建物': 'building', '建物附属設備': 'building',
+  // ===== BS 資産（固定）=====
+  '建物': 'building', '建物附属設備': 'building', '附属設備': 'building', '構築物': 'building',
   '機械装置': 'machinery', '機械及び装置': 'machinery',
-  '工具器具備品': 'equipment', '器具備品': 'equipment',
-  'ソフトウェア': 'equipment',
+  '工具器具備品': 'equipment', '器具備品': 'equipment', '備品': 'equipment',
+  '車両運搬具': 'equipment', 'ソフトウェア': 'equipment',
+  '一括償却資産': 'equipment', '少額減価償却資産': 'equipment',
   '土地': 'land',
-  '投資有価証券': 'invest', '有価証券': 'invest',
-  '差入保証金': 'deposit', '敷金': 'deposit', '保証金': 'deposit',
+  '投資有価証券': 'invest', '有価証券': 'invest', '出資金': 'invest', '保険積立金': 'invest',
+  '差入保証金': 'deposit', '敷金': 'deposit', '保証金': 'deposit', '預け金': 'deposit',
+  '長期貸付金': 'deposit',
 
   // ===== BS 負債 =====
-  '買掛金': 'ap', '買掛': 'ap',
-  '短期借入金': 'short_loan', '銀行短期借入': 'short_loan',
+  '買掛金': 'ap', '買掛': 'ap', '支払手形': 'ap', '電子記録債務': 'ap',
+  '短期借入金': 'short_loan', '銀行短期借入': 'short_loan', '役員借入金': 'short_loan',
   '未払金': 'unpaid', '未払費用': 'unpaid',
-  '預り金': 'unpaid', '仮受金': 'unpaid', '前受金': 'unpaid',
-  '未払法人税等': 'unpaid_tax',
+  '預り金': 'unpaid', '仮受金': 'unpaid', '前受金': 'unpaid', '前受収益': 'unpaid',
+  '未払法人税等': 'unpaid_tax', '未払法人税': 'unpaid_tax',
   '未払消費税': 'unpaid_ct', '仮受消費税': 'unpaid_ct', '未払消費税等': 'unpaid_ct',
   '長期借入金': 'long_loan', '銀行長期借入': 'long_loan',
 
   // ===== BS 純資産 =====
-  '資本金': 'capital',
-  '利益剰余金': 'retained', '繰越利益剰余金': 'retained',
+  '資本金': 'capital', '資本準備金': 'capital',
+  '利益剰余金': 'retained', '繰越利益剰余金': 'retained', '利益準備金': 'retained',
 };
 
 // ミロク月次推移表: 合計行のうち二重計上になるためスキップする科目名
