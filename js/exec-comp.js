@@ -69,10 +69,19 @@ let _execState = {
   targetProfit: 0,
 };
 
+let _execTab = 'zero'; // 'zero' | 'optimize'
+
 function renderExecComp(container, budget) {
   // 予算から税引前利益を取得
-  const basePL = budget ? calcPL(budget.rows) : null;
-  const pretax  = basePL ? annualTotal(basePL.pretax_profit) : 0;
+  const allVals = budget?.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget?.rows || {});
+  const basePL  = budget ? calcPL(budget.rows) : null;
+  const pretax  = (() => {
+    if (budget?.dynamicAccounts) {
+      const arr = allVals['calc_pretax'] || [];
+      return arr.reduce((a,v)=>a+v,0);
+    }
+    return basePL ? annualTotal(basePL.pretax_profit) : 0;
+  })();
   const capital  = window.App?.currentCompany?.capital || 10_000_000;
   const pref     = window.App?.currentCompany?.prefecture || '東京都';
   _execState.pref     = pref;
@@ -84,6 +93,44 @@ function renderExecComp(container, budget) {
 
   container.innerHTML = `
     <div class="sim-panel">
+      <!-- タブ -->
+      <div class="grid-mode-tabs" style="margin-bottom:18px">
+        <button class="grid-mode-tab${_execTab==='zero'?' active':''}" onclick="switchExecTab('zero')">①今期　利益ゼロ化（賞与調整）</button>
+        <button class="grid-mode-tab${_execTab==='optimize'?' active':''}" onclick="switchExecTab('optimize')">②翌期　トータル最適化（報酬設計）</button>
+      </div>
+
+      <!-- ①利益ゼロ化 -->
+      <div id="exec_tab_zero" style="display:${_execTab==='zero'?'block':'none'}">
+        <div class="sim-grid">
+          <div class="card-h">
+            <h3>📋 今期の着地予測</h3>
+            <div class="form-group">
+              <label>現状の税引前利益（予算ベース）</label>
+              <input type="number" id="zero_pretax" value="${pretax}" step="100000" class="form-input" oninput="calcZeroOut()">
+            </div>
+            <div class="form-group">
+              <label>協会けんぽ（都道府県）</label>
+              <select id="zero_pref" class="form-input" onchange="calcZeroOut()">${prefOptions}</select>
+            </div>
+            <div class="form-group">
+              <label>対象役員の月額報酬（円）</label>
+              <input type="number" id="zero_monthly" value="${_execState.officers[0]?.monthly || 800000}" step="10000" class="form-input" oninput="calcZeroOut()">
+              <div style="font-size:10px;color:var(--text-muted);margin-top:3px">社会保険料の標準報酬月額算定に使用します</div>
+            </div>
+            <div class="form-group">
+              <label>対象役員の年齢</label>
+              <input type="number" id="zero_age" value="${_execState.officers[0]?.age || 50}" class="form-input" oninput="calcZeroOut()">
+            </div>
+          </div>
+          <div class="card-h" id="zero_result">
+            <h3>💡 推奨役員賞与・調整額</h3>
+            <div class="no-data-small">左の値を入力してください</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ②トータル最適化 -->
+      <div id="exec_tab_optimize" style="display:${_execTab==='optimize'?'block':'none'}">
       <div class="flex-between">
         <div>
           <h2 class="section-title">役員報酬・役員賞与 最適化</h2>
@@ -146,10 +193,13 @@ function renderExecComp(container, budget) {
           <button class="btn-solid" onclick="applyExecToBudget()">予算に反映する →</button>
         </div>
       </div>
+      </div><!-- /#exec_tab_optimize -->
+
     </div>`;
 
   renderOfficerList();
   updateExecCalc();
+  calcZeroOut();
 }
 
 function renderOfficerList() {
@@ -373,6 +423,114 @@ function applyExecToBudget() {
   window.App.currentBudget = budget;
 
   alert(`予算を更新しました。\n役員報酬：${fmt(totalExec)}/月\n法定福利費（社会保険）：${fmt(Math.round(totalMonthlySI))}/月`);
+  showPage('budget');
+}
+
+// ===== タブ切替 =====
+function switchExecTab(tab) {
+  _execTab = tab;
+  document.getElementById('exec_tab_zero')?.style.setProperty('display', tab === 'zero' ? 'block' : 'none');
+  document.getElementById('exec_tab_optimize')?.style.setProperty('display', tab === 'optimize' ? 'block' : 'none');
+  document.querySelectorAll('.grid-mode-tab').forEach(btn => {
+    btn.classList.toggle('active',
+      (btn.textContent.includes('ゼロ化') && tab === 'zero') ||
+      (btn.textContent.includes('最適化') && tab === 'optimize')
+    );
+  });
+}
+
+// ===== ①利益ゼロ化計算 =====
+function calcZeroOut() {
+  const el = document.getElementById('zero_result');
+  if (!el) return;
+
+  const pretax  = parseFloat(document.getElementById('zero_pretax')?.value  || 0);
+  const monthly = parseFloat(document.getElementById('zero_monthly')?.value || 800000);
+  const age     = parseFloat(document.getElementById('zero_age')?.value     || 50);
+  const pref    = document.getElementById('zero_pref')?.value || '東京都';
+
+  if (pretax <= 0) {
+    el.innerHTML = '<h3>💡 推奨役員賞与・調整額</h3><div class="no-data-small">利益がありません。賞与調整は不要です。</div>';
+    return;
+  }
+
+  // 社会保険料率（会社負担）を賞与ベースで試算
+  // 賞与B、法定福利費（賞与分）= B × si_rate
+  // B + B × si_rate = pretax → B = pretax / (1 + si_rate)
+  // si_rateを求めるため、月額報酬の標準報酬で計算（簡易）
+  const siBase  = calcSocialInsurance(monthly, 0, age, pref);
+  const siRate  = monthly > 0 ? siBase.annual / (monthly * 12) : 0.145;
+
+  const bonus   = Math.round(pretax / (1 + siRate));
+  const welfare = pretax - bonus;
+  const remain  = pretax - bonus - welfare;
+
+  // 税額比較（賞与なし vs 賞与あり）
+  const capital = window.App?.currentCompany?.capital || 10_000_000;
+  const taxBefore = calcAllTax(pretax, capital);
+  const taxAfter  = calcAllTax(Math.max(0, remain), capital);
+
+  const fmtV = v => Math.round(v).toLocaleString();
+
+  el.innerHTML = `
+    <h3>💡 推奨役員賞与・調整額</h3>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:16px;margin-bottom:14px">
+      <div style="font-size:11px;color:#166534;font-weight:700;margin-bottom:10px">推奨内訳</div>
+      <div class="tax-kpi-row"><span>役員賞与（損金算入）</span><span style="font-weight:700;color:#166534">${fmtV(bonus)}円</span></div>
+      <div class="tax-kpi-row"><span>法定福利費（賞与分）</span><span style="font-weight:700;color:#166534">${fmtV(welfare)}円</span></div>
+      <div class="tax-kpi-total"><span>合計</span><span>${fmtV(bonus+welfare)}円</span></div>
+      <div class="tax-kpi-row" style="margin-top:6px"><span>調整後　税引前利益</span><span style="font-weight:700;color:${remain===0?'#166534':'#dc2626'}">${fmtV(remain)}円</span></div>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">法人税の変化（概算）</div>
+    <div class="tax-kpi-row"><span>賞与なし　法人税等</span><span>${fmtV(taxBefore.total)}円</span></div>
+    <div class="tax-kpi-row"><span>賞与あり　法人税等</span><span style="color:#059669">${fmtV(taxAfter.total)}円</span></div>
+    <div class="tax-kpi-total"><span>節税額（概算）</span><span style="color:#059669">▲${fmtV(taxBefore.total - taxAfter.total)}円</span></div>
+    <div style="margin-top:14px;font-size:10px;color:var(--text-muted);margin-bottom:12px">
+      ※役員賞与を損金算入するには事前確定届出給与の届出が必要です<br>
+      ※社会保険料率は月額報酬の標準報酬月額から概算
+    </div>
+    <button class="btn-solid" onclick="applyZeroOutToAdj(${bonus}, ${welfare})">調整列に反映する →</button>`;
+}
+
+// 調整列（col 12）へ反映
+function applyZeroOutToAdj(bonus, welfare) {
+  const budget = window.App?.currentBudget;
+  if (!budget) { alert('予算データがありません'); return; }
+
+  // 役員賞与アカウントを探す（動的 or 静的）
+  let bonusAccId   = null;
+  let welfareAccId = 'sga_welfare';
+
+  if (budget.dynamicAccounts) {
+    const bonusAcc = budget.dynamicAccounts.find(a =>
+      a.name.replace(/\s/g,'').match(/役員賞与|役員ボーナス/) && a.type === 'input'
+    );
+    const welfAcc = budget.dynamicAccounts.find(a =>
+      a.name.replace(/\s/g,'').match(/法定福利費/) && a.type === 'input'
+    );
+    if (bonusAcc) bonusAccId = bonusAcc.id;
+    if (welfAcc)  welfareAccId = welfAcc.id;
+  } else {
+    bonusAccId = 'sga_exec'; // 静的の場合は役員報酬行に追記
+  }
+
+  const ensure13 = id => {
+    if (!budget.rows[id]) budget.rows[id] = new Array(13).fill(0);
+    while (budget.rows[id].length < 13) budget.rows[id].push(0);
+  };
+
+  if (bonusAccId) {
+    ensure13(bonusAccId);
+    budget.rows[bonusAccId][12] = bonus;
+  }
+  ensure13(welfareAccId);
+  budget.rows[welfareAccId][12] = (budget.rows[welfareAccId][12] || 0) + welfare;
+
+  budget.updatedAt = new Date().toISOString();
+  saveBudget(budget);
+  window.App.currentBudget = budget;
+
+  alert(`調整列に反映しました。\n役員賞与：${Math.round(bonus).toLocaleString()}円\n法定福利費：${Math.round(welfare).toLocaleString()}円`);
   showPage('budget');
 }
 
