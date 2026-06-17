@@ -96,6 +96,56 @@ function calcAllValues(rows) {
   return { ...vals, ...headerSums };
 }
 
+// ===== 動的科目用計算エンジン =====
+
+// 動的インポートされた科目の全月次値を計算
+function calcAllValuesDynamic(budget) {
+  if (!budget.dynamicAccounts || !budget.dynamicAccounts.length) {
+    return calcAllValues(budget.rows || {});
+  }
+  const accts = budget.dynamicAccounts;
+  const result = { ...(budget.rows || {}) };
+
+  // 親子マップ構築
+  const kids = {};
+  accts.forEach(a => {
+    if (a.parentId) (kids[a.parentId] = kids[a.parentId] || []).push(a.id);
+  });
+
+  // 下から上へ: 子の合計を親に集計（逆順で処理）
+  [...accts].reverse().forEach(a => {
+    if (a.type === 'parent' || a.type === 'section') {
+      const cids = kids[a.id] || [];
+      const hasCData = cids.some(cid => result[cid]?.some(v => v !== 0));
+      if (hasCData) {
+        result[a.id] = new Array(12).fill(0).map((_,i) =>
+          cids.reduce((s,cid) => s + (result[cid]?.[i] || 0), 0)
+        );
+      }
+      // else: rows[a.id] にある親の直接値をそのまま使用
+    }
+  });
+
+  // 計算行（利益等）を式で算出
+  accts.filter(a => a.type === 'calculated').forEach(a => {
+    if (a.formula) result[a.id] = evalDynFormula(a.formula, result);
+  });
+
+  return result;
+}
+
+function evalDynFormula(formula, vals) {
+  const tokens = formula.trim().split(/\s+/);
+  const get = id => vals[id] || new Array(12).fill(0);
+  let res = [...get(tokens[0])];
+  for (let i = 1; i + 1 < tokens.length; i += 2) {
+    const b = get(tokens[i + 1]);
+    if (tokens[i] === '+') res = res.map((v,j) => v + b[j]);
+    else if (tokens[i] === '-') res = res.map((v,j) => v - b[j]);
+  }
+  return res;
+}
+
 // 年度合計(配列→数値)
 function annualTotal(arr) {
   return arr.reduce((a, b) => a + b, 0);

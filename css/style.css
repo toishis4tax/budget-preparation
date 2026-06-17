@@ -290,6 +290,8 @@ body {
 .calc-row  td.sticky-col { background: #f0fdf4; font-weight: 700; color: var(--emerald-dark); }
 .header-row td.sticky-col { background: #f9fafb; font-weight: 700; color: var(--emerald-dark); }
 .header-row { background: #f9fafb; }
+.section-row td { background: #e5e7eb !important; font-weight: 800; color: #374151; font-size: 12px; letter-spacing: .03em; border-top: 2px solid #9ca3af; }
+.section-row td.sticky-col { background: #e5e7eb !important; }
 .bold-row td { font-weight: 800; }
 .input-row td.sticky-col { background: #fff; }
 .cell-input {

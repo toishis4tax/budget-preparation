@@ -12,7 +12,7 @@ function renderGrid(container, budget) {
   }
 
   const months = getMonthLabels(budget.startMonth || 4);
-  const allVals = calcAllValues(budget.rows);
+  const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
 
   const colCount = 12; // months
 
@@ -62,7 +62,9 @@ function renderGridRows(budget, allVals, months) {
   if (!tbody) return;
   tbody.innerHTML = '';
 
-  ACCOUNTS.forEach((acc, accIdx) => {
+  const accounts = budget.dynamicAccounts || ACCOUNTS;
+
+  accounts.forEach((acc, accIdx) => {
     if (acc.type === 'separator') {
       const tr = document.createElement('tr');
       tr.className = 'sep-row';
@@ -71,21 +73,25 @@ function renderGridRows(budget, allVals, months) {
       return;
     }
 
-    const isInput = acc.type === 'input';
+    const isInput  = acc.type === 'input';
+    const isCalc   = acc.type === 'calculated';
+    const isHeader = acc.type === 'header' || acc.type === 'parent';
+    const isSection = acc.type === 'section';
     const vals = allVals[acc.id] || new Array(12).fill(0);
     const total = vals.reduce((a,b)=>a+b,0);
 
     const tr = document.createElement('tr');
-    tr.dataset.accId = acc.id;
+    tr.dataset.accId  = acc.id;
     tr.dataset.accIdx = accIdx;
     tr.className = [
-      acc.type === 'calculated' ? 'calc-row' : '',
-      acc.type === 'header'     ? 'header-row' : '',
-      acc.bold                  ? 'bold-row'   : '',
-      isInput                   ? 'input-row'  : '',
+      isCalc    ? 'calc-row'   : '',
+      (isHeader || isSection) ? 'header-row' : '',
+      isSection ? 'section-row': '',
+      acc.bold  ? 'bold-row'   : '',
+      isInput   ? 'input-row'  : '',
     ].filter(Boolean).join(' ');
 
-    const indent = '　'.repeat(acc.indent);
+    const indent = '　'.repeat(acc.indent || 0);
     let nameCell;
     if (isInput) {
       nameCell = `<td class="acc-col sticky-col acc-name" data-acc-id="${acc.id}">
@@ -93,10 +99,12 @@ function renderGridRows(budget, allVals, months) {
         <span class="acc-label" ondblclick="editAccName(this,'${acc.id}')">${escHtml(acc.name)}</span>
       </td>`;
     } else {
-      nameCell = `<td class="acc-col sticky-col acc-name ${acc.type}-label">
+      nameCell = `<td class="acc-col sticky-col acc-name ${isCalc?'calculated':acc.type}-label">
         <span class="indent">${indent}</span>${escHtml(acc.name)}
       </td>`;
     }
+
+    const nonInputCell = v => `<td class="val-cell calc-val" style="text-align:right">${v === 0 ? '–' : Math.round(v).toLocaleString()}</td>`;
 
     const cells = isInput
       ? vals.map((v, colIdx) => `
@@ -110,10 +118,10 @@ function renderGridRows(budget, allVals, months) {
               autocomplete="off"
               inputmode="numeric">
           </td>`).join('')
-      : vals.map(v => `<td class="val-cell calc-val">${v === 0 ? '–' : Math.round(v).toLocaleString()}</td>`).join('');
+      : vals.map(nonInputCell).join('');
 
     tr.innerHTML = nameCell + cells +
-      `<td class="total-col ${isInput?'':'calc-val'}">${total === 0 ? (isInput?'':'–') : Math.round(total).toLocaleString()}</td>`;
+      `<td class="total-col calc-val" style="text-align:right">${total === 0 ? (isInput?'':'–') : Math.round(total).toLocaleString()}</td>`;
     tbody.appendChild(tr);
   });
 }
@@ -121,7 +129,7 @@ function renderGridRows(budget, allVals, months) {
 function refreshCalcRows() {
   const budget = window.App?.currentBudget;
   if (!budget) return;
-  const allVals = calcAllValues(budget.rows);
+  const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
 
   document.querySelectorAll('#grid_tbody tr.calc-row, #grid_tbody tr.header-row').forEach(tr => {
     const accId = tr.dataset.accId;

@@ -111,19 +111,49 @@ const ACCOUNT_NAME_MAP = {
   '利益剰余金': 'retained', '繰越利益剰余金': 'retained', '利益準備金': 'retained',
 };
 
-// ミロク月次推移表: 合計行のうち二重計上になるためスキップする科目名
-const MJS_SKIP_TOTALS = new Set([
-  '流動資産合計', '固定資産合計', '投資その他の資産合計', '資産合計',
-  '流動負債合計', '固定負債合計', '負債合計',
-  '純資産合計', '株主資本合計', '負債及び純資産合計',
-  '売上原価合計', '販売費及び一般管理費合計',
-  '営業外収益合計', '営業外費用合計',
-  '特別利益合計', '特別損失合計',
-  '売上総利益', '営業利益', '経常利益',
-  '税引前当期純利益', '当期純利益',
-  '売上総利益合計', '営業利益合計', '経常利益合計',
-  '税引前当期純利益合計',
+// ===== 動的インポート用定数 =====
+
+// col0 セクションヘッダー → セクション情報
+const DYN_SECTION_MAP = {
+  '売上高':           { id: 'sec_revenue',    section: 'pl',       sign:  1 },
+  '売上原価':         { id: 'sec_cogs',        section: 'pl',       sign: -1 },
+  '販売費及び一般管理費': { id: 'sec_sga',     section: 'pl',       sign: -1 },
+  '営業外収益':       { id: 'sec_non_op_inc',  section: 'pl',       sign:  1 },
+  '営業外費用':       { id: 'sec_non_op_exp',  section: 'pl',       sign: -1 },
+  '特別利益':         { id: 'sec_extra_inc',   section: 'pl',       sign:  1 },
+  '特別損失':         { id: 'sec_extra_exp',   section: 'pl',       sign: -1 },
+  '当期純損益':       { id: 'sec_tax_etc',     section: 'pl',       sign: -1 },
+  '流動資産':         { id: 'sec_cur_asset',   section: 'bs_asset', sign:  1 },
+  '固定資産':         { id: 'sec_fix_asset',   section: 'bs_asset', sign:  1 },
+  '投資その他の資産': { id: 'sec_fix_asset',   section: 'bs_asset', sign:  1 },
+  '流動負債':         { id: 'sec_cur_liab',    section: 'bs_liab',  sign:  1 },
+  '固定負債':         { id: 'sec_fix_liab',    section: 'bs_liab',  sign:  1 },
+  '純資産':           { id: 'sec_equity',      section: 'bs_equity',sign:  1 },
+  '株主資本':         { id: 'sec_equity',      section: 'bs_equity',sign:  1 },
+};
+
+// スキップする行名（合計行・計算利益行）
+const DYN_SKIP_ROWS = new Set([
+  '売上総利益','売上総損失','営業利益','営業損失',
+  '経常利益','経常損失','税引前当期純利益','税引前当期純損失',
+  '当期純利益','当期純損失','当期純利益（損失）',
+  '売上高合計','経常売上高合計','売上原価合計',
+  '販売費及び一般管理費合計',
+  '営業外収益合計','営業外費用合計',
+  '特別利益合計','特別損失合計','当期純損益合計',
+  '流動資産合計','固定資産合計','投資その他の資産合計','資産合計',
+  '流動負債合計','固定負債合計','負債合計',
+  '株主資本合計','評価換算差額等合計','純資産合計',
+  '負債純資産合計','負債及び純資産合計',
 ]);
+
+// PL計算行の定義
+const PL_CALC_ROWS = [
+  { id:'calc_gross',  name:'売上総利益',       after:'sec_cogs',       formula:'sec_revenue - sec_cogs',                    bold:true },
+  { id:'calc_op',     name:'営業利益',         after:'sec_sga',        formula:'calc_gross - sec_sga',                      bold:true },
+  { id:'calc_ord',    name:'経常利益',         after:'sec_non_op_exp', formula:'calc_op + sec_non_op_inc - sec_non_op_exp', bold:true },
+  { id:'calc_pretax', name:'税引前当期純利益', after:'sec_extra_exp',  formula:'calc_ord + sec_extra_inc - sec_extra_exp',  bold:true },
+];
 
 // 月名 → インデックス
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -251,82 +281,162 @@ function parseJournalData(data, startMonth) {
   return { rows: result, unmapped, error: null };
 }
 
-// ===== ミロク財務大将 月次推移表パーサー =====
+// ===== ミロク・MoneyForward 月次推移表パーサー（動的科目構造） =====
 // 構造: col0=大区分ヘッダー/合計行, col1=勘定科目, col2=補助科目, col3+=月次残高
-function parseMjsMonthly(data, startMonth) {
-  // ヘッダー行を探す（月名が6つ以上ある行）
-  let headerRowIdx = -1;
-  let monthCols = [];
+function parseMjsMonthlySmart(data, startMonth) {
+  // ヘッダー行を探す
+  let headerRowIdx = -1, monthCols = [];
   for (let ri = 0; ri < Math.min(5, data.length); ri++) {
     const mc = detectMonthCol(data[ri]);
-    if (mc.length >= 6) {
-      headerRowIdx = ri;
-      monthCols = mc;
-      break;
-    }
+    if (mc.length >= 6) { headerRowIdx = ri; monthCols = mc; break; }
   }
   if (headerRowIdx < 0 || monthCols.length === 0) {
-    return { rows: {}, unmapped: [], error: '月次データの列を検出できませんでした。' };
+    return { dynamicAccounts: [], rows: {}, unmapped: [], error: '月次データの列を検出できませんでした。' };
   }
 
   // 月→予算インデックスのマッピング
   const budgetMonthMap = new Array(12).fill(-1);
   monthCols.forEach(({ col, month }) => {
-    const budgetIdx = (month - (startMonth - 1) + 12) % 12;
-    if (budgetIdx < 12) budgetMonthMap[budgetIdx] = col;
+    const bi = (month - (startMonth - 1) + 12) % 12;
+    if (bi < 12) budgetMonthMap[bi] = col;
   });
 
-  const result = {};
-  const unmapped = [];
-  // 合計行で上書き済みのaccIdを記録（二重計上防止）
-  const overriddenByTotal = new Set();
+  // 決算整理列を検出（月次が全0でも年度合計を取れる）
+  let adjustCol = -1;
+  const hdrRow = data[headerRowIdx];
+  for (let i = 0; i < hdrRow.length; i++) {
+    const s = String(hdrRow[i]||'').trim();
+    if (s === '決算整理' || s === '決算') { adjustCol = i; break; }
+  }
 
-  // 第1パス: col1（勘定科目）行を処理
+  // 月次値取得（決算整理列フォールバック付き）
+  const getVals = row => {
+    const vals = budgetMonthMap.map(col => col >= 0 ? parseNum(row[col]) : 0);
+    if (adjustCol >= 0 && !vals.some(v => v !== 0)) {
+      const adj = parseNum(row[adjustCol]);
+      if (adj !== 0) { const v2 = [...vals]; v2[11] = adj; return v2; }
+    }
+    return vals;
+  };
+
+  // パス1: 補助科目を持つ勘定科目を把握
+  const hasSubs = new Set();
+  let lastC1 = null;
+  for (let ri = headerRowIdx + 1; ri < data.length; ri++) {
+    const c1 = String(data[ri][1]||'').trim();
+    const c2 = String(data[ri][2]||'').trim();
+    if (c1 && !c2) lastC1 = c1;
+    else if (!c1 && c2 && lastC1) hasSubs.add(lastC1);
+  }
+
+  // セクションマップをスペース除去済みキーで再構築
+  const secMapClean = {};
+  for (const [k, v] of Object.entries(DYN_SECTION_MAP)) {
+    secMapClean[k.replace(/\s+/g,'')] = v;
+  }
+
+  // パス2: 動的科目リスト構築
+  const accts = [], rows = {};
+  let secInfo = null, curParent = null, ctr = 0;
+  const seenSecs = new Set();
+  const mkId = prefix => `${prefix}${++ctr}`;
+
   for (let ri = headerRowIdx + 1; ri < data.length; ri++) {
     const row = data[ri];
-    const col1 = String(row[1] || '').trim();
-    const col2 = String(row[2] || '').trim();
-    if (!col1 || col2) continue; // 補助科目行 or 空行はスキップ
+    const c0r = String(row[0]||'').trim();
+    const c1r = String(row[1]||'').trim();
+    const c2r = String(row[2]||'').trim();
+    const c0 = c0r.replace(/\s+/g,'');
+    const c1 = c1r.replace(/\s+/g,'');
 
-    const clean = col1.replace(/\s+/g, '').replace(/（.*?）/g, '').replace(/\(.*?\)/g, '');
-    if (clean === '合計' || clean === '計' || clean === '小計') continue;
+    // col0のみ（セクションヘッダー or 合計/利益行）
+    if (c0 && !c1r) {
+      if (DYN_SKIP_ROWS.has(c0)) continue;
+      const si = secMapClean[c0];
+      if (si) {
+        if (!seenSecs.has(si.id)) {
+          seenSecs.add(si.id);
+          accts.push({ id: si.id, name: c0r, type: 'section', indent: 0, section: si.section, sign: si.sign });
+        }
+        secInfo = si; curParent = null;
+      }
+      continue;
+    }
 
-    const accId = matchAccount(clean);
-    const values = budgetMonthMap.map(col => col >= 0 ? parseNum(row[col]) : 0);
-    if (!values.some(v => v !== 0)) continue;
+    // col1のみ（勘定科目行）
+    if (c1r && !c2r) {
+      if (DYN_SKIP_ROWS.has(c1)) continue;
+      const vals = getVals(row);
+      if (!vals.some(v => v !== 0)) { curParent = null; continue; }
+      const pfx = secInfo?.section?.startsWith('bs') ? 'b' : 'p';
+      const aid = mkId(pfx);
+      const isParent = hasSubs.has(c1r);
+      accts.push({
+        id: aid, name: c1r,
+        type: isParent ? 'parent' : 'input',
+        indent: 1, parentId: secInfo?.id || null,
+        section: secInfo?.section || 'pl', sign: secInfo?.sign ?? 1,
+      });
+      rows[aid] = vals; // parentも格納（補助科目sum計算のフォールバック）
+      curParent = { id: aid };
+      continue;
+    }
 
-    if (accId) {
-      if (!result[accId]) result[accId] = new Array(12).fill(0);
-      result[accId] = result[accId].map((v, i) => v + values[i]);
-    } else {
-      unmapped.push({ name: col1, values });
+    // col2（補助科目行）
+    if (c2r && curParent) {
+      const vals = getVals(row);
+      if (!vals.some(v => v !== 0)) continue;
+      const pfx = secInfo?.section?.startsWith('bs') ? 'b' : 'p';
+      const sid = mkId(pfx);
+      accts.push({
+        id: sid, name: c2r.trim(), type: 'input',
+        indent: 2, parentId: curParent.id,
+        section: secInfo?.section || 'pl', sign: secInfo?.sign ?? 1,
+      });
+      rows[sid] = vals;
     }
   }
 
-  // 第2パス: col0（合計行）を処理 - 重要な集計行で上書き
-  for (let ri = headerRowIdx + 1; ri < data.length; ri++) {
-    const row = data[ri];
-    const col0 = String(row[0] || '').trim();
-    const col1 = String(row[1] || '').trim();
-    if (!col0 || col1) continue; // col1がある行は勘定科目行なのでスキップ
-    if (!col0.includes('合計') && !col0.includes('計')) continue;
-
-    // 二重計上になるセクション合計はスキップ
-    const clean0 = col0.replace(/\s+/g, '');
-    if (MJS_SKIP_TOTALS.has(clean0)) continue;
-
-    const accId = matchAccount(clean0);
-    if (!accId) continue;
-
-    const values = budgetMonthMap.map(col => col >= 0 ? parseNum(row[col]) : 0);
-    if (!values.some(v => v !== 0)) continue;
-
-    // 合計行で上書き（個別科目の集計より正確なため）
-    result[accId] = values;
-    overriddenByTotal.add(accId);
+  // ===== PL計算行を挿入 =====
+  for (const calc of PL_CALC_ROWS) {
+    if (!seenSecs.has(calc.after)) continue;
+    let ins = accts.findIndex(a => a.id === calc.after);
+    if (ins < 0) continue;
+    for (let i = ins + 1; i < accts.length; i++) {
+      if (accts[i].type === 'section' || accts[i].type === 'calculated') break;
+      ins = i;
+    }
+    if (!accts.find(a => a.id === calc.id)) {
+      accts.splice(ins + 1, 0, { id: calc.id, name: calc.name, type: 'calculated', indent: 0, section: 'pl', bold: calc.bold, formula: calc.formula });
+    }
   }
 
-  return { rows: result, unmapped, error: null };
+  // 当期純利益（法人税等の動的IDを参照）
+  if (!accts.find(a => a.id === 'calc_net')) {
+    const corpTax = accts.find(a => a.type === 'input' && a.name.replace(/\s+/g,'').includes('法人税'));
+    const pretaxIdx = accts.findIndex(a => a.id === 'calc_pretax');
+    if (pretaxIdx >= 0) {
+      const insAfter = corpTax ? accts.findIndex(a => a.id === corpTax.id) : pretaxIdx;
+      const formula = corpTax ? `calc_pretax - ${corpTax.id}` : 'calc_pretax';
+      accts.splice(insAfter + 1, 0, { id: 'calc_net', name: '当期純利益', type: 'calculated', indent: 0, section: 'pl', bold: true, formula });
+    }
+  }
+
+  // ===== BS計算行を挿入 =====
+  const insertBsCalc = (afterSec, calcDef) => {
+    if (!seenSecs.has(afterSec) || accts.find(a => a.id === calcDef.id)) return;
+    let ins = accts.findIndex(a => a.id === afterSec);
+    for (let i = ins + 1; i < accts.length; i++) {
+      if (accts[i].type === 'section' || accts[i].type === 'calculated') break;
+      ins = i;
+    }
+    accts.splice(ins + 1, 0, { ...calcDef, type: 'calculated', indent: 0, bold: true });
+  };
+  insertBsCalc('sec_fix_asset', { id:'calc_total_assets', name:'資産合計',       section:'bs_asset',  formula:'sec_cur_asset + sec_fix_asset' });
+  insertBsCalc('sec_fix_liab',  { id:'calc_total_liab',   name:'負債合計',       section:'bs_liab',   formula:'sec_cur_liab + sec_fix_liab' });
+  insertBsCalc('sec_equity',    { id:'calc_liab_eq',      name:'負債純資産合計', section:'bs_equity', formula:'calc_total_liab + sec_equity' });
+
+  return { dynamicAccounts: accts, rows, unmapped: [], error: null };
 }
 
 // ===== 汎用CSV/Excelパーサー =====
@@ -336,7 +446,7 @@ function parseImportData(data, source, startMonth) {
 
   // ミロク・MoneyForwardの月次推移表は同じ列構造（col0=大区分, col1=勘定科目, col2=補助科目）
   if (source === 'mjs' || source === 'mf') {
-    return parseMjsMonthly(data, startMonth);
+    return parseMjsMonthlySmart(data, startMonth);
   }
 
   // 汎用: ヘッダー行を探す
@@ -558,7 +668,9 @@ function runImportPreview() {
   const el = document.getElementById('import_preview');
   if (!el) return;
 
-  const mappedCount  = Object.keys(result.rows).length;
+  const mappedCount  = result.dynamicAccounts
+    ? result.dynamicAccounts.filter(a => a.type === 'input').length
+    : Object.keys(result.rows).length;
   const unmappedCount = result.unmapped.length;
 
   if (result.error) {
@@ -566,23 +678,47 @@ function runImportPreview() {
     return;
   }
 
-  const mappedRows = ACCOUNTS
-    .filter(a => a.type === 'input' && result.rows[a.id])
-    .map(a => {
-      const vals = result.rows[a.id];
+  // 動的科目プレビュー（動的インポートの場合）
+  let mappedRows = '', unmappedRows = '';
+  if (result.dynamicAccounts && result.dynamicAccounts.length > 0) {
+    const allVals = calcAllValuesDynamic({ dynamicAccounts: result.dynamicAccounts, rows: result.rows });
+    mappedRows = result.dynamicAccounts.map(acc => {
+      const vals = allVals[acc.id] || new Array(12).fill(0);
       const total = vals.reduce((s,v)=>s+v,0);
-      return `<tr>
-        <td>${a.name}</td>
+      const indent = '　'.repeat(acc.indent || 0);
+      if (acc.type === 'section') {
+        return `<tr class="preview-section-row"><td colspan="14" style="padding:6px 8px;font-weight:700;background:var(--gray-100);border-top:2px solid var(--gray-300)">${escHtml(acc.name)}</td></tr>`;
+      }
+      const isInput = acc.type === 'input';
+      const isCalc  = acc.type === 'calculated';
+      const isParent = acc.type === 'parent';
+      const style = isCalc  ? 'background:var(--blue-50,#eff6ff);font-weight:600' :
+                    isParent? 'background:var(--gray-50);font-weight:600' : '';
+      return `<tr${style ? ` style="${style}"` : ''}>
+        <td style="padding-left:${(acc.indent||0)*16+4}px">${escHtml(acc.name)}</td>
         <td class="num">${vals.map(v=>v?fmtK(v):'-').join('</td><td class="num">')}</td>
-        <td class="num">${fmtK(total)}</td>
+        <td class="num" style="text-align:right">${total?fmtK(total):'-'}</td>
       </tr>`;
     }).join('');
-
-  const unmappedRows = result.unmapped.slice(0, 20).map(u => `
-    <tr>
-      <td class="text-muted">${u.name}</td>
-      <td colspan="13" class="text-muted text-sm">← マッピング不可（手動入力が必要）</td>
-    </tr>`).join('');
+  } else {
+    // 旧来のマッピングベースプレビュー（汎用・仕訳帳）
+    mappedRows = ACCOUNTS
+      .filter(a => a.type === 'input' && result.rows[a.id])
+      .map(a => {
+        const vals = result.rows[a.id];
+        const total = vals.reduce((s,v)=>s+v,0);
+        return `<tr>
+          <td>${escHtml(a.name)}</td>
+          <td class="num">${vals.map(v=>v?fmtK(v):'-').join('</td><td class="num">')}</td>
+          <td class="num">${fmtK(total)}</td>
+        </tr>`;
+      }).join('');
+    unmappedRows = result.unmapped.slice(0, 20).map(u => `
+      <tr>
+        <td class="text-muted">${escHtml(u.name)}</td>
+        <td colspan="13" class="text-muted text-sm">← マッピング不可</td>
+      </tr>`).join('');
+  }
 
   const months = getMonthLabels(startMonth);
 
@@ -656,6 +792,20 @@ function executeImport() {
 
   Object.assign(budget.rows, result.rows);
   budget.startMonth = result.startMonth;
+
+  // 動的科目リストをマージ保存
+  if (result.dynamicAccounts && result.dynamicAccounts.length > 0) {
+    const isPL = result.dynamicAccounts.some(a => a.section === 'pl');
+    const isBS = result.dynamicAccounts.some(a => a.section?.startsWith('bs'));
+    if (!budget.dynamicAccounts) {
+      budget.dynamicAccounts = result.dynamicAccounts;
+    } else {
+      if (isPL) budget.dynamicAccounts = budget.dynamicAccounts.filter(a => a.section !== 'pl');
+      if (isBS) budget.dynamicAccounts = budget.dynamicAccounts.filter(a => !a.section?.startsWith('bs'));
+      budget.dynamicAccounts = [...budget.dynamicAccounts, ...result.dynamicAccounts];
+    }
+  }
+
   saveBudget(budget);
 
   if (year === window.App.currentYear) {
