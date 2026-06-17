@@ -60,13 +60,37 @@ function isHiddenByCollapse(acc, accounts) {
 }
 
 // ===== 行選択 =====
+let _lastSelectedAccId = null;
+
 function toggleRowSelect(accId, e) {
   e?.stopPropagation();
-  if (_selectedRows.has(accId)) _selectedRows.delete(accId);
-  else _selectedRows.add(accId);
-  document.querySelectorAll(`#grid_tbody tr[data-acc-id="${accId}"]`).forEach(tr =>
-    tr.classList.toggle('selected-row', _selectedRows.has(accId))
-  );
+
+  if (e?.shiftKey && _lastSelectedAccId && _lastSelectedAccId !== accId) {
+    // Shift+クリック: 前回〜今回の範囲を一括選択
+    const rows = Array.from(document.querySelectorAll('#grid_tbody tr[data-acc-id]'));
+    const ids  = rows.map(tr => tr.dataset.accId);
+    const a = ids.indexOf(_lastSelectedAccId);
+    const b = ids.indexOf(accId);
+    const [lo, hi] = a < b ? [a, b] : [b, a];
+    ids.slice(lo, hi + 1).forEach(id => {
+      // 入力行のみ選択（calc/header行はスキップ）
+      const tr = document.querySelector(`#grid_tbody tr[data-acc-id="${id}"]`);
+      if (tr && tr.classList.contains('input-row')) {
+        _selectedRows.add(id);
+        tr.classList.add('selected-row');
+      }
+    });
+  } else {
+    // 通常クリック: トグル
+    if (_selectedRows.has(accId)) _selectedRows.delete(accId);
+    else _selectedRows.add(accId);
+    document.querySelectorAll(`#grid_tbody tr[data-acc-id="${accId}"]`).forEach(tr =>
+      tr.classList.toggle('selected-row', _selectedRows.has(accId))
+    );
+  }
+
+  _lastSelectedAccId = accId;
+  updateFillHint();
 }
 
 // ===== 表示対象科目フィルタ =====
