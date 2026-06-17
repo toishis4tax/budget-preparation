@@ -213,14 +213,38 @@ function renderCtaxJudge(container) {
         </div>
         <div class="card-h">
           <h3>📋 課税区分チェック</h3>
-          <div class="form-group">
-            <label>基準期間の課税売上高（円）</label>
-            <input type="number" id="ct_base_sales" value="${company?.kijunUriage || 30000000}" class="form-input" step="100000">
-          </div>
-          <div class="form-group">
-            <label>特定期間の課税売上高（円）</label>
-            <input type="number" id="ct_spec_sales" value="0" class="form-input" step="100000">
-          </div>
+          ${(() => {
+            const curYear = window.App?.currentYear || new Date().getFullYear();
+            // 基準期間 = 前々期の売上合計
+            const b2 = company ? getBudget(company.id, curYear - 2) : null;
+            let baseSalesAuto = null;
+            if (b2) {
+              const av2 = b2.dynamicAccounts ? calcAllValuesDynamic(b2) : calcAllValues(b2.rows);
+              const arr2 = av2['sec_revenue'] || av2['sales'] || [];
+              baseSalesAuto = arr2.reduce((a,v)=>a+v,0);
+            }
+            // 特定期間 = 前期の開始6ヶ月の売上合計
+            const b1 = company ? getBudget(company.id, curYear - 1) : null;
+            let specSalesAuto = null;
+            if (b1) {
+              const av1 = b1.dynamicAccounts ? calcAllValuesDynamic(b1) : calcAllValues(b1.rows);
+              const arr1 = av1['sec_revenue'] || av1['sales'] || [];
+              specSalesAuto = arr1.slice(0, 6).reduce((a,v)=>a+v,0);
+            }
+            const baseSalesVal = baseSalesAuto ?? company?.kijunUriage ?? 30000000;
+            const specSalesVal = specSalesAuto ?? 0;
+            const baseSrc = baseSalesAuto != null ? `<span class="ctax-auto-badge">前々期実績から自動取得</span>` : '';
+            const specSrc = specSalesAuto != null ? `<span class="ctax-auto-badge">前期上半期から自動取得</span>` : '';
+            return `
+              <div class="form-group">
+                <label>基準期間の課税売上高（${curYear-2}年度）${baseSrc}</label>
+                <input type="number" id="ct_base_sales" value="${baseSalesVal}" class="form-input" step="100000">
+              </div>
+              <div class="form-group">
+                <label>特定期間の課税売上高（${curYear-1}年度 前半6ヶ月）${specSrc}</label>
+                <input type="number" id="ct_spec_sales" value="${specSalesVal}" class="form-input" step="100000">
+              </div>`;
+          })()}
           <div class="form-group">
             <label>インボイス登録</label>
             <select id="ct_invoice" class="form-input">
@@ -235,7 +259,10 @@ function renderCtaxJudge(container) {
               <option value="1" ${company?.kanijukazei?'selected':''}>届出あり</option>
             </select>
           </div>
-          <button class="btn btn-primary" onclick="runCtaxJudge()">判定</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-primary" onclick="runCtaxJudge()">判定</button>
+            ${company ? `<button class="btn btn-sm btn-outline" onclick="saveCtaxToCompany()">会社情報に保存</button>` : ''}
+          </div>
           <div id="ctax_result" class="ctax-result" style="margin-top:14px"></div>
         </div>
       </div>
@@ -299,4 +326,19 @@ function runCtaxJudge() {
       </tr>
     </table>
   `;
+}
+
+// 課税区分チェックの値を会社情報に保存
+function saveCtaxToCompany() {
+  const company = window.App?.currentCompany;
+  if (!company) return;
+  const baseSales = parseFloat(document.getElementById('ct_base_sales')?.value || 0);
+  const invoice   = document.getElementById('ct_invoice')?.value === '1';
+  const kani      = document.getElementById('ct_simplified')?.value === '1';
+  company.kijunUriage      = baseSales;
+  company.invoiceRegistered = invoice;
+  company.kanijukazei       = kani;
+  saveCompany(company);
+  window.App.companies = getCompanies();
+  alert('会社情報を更新しました');
 }

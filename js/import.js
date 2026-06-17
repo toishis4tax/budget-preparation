@@ -1027,6 +1027,24 @@ function executeImport() {
     }
   }
 
+  // インポートした月数を自動検出してactualThroughを設定
+  const importedRows = result.rows || {};
+  const rowArrays = Object.values(importedRows).filter(arr => Array.isArray(arr));
+  if (rowArrays.length > 0) {
+    // 各月で少なくとも1つのアカウントに非ゼロ値があるか確認
+    let lastFilledMonth = -1;
+    for (let m = 0; m < 12; m++) {
+      const hasData = rowArrays.some(arr => arr[m] !== 0);
+      if (hasData) lastFilledMonth = m;
+    }
+    if (lastFilledMonth >= 0) {
+      // 既存のactualThroughより大きい場合のみ更新（後退させない）
+      if (budget.actualThrough == null || lastFilledMonth > budget.actualThrough) {
+        budget.actualThrough = lastFilledMonth;
+      }
+    }
+  }
+
   saveBudget(budget);
 
   if (year === window.App.currentYear) {

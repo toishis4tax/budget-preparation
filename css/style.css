@@ -549,6 +549,7 @@ input[type=range]::-webkit-slider-thumb {
 .ctax-badge.yes { background: #d1fae5; color: #065f46; }
 .ctax-badge.no  { background: #fee2e2; color: #991b1b; }
 .ctax-judge { font-size: 14px; font-weight: 700; padding: 10px 12px; background: var(--bg); border-radius: var(--radius-sm); text-align: center; margin-top: 4px; }
+.ctax-auto-badge { display: inline-block; margin-left: 6px; font-size: 9px; font-weight: 600; color: #0284c7; background: #dbeafe; padding: 1px 6px; border-radius: 99px; vertical-align: middle; }
 
 /* 健康診断 */
 .home-health-row { display: flex; gap: 12px; align-items: stretch; }
@@ -575,6 +576,11 @@ input[type=range]::-webkit-slider-thumb {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #6ee7b7; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #34d399; }
+
+/* ===== 調整列 ===== */
+.adj-col { background: #fef9c3 !important; min-width: 80px; }
+.adj-input { background: #fef9c3; width: 100%; border: none; text-align: right; font-size: 12px; padding: 2px 4px; }
+.adj-tax-link { display: block; text-align: center; font-size: 11px; color: var(--primary); cursor: pointer; text-decoration: underline; padding: 4px; }
 
 /* ===== 印刷 ===== */
 @media print {

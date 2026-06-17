@@ -133,11 +133,13 @@ function renderGrid(container, budget) {
           <tr>
             <th class="acc-col sticky-col">科目</th>
             ${months.map((m,i) => `<th class="month-col${i<=at?' actual-hdr':' budget-hdr'}" data-col="${i}">${m}</th>`).join('')}
+            <th class="month-col adj-col" data-col="12">調整</th>
             <th class="total-col">合計</th>
           </tr>
           <tr class="actual-label-row">
             <th class="acc-col sticky-col" style="font-size:10px;color:var(--text-muted);font-weight:400;padding:0 6px">科目名クリックで行選択</th>
             ${months.map((_,i) => `<th class="actual-label-cell${i<=at?' actual-hdr':' budget-hdr'}">${i<=at?'実':'予'}</th>`).join('')}
+            <th class="actual-label-cell adj-col"></th>
             <th class="total-col" style="background:#d1fae5"></th>
           </tr>
         </thead>
@@ -164,7 +166,7 @@ function renderGridRows(budget, allVals, months) {
     if (acc.type === 'separator') {
       const tr = document.createElement('tr');
       tr.className = 'sep-row';
-      tr.innerHTML = `<td colspan="14" class="sep-cell"></td>`;
+      tr.innerHTML = `<td colspan="15" class="sep-cell"></td>`;
       tbody.appendChild(tr);
       return;
     }
@@ -179,7 +181,7 @@ function renderGridRows(budget, allVals, months) {
     const hasKids   = parentIds.has(acc.id);
     const isCollapsed = _collapsedParents.has(acc.id);
 
-    const vals  = allVals[acc.id] || new Array(12).fill(0);
+    const vals  = allVals[acc.id] || new Array(13).fill(0);
     const total = vals.reduce((a,b)=>a+b,0);
 
     const tr = document.createElement('tr');
@@ -212,11 +214,19 @@ function renderGridRows(budget, allVals, months) {
       </td>`;
     }
 
-    const nonInputCell = (v, colIdx) =>
-      `<td class="val-cell calc-val${colIdx<=at?' actual-col':''}" data-col="${colIdx}" style="text-align:right">${v === 0 ? '–' : Math.round(v).toLocaleString()}</td>`;
+    const nonInputCell = (v, colIdx) => {
+      const isAdj = colIdx === 12;
+      return `<td class="val-cell calc-val${colIdx<=at?' actual-col':''}${isAdj?' adj-col':''}" data-col="${colIdx}" style="text-align:right">${v === 0 ? '–' : Math.round(v).toLocaleString()}</td>`;
+    };
 
-    const cells = isInput
-      ? vals.map((v, colIdx) => `
+    const isTaxRow = /tax|corp|法人税/.test(acc.id) || (acc.name || '').includes('法人税');
+
+    // Build month cells (indices 0-11)
+    const monthVals = vals.slice(0, 12);
+    const adjVal = vals[12] || 0;
+
+    const monthCells = isInput
+      ? monthVals.map((v, colIdx) => `
           <td class="val-cell${colIdx<=at?' actual-col':''}" data-acc-id="${acc.id}" data-col="${colIdx}">
             <input type="text"
               class="cell-input${colIdx<=at?' actual-input':''}"
@@ -227,9 +237,28 @@ function renderGridRows(budget, allVals, months) {
               autocomplete="off"
               inputmode="numeric">
           </td>`).join('')
-      : vals.map((v, i) => nonInputCell(v, i)).join('');
+      : monthVals.map((v, i) => nonInputCell(v, i)).join('');
 
-    tr.innerHTML = nameCell + cells +
+    // Adjustment cell (col 12)
+    let adjCell;
+    if (isTaxRow) {
+      adjCell = `<td class="val-cell adj-col" data-acc-id="${acc.id}" data-col="12"><a class="adj-tax-link" onclick="showPage('tax')">→法人税</a></td>`;
+    } else if (isInput) {
+      adjCell = `<td class="val-cell adj-col" data-acc-id="${acc.id}" data-col="12">
+        <input type="text"
+          class="cell-input adj-input"
+          value="${adjVal === 0 ? '' : Math.round(adjVal).toLocaleString()}"
+          data-acc-id="${acc.id}"
+          data-col="12"
+          data-raw="${adjVal}"
+          autocomplete="off"
+          inputmode="numeric">
+      </td>`;
+    } else {
+      adjCell = nonInputCell(adjVal, 12);
+    }
+
+    tr.innerHTML = nameCell + monthCells + adjCell +
       `<td class="total-col calc-val" style="text-align:right">${total === 0 ? (isInput?'':'–') : Math.round(total).toLocaleString()}</td>`;
     tbody.appendChild(tr);
   });
@@ -252,7 +281,7 @@ function refreshCalcRows() {
   document.querySelectorAll('#grid_tbody tr.calc-row, #grid_tbody tr.header-row').forEach(tr => {
     const accId = tr.dataset.accId;
     if (!accId) return;
-    const vals = allVals[accId] || new Array(12).fill(0);
+    const vals = allVals[accId] || new Array(13).fill(0);
     const cells = tr.querySelectorAll('td.val-cell');
     cells.forEach((td, i) => { td.textContent = vals[i] === 0 ? '–' : Math.round(vals[i]).toLocaleString(); });
     const totalTd = tr.querySelector('td.total-col');
@@ -265,7 +294,7 @@ function refreshCalcRows() {
   document.querySelectorAll('#grid_tbody tr.input-row').forEach(tr => {
     const accId = tr.dataset.accId;
     if (!accId) return;
-    const vals = budget.rows[accId] || new Array(12).fill(0);
+    const vals = budget.rows[accId] || new Array(13).fill(0);
     const total = vals.reduce((a,b)=>a+b,0);
     const totalTd = tr.querySelector('td.total-col');
     if (totalTd) totalTd.textContent = total === 0 ? '' : Math.round(total).toLocaleString();
@@ -323,11 +352,11 @@ function handleGridKeydown(e, input) {
       e.preventDefault();
       commitCell(input);
       const nextCol = e.shiftKey ? col - 1 : col + 1;
-      if (nextCol >= 0 && nextCol < 12) {
+      if (nextCol >= 0 && nextCol <= 12) {
         focusCell(accId, nextCol);
       } else {
         const nextRow = nextInputRow(accId, e.shiftKey ? -1 : 1);
-        if (nextRow) focusCell(nextRow, e.shiftKey ? 11 : 0);
+        if (nextRow) focusCell(nextRow, e.shiftKey ? 12 : 0);
       }
       break;
     }
@@ -341,7 +370,7 @@ function handleGridKeydown(e, input) {
     case 'ArrowRight': {
       if (input.selectionStart === input.value.length) {
         e.preventDefault(); commitCell(input);
-        if (col < 11) focusCell(accId, col + 1);
+        if (col < 12) focusCell(accId, col + 1);
       }
       break;
     }
@@ -375,7 +404,8 @@ function commitCell(input) {
 
   const budget = window.App?.currentBudget;
   if (!budget) return;
-  if (!budget.rows[accId]) budget.rows[accId] = new Array(12).fill(0);
+  if (!budget.rows[accId]) budget.rows[accId] = new Array(13).fill(0);
+  if (budget.rows[accId].length < 13) budget.rows[accId].push(0);
   budget.rows[accId][col] = raw;
 
   input.value = raw === 0 ? '' : Math.round(raw).toLocaleString();

@@ -6,7 +6,9 @@ function renderHealthDiag(container, budget) {
     return;
   }
 
-  const metrics = calcHealthMetrics(budget.rows, 10000000);
+  const company = window.App?.currentCompany;
+  const capital = company?.capital || 10000000;
+  const metrics = calcHealthMetrics(budget.rows, capital);
   const items = [
     { key: 'equity_ratio',     label: '自己資本比率',       value: metrics.equity_ratio,     unit: '%',   fmt: v => v.toFixed(1) },
     { key: 'current_ratio',    label: '流動比率',           value: metrics.current_ratio,    unit: '%',   fmt: v => v.toFixed(1) },
@@ -43,7 +45,10 @@ function renderHealthDiag(container, budget) {
 
   container.innerHTML = `
     <div class="sim-panel">
-      <h2 class="section-title">財務健康診断</h2>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+        <h2 class="section-title" style="margin-bottom:0">財務健康診断</h2>
+        <button class="btn btn-sm btn-outline" onclick="showPage('home')" style="margin-left:auto">← ホームに戻る</button>
+      </div>
       <div class="health-overview card">
         <div class="overall-grade">
           <span class="grade-label">総合評価</span>
