@@ -18,8 +18,12 @@
     <div class="logo-sub">Simulator for 税理士</div>
   </div>
 
+  <div class="nav-item" data-page="home">
+    <span class="icon">🏠</span>ホーム
+  </div>
+
   <div class="sidebar-section">データ入力</div>
-  <div class="nav-item active" data-page="budget">
+  <div class="nav-item" data-page="budget">
     <span class="icon">📊</span>月次予算入力
   </div>
   <div class="nav-item" data-page="import">
@@ -138,6 +142,39 @@
         <option value="11">11月</option><option value="12">12月</option>
       </select>
     </div>
+    <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:10px">消費税・予定納税</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group" style="margin:0">
+          <label>インボイス登録</label>
+          <select id="modal_invoice" class="form-input">
+            <option value="0">未登録</option>
+            <option value="1">登録済</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>簡易課税届出</label>
+          <select id="modal_kani" class="form-input">
+            <option value="0">未届出</option>
+            <option value="1">届出済</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:10px">
+        <label>基準期間売上高（円）</label>
+        <input type="number" id="modal_kijun" class="form-input" value="0" step="100000">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group" style="margin:0">
+          <label>第1回予定納税（円）</label>
+          <input type="number" id="modal_prepaid1" class="form-input" value="0" step="10000">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>第2回予定納税（円）</label>
+          <input type="number" id="modal_prepaid2" class="form-input" value="0" step="10000">
+        </div>
+      </div>
+    </div>
     <div class="modal-footer">
       <button class="btn-outline" onclick="closeCompanyModal()">キャンセル</button>
       <button class="btn-solid" onclick="saveCompanyForm()">保存</button>
@@ -147,6 +184,7 @@
 
 <!-- ===== JS ===== -->
 <script src="js/accounts.js"></script>
+<script src="js/home.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/calculations.js"></script>
 <script src="js/tax.js"></script>

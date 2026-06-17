@@ -491,6 +491,59 @@ input[type=range]::-webkit-slider-thumb {
 .no-data { text-align: center; color: var(--text-muted); padding: 80px 20px; font-size: 14px; line-height: 2.2; }
 .hint    { color: var(--text-muted); font-size: 12px; }
 
+/* ===== ホーム画面 ===== */
+.home-wrap { padding: 20px 24px; max-width: 1100px; display: flex; flex-direction: column; gap: 16px; }
+.home-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; text-align: center; }
+.home-topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow-xs); border: 1px solid var(--border); }
+.home-company-name { font-size: 18px; font-weight: 800; color: var(--text); }
+.home-meta { display: flex; align-items: center; gap: 16px; }
+.home-meta-item { font-size: 12px; color: var(--text-muted); }
+.home-card { background: var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow-xs); border: 1px solid var(--border); padding: 16px 20px; }
+.home-card-title { font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: .04em; margin-bottom: 14px; text-transform: uppercase; }
+.home-summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+/* 予算進捗 */
+.home-progress-card {}
+.progress-bar-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.progress-bar-track { flex: 1; height: 10px; background: var(--border); border-radius: 99px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--emerald), #34d399); border-radius: 99px; transition: width .4s; }
+.progress-pct { font-size: 13px; font-weight: 700; color: var(--emerald); min-width: 36px; }
+.progress-items { display: flex; flex-wrap: wrap; gap: 8px; }
+.progress-item { font-size: 12px; padding: 3px 10px; border-radius: 99px; }
+.progress-item.done    { background: #d1fae5; color: #065f46; }
+.progress-item.pending { background: var(--border-muted); color: var(--text-muted); }
+
+/* 業績KPI */
+.summary-kpi { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--border-muted); }
+.summary-kpi:last-child { border-bottom: none; }
+.kpi-label { font-size: 12px; color: var(--text-muted); }
+.kpi-value { font-size: 15px; font-weight: 800; }
+
+/* 税額 */
+.tax-kpi-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; color: var(--text-muted); border-bottom: 1px solid var(--border-muted); }
+.tax-kpi-total { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; padding: 6px 0; border-top: 2px solid var(--border); margin-top: 2px; }
+.tax-pay    { color: #dc2626 !important; font-weight: 600; }
+.tax-refund { color: #059669 !important; font-weight: 600; }
+.no-data-small { color: var(--text-muted); font-size: 12px; padding: 12px 0; }
+
+/* 消費税 */
+.ctax-items { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.ctax-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.ctax-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+.ctax-badge.yes { background: #d1fae5; color: #065f46; }
+.ctax-badge.no  { background: #fee2e2; color: #991b1b; }
+.ctax-judge { font-size: 14px; font-weight: 700; padding: 10px 12px; background: var(--bg); border-radius: var(--radius-sm); text-align: center; margin-top: 4px; }
+
+/* 健康診断 */
+.home-health-row { display: flex; gap: 12px; align-items: stretch; }
+.health-overall { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px 20px; background: var(--bg); border-radius: var(--radius-sm); min-width: 80px; }
+.health-grade-label { font-size: 10px; color: var(--text-muted); font-weight: 600; }
+.health-grade-value { font-size: 36px; font-weight: 900; line-height: 1; }
+.health-metric-card { flex: 1; background: var(--bg); border-radius: var(--radius-sm); padding: 10px 12px; text-align: center; }
+.hm-label { font-size: 10px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+.hm-value { font-size: 17px; font-weight: 800; }
+.hm-grade { font-size: 11px; font-weight: 700; margin-top: 2px; }
+
 /* ===== ユーティリティ ===== */
 .flex         { display: flex; }
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
