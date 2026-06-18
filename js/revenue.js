@@ -39,6 +39,7 @@ function newClient() {
     indiv: false,          // true=個人（申告月+3）、false=法人（申告月+2）
     category: 'sales_advisory', // 売上区分
     contractStart: { year: now.getFullYear(), month: now.getMonth() + 1 },
+    contractEnd:   { year: '', month: '' },  // 解約年月（空なら継続）
     retainer: 0,
     filingCalMonth: -1,
     settlementFee: 0,
@@ -61,12 +62,16 @@ function calcClientMonthly(client, startMonth, budgetYear) {
     const calMonth = ((startMonth - 1 + i) % 12) + 1; // 1-12
     const calYear  = budgetYear + Math.floor((startMonth - 1 + i) / 12);
 
-    // 契約開始年月が両方入力済みの場合のみ開始前を0にする
+    // 契約開始前は0
     const cs = client.contractStart;
     if (cs?.year && cs?.month) {
-      const startYM   = cs.year * 100 + cs.month;
-      const currentYM = calYear * 100 + calMonth;
-      if (currentYM < startYM) return 0;
+      if (calYear * 100 + calMonth < cs.year * 100 + cs.month) return 0;
+    }
+
+    // 解約月以降は0（解約月も含めて0）
+    const ce = client.contractEnd;
+    if (ce?.year && ce?.month) {
+      if (calYear * 100 + calMonth >= ce.year * 100 + ce.month) return 0;
     }
 
     let total = client.retainer || 0;
@@ -159,6 +164,7 @@ function renderRevenue(container) {
               <col style="width:120px"><!-- 区分 -->
               <col style="width:60px"> <!-- 確定 -->
               <col style="width:110px"><!-- 契約開始 -->
+              <col style="width:110px"><!-- 解約年月 -->
               <col style="width:88px"> <!-- 顧問料 -->
               <col style="width:72px"> <!-- 決算月 -->
               <col style="width:72px"> <!-- 申告月 -->
@@ -174,6 +180,7 @@ function renderRevenue(container) {
                 <th>区分</th>
                 <th>確定</th>
                 <th>契約開始</th>
+                <th>解約年月</th>
                 <th>顧問料/月</th>
                 <th>決算月</th>
                 <th>申告月</th>
@@ -220,7 +227,7 @@ function renderRevTable(startMonth, months) {
   const grandTotal   = totalByMonth.reduce((a,b)=>a+b,0);
 
   if (!_revClients.length) {
-    tbody.innerHTML = `<tr><td colspan="${7+12+2}" class="no-data" style="padding:40px">「顧問先追加」で顧問先を登録してください</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${8+12+2}" class="no-data" style="padding:40px">「顧問先追加」で顧問先を登録してください</td></tr>`;
     tfoot.innerHTML = '';
     return;
   }
@@ -285,6 +292,19 @@ function renderRevTable(startMonth, months) {
             ${MONTH_LABELS_JP.map((m,i)=>`<option value="${i+1}"${(cs.month||1)===i+1?' selected':''}>${m}</option>`).join('')}
           </select>
         </div>
+      </td>
+      <td style="padding:4px 5px">
+        ${(()=>{const ce=c.contractEnd||{};return`<div style="display:flex;gap:3px">
+          <input type="number" class="form-input" style="width:52px;font-size:11px;padding:3px 4px;text-align:right"
+            value="${ce.year||''}" placeholder="年" min="2020" max="2040"
+            oninput="_revClients[${ci}].contractEnd={..._revClients[${ci}].contractEnd,year:+this.value||''};_revSave()"
+            onblur="_revRefresh()">
+          <select class="form-input" style="width:50px;font-size:11px;padding:3px 3px"
+            onchange="_revClients[${ci}].contractEnd={..._revClients[${ci}].contractEnd,month:+this.value};_revRefresh()">
+            <option value="">月</option>
+            ${MONTH_LABELS_JP.map((m,i)=>`<option value="${i+1}"${(ce.month||'')===i+1?' selected':''}>${m}</option>`).join('')}
+          </select>
+        </div>`})()}
       </td>
       <td style="padding:4px 5px">
         <input type="number" class="form-input" style="width:84px;font-size:12px;padding:4px 6px;text-align:right"
@@ -620,12 +640,14 @@ function exportRevenueExcel() {
   // ヘッダー行
   const headers = [
     '顧問先名', '確定', '法人個人', '売上区分', '契約開始年', '契約開始月',
+    '解約年', '解約月',
     '顧問料/月', '決算月', '決算報酬', '年末調整',
     ...months.map(m => `コンサル_${m}`)
   ];
 
   const rows = _revClients.map(c => {
     const cs = c.contractStart || {};
+    const ce = c.contractEnd || {};
     const decMonth = c.filingCalMonth > 0
       ? MONTH_LABELS_JP[((c.filingCalMonth - 1 + (c.indiv ? 9 : 10)) % 12)]
       : '';
@@ -637,6 +659,8 @@ function exportRevenueExcel() {
       catName,
       cs.year || '',
       cs.month ? MONTH_LABELS_JP[cs.month - 1] : '',
+      ce.year || '',
+      ce.month ? MONTH_LABELS_JP[ce.month - 1] : '',
       c.retainer || 0,
       decMonth,
       c.settlementFee || 0,
@@ -649,7 +673,7 @@ function exportRevenueExcel() {
 
   // 列幅
   ws['!cols'] = [
-    {wch:20},{wch:10},{wch:8},{wch:10},{wch:12},{wch:8},{wch:12},{wch:10},{wch:10},
+    {wch:20},{wch:10},{wch:8},{wch:10},{wch:12},{wch:8},{wch:10},{wch:8},{wch:12},{wch:10},{wch:10},{wch:10},
     ...Array(12).fill({wch:10})
   ];
 
@@ -677,6 +701,8 @@ function importRevenueExcel(file) {
       const catIdx       = header.findIndex(h => h.includes('売上区分'));
       const yearIdx      = header.findIndex(h => h.includes('契約開始年'));
       const monthIdx     = header.findIndex(h => h.includes('契約開始月'));
+      const endYearIdx   = header.findIndex(h => h.includes('解約年'));
+      const endMonthIdx  = header.findIndex(h => h.includes('解約月'));
       const retIdx       = header.findIndex(h => h.includes('顧問料'));
       const decIdx       = header.findIndex(h => h.includes('決算月'));
       const feeIdx       = header.findIndex(h => h.includes('決算報酬'));
@@ -728,6 +754,12 @@ function importRevenueExcel(file) {
             year:  parseInt(row[yearIdx]) || new Date().getFullYear(),
             month: startMonthNum >= 0 ? startMonthNum + 1 : 1,
           },
+          contractEnd: (()=>{
+            const ey = endYearIdx >= 0 ? parseInt(row[endYearIdx]) || '' : '';
+            const emStr = endMonthIdx >= 0 ? String(row[endMonthIdx] ?? '').replace('月','') : '';
+            const emNum = MONTH_LABELS_JP.findIndex(m => m.replace('月','') === emStr);
+            return { year: ey, month: emNum >= 0 ? emNum + 1 : '' };
+          })(),
           retainer:      parseFloat(String(row[retIdx] ?? '').replace(/,/g,'')) || 0,
           filingCalMonth,
           settlementFee: parseFloat(String(row[feeIdx] ?? '').replace(/,/g,'')) || 0,
