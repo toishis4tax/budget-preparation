@@ -198,7 +198,7 @@ function renderRevenue(container) {
     </div>`;
 
   renderRevTable(startMonth, months);
-  renderRevChart(months, totalByMonth);
+  renderRevChart(months, totalByMonth, startMonth);
 }
 
 const MONTH_LABELS_JP = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -336,28 +336,53 @@ function renderRevTable(startMonth, months) {
     </tr>`;
 }
 
-function renderRevChart(months, totalByMonth) {
+// 区分ごとの色
+const CAT_COLORS = {
+  sales_advisory:   { bg: 'rgba(37,99,235,.7)',   border: 'rgba(37,99,235,.9)'   }, // blue
+  sales_compliance: { bg: 'rgba(16,185,129,.7)',  border: 'rgba(16,185,129,.9)'  }, // green
+  sales_consulting: { bg: 'rgba(245,158,11,.7)',  border: 'rgba(245,158,11,.9)'  }, // amber
+  sales_ec:         { bg: 'rgba(139,92,246,.7)',  border: 'rgba(139,92,246,.9)'  }, // violet
+  sales_store:      { bg: 'rgba(239,68,68,.7)',   border: 'rgba(239,68,68,.9)'   }, // red
+  sales_other:      { bg: 'rgba(107,114,128,.7)', border: 'rgba(107,114,128,.9)' }, // gray
+};
+
+function renderRevChart(months, totalByMonth, startMonth) {
   const canvas = document.getElementById('rev_chart');
   if (!canvas) return;
   if (window._revChartInstance) window._revChartInstance.destroy();
-  const avg = totalByMonth.reduce((a,b)=>a+b,0) / 12;
+
+  // 区分ごとに月次データを集計
+  const sm = startMonth || (window.App?.currentBudget?.startMonth) || 4;
+  const catDatasets = REV_CATEGORIES.map(cat => {
+    const clients = _revClients.filter(c => (c.category || 'sales_advisory') === cat.id);
+    if (!clients.length) return null;
+    const data = Array(12).fill(0);
+    clients.forEach(c => {
+      calcClientMonthly(c, sm, _revBudgetYear).forEach((v, i) => { data[i] += v; });
+    });
+    if (data.every(v => v === 0)) return null;
+    const col = CAT_COLORS[cat.id] || CAT_COLORS.sales_other;
+    return {
+      label: cat.name,
+      data: data.map(v => Math.round(v / 1000)),
+      backgroundColor: col.bg,
+      borderColor: col.border,
+      borderWidth: 1,
+      borderRadius: 3,
+    };
+  }).filter(Boolean);
+
   window._revChartInstance = new Chart(canvas, {
     type: 'bar',
-    data: {
-      labels: months,
-      datasets: [{
-        data: totalByMonth.map(v => Math.round(v/1000)),
-        backgroundColor: totalByMonth.map(v => v > avg*1.05 ? 'rgba(16,185,129,.65)' : 'rgba(16,185,129,.3)'),
-        borderColor: 'rgba(16,185,129,.8)',
-        borderWidth: 1, borderRadius: 4,
-      }]
-    },
+    data: { labels: months, datasets: catDatasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: catDatasets.length > 1, position: 'bottom', labels: { font:{size:11}, boxWidth:12, padding:10 } },
+      },
       scales: {
-        y: { ticks: { callback: v => v.toLocaleString()+'千', font:{size:10} }, grid: { color:'#f1f5f9' } },
-        x: { ticks: { font:{size:10} }, grid: { display:false } }
+        x: { stacked: true, ticks: { font:{size:10} }, grid: { display:false } },
+        y: { stacked: true, ticks: { callback: v => v.toLocaleString()+'千', font:{size:10} }, grid: { color:'#f1f5f9' } },
       }
     }
   });
@@ -378,7 +403,7 @@ function _revRefresh() {
   const grandTotal   = totalByMonth.reduce((a,b)=>a+b,0);
 
   renderRevTable(startMonth, months);
-  renderRevChart(months, totalByMonth);
+  renderRevChart(months, totalByMonth, startMonth);
 
   // サマリー更新
   const setS = (id, html) => { const el=document.getElementById(id); if(el) el.querySelector('.stat-value').innerHTML=html; };
