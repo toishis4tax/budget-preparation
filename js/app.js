@@ -206,23 +206,29 @@ function renderSimulation(container, budget) {
   const hasDynamic = !!(budget.dynamicAccounts?.length);
   const allVals    = hasDynamic ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
 
+  // 調整列（index 12）を最終月（3月=index 11）に合算して12列に正規化
+  const normalize = arr => {
+    const v = Array.from({ length: 12 }, (_, i) => arr[i] || 0);
+    if (arr.length > 12) v[11] += arr[12] || 0;
+    return v;
+  };
+
   // ===== PL =====
   let plItems, chartSales, chartGross, chartOp;
 
   if (hasDynamic) {
-    const g = id => allVals[id] || new Array(12).fill(0);
-    // 動的科目: sec_*/calc_* を使用
+    const g = id => normalize(allVals[id] || new Array(12).fill(0));
     plItems = [
-      { label: '売上高',           vals: g('sec_revenue'), bold: false },
-      { label: '売上原価',         vals: g('sec_cogs'),    bold: false },
-      { label: '売上総利益',       vals: g('calc_gross'),  bold: true  },
-      { label: '販売費及び一般管理費', vals: g('sec_sga'), bold: false },
-      { label: '営業利益',         vals: g('calc_op'),     bold: true  },
-      { label: '営業外収益',       vals: g('sec_other_inc'),bold: false },
-      { label: '営業外費用',       vals: g('sec_other_exp'),bold: false },
-      { label: '経常利益',         vals: g('calc_ord'),    bold: true  },
-      { label: '税引前当期純利益', vals: g('calc_pretax'), bold: true  },
-      { label: '当期純利益',       vals: g('calc_net'),    bold: true  },
+      { label: '売上高',               vals: g('sec_revenue'),  bold: false },
+      { label: '売上原価',             vals: g('sec_cogs'),     bold: false },
+      { label: '売上総利益',           vals: g('calc_gross'),   bold: true  },
+      { label: '販売費及び一般管理費', vals: g('sec_sga'),      bold: false },
+      { label: '営業利益',             vals: g('calc_op'),      bold: true  },
+      { label: '営業外収益',           vals: g('sec_other_inc'),bold: false },
+      { label: '営業外費用',           vals: g('sec_other_exp'),bold: false },
+      { label: '経常利益',             vals: g('calc_ord'),     bold: true  },
+      { label: '税引前当期純利益',     vals: g('calc_pretax'),  bold: true  },
+      { label: '当期純利益',           vals: g('calc_net'),     bold: true  },
     ].filter(item => item.vals.some(v => v !== 0) || item.bold);
     chartSales = g('sec_revenue');
     chartGross = g('calc_gross');
@@ -230,18 +236,18 @@ function renderSimulation(container, budget) {
   } else {
     const pl = calcPL(budget.rows);
     plItems = [
-      { label: '売上高',               vals: pl.sales,         bold: false },
-      { label: '売上原価',             vals: pl.cogs,          bold: false },
-      { label: '売上総利益',           vals: pl.gross_profit,  bold: true  },
-      { label: '販売費及び一般管理費', vals: pl.sga,           bold: false },
-      { label: '営業利益',             vals: pl.op_profit,     bold: true  },
-      { label: '経常利益',             vals: pl.ord_profit,    bold: true  },
-      { label: '税引前当期純利益',     vals: pl.pretax_profit, bold: true  },
-      { label: '当期純利益',           vals: pl.net_profit,    bold: true  },
+      { label: '売上高',               vals: normalize(pl.sales),         bold: false },
+      { label: '売上原価',             vals: normalize(pl.cogs),          bold: false },
+      { label: '売上総利益',           vals: normalize(pl.gross_profit),  bold: true  },
+      { label: '販売費及び一般管理費', vals: normalize(pl.sga),           bold: false },
+      { label: '営業利益',             vals: normalize(pl.op_profit),     bold: true  },
+      { label: '経常利益',             vals: normalize(pl.ord_profit),    bold: true  },
+      { label: '税引前当期純利益',     vals: normalize(pl.pretax_profit), bold: true  },
+      { label: '当期純利益',           vals: normalize(pl.net_profit),    bold: true  },
     ];
-    chartSales = pl.sales;
-    chartGross = pl.gross_profit;
-    chartOp    = pl.op_profit;
+    chartSales = normalize(pl.sales);
+    chartGross = normalize(pl.gross_profit);
+    chartOp    = normalize(pl.op_profit);
   }
 
   // ===== BS =====
