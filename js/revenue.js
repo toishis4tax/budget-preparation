@@ -444,10 +444,14 @@ function applyRevenueToBudget() {
 
   const startMonth = budget.startMonth || 4;
 
-  // 動的科目リストを確保
-  if (!budget.dynamicAccounts) budget.dynamicAccounts = [];
+  // dynamicAccounts が空なら静的ACCOUNTSをベースにコピー
+  if (!budget.dynamicAccounts || budget.dynamicAccounts.length === 0) {
+    budget.dynamicAccounts = JSON.parse(JSON.stringify(
+      (typeof ACCOUNTS !== 'undefined' ? ACCOUNTS : [])
+    ));
+  }
 
-  // 既存の顧問先売上補助科目を一旦削除（rev_プレフィクスのもの）
+  // 既存の rev_ 科目と rows を全削除（重複防止）
   budget.dynamicAccounts = budget.dynamicAccounts.filter(a => !a.id.startsWith('rev_'));
   if (!budget.rows) budget.rows = {};
   Object.keys(budget.rows).forEach(k => { if (k.startsWith('rev_')) delete budget.rows[k]; });
@@ -460,20 +464,19 @@ function applyRevenueToBudget() {
     byCategory[cat].push(c);
   });
 
-  // 各区分の直後にそれぞれ挿入（後ろから処理して挿入位置がずれないようにする）
-  // まず全区分の挿入位置を計算してから、後ろ順に splice
-  const insertions = []; // { spliceAt, accs }
+  // 挿入位置を計算してから後ろ順に splice（位置ずれ防止）
+  const insertions = [];
 
   for (const [catId, clients] of Object.entries(byCategory)) {
-    // 区分科目の位置を探す
+    // 区分科目（sales_advisory 等）の位置を探す
     let catIdx = budget.dynamicAccounts.findIndex(a => a.id === catId);
     if (catIdx < 0) {
-      // 区分科目がない → sales の直後にフォールバック
+      // なければ sales の直後にフォールバック
       catIdx = budget.dynamicAccounts.findIndex(a => a.id === 'sales');
       if (catIdx < 0) catIdx = 0;
     }
 
-    // 区分科目の子をスキップして挿入位置を決める
+    // 区分科目の既存子をスキップして末尾挿入位置を決める
     let spliceAt = catIdx + 1;
     while (spliceAt < budget.dynamicAccounts.length &&
            budget.dynamicAccounts[spliceAt].parentId === catId) {
@@ -500,7 +503,7 @@ function applyRevenueToBudget() {
     insertions.push({ spliceAt, accs });
   }
 
-  // 後ろから挿入（位置ずれ防止）
+  // 後ろから挿入（前の splice で位置がずれないよう降順）
   insertions.sort((a, b) => b.spliceAt - a.spliceAt);
   insertions.forEach(({ spliceAt, accs }) => {
     budget.dynamicAccounts.splice(spliceAt, 0, ...accs);
