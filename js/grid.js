@@ -626,7 +626,11 @@ function handlePaste(e) {
 
   saveBudget(budget);
   const container = document.getElementById('main_content');
+  const scrollTop = container?.scrollTop || 0;
   if (container) renderGrid(container, budget);
+  if (container) container.scrollTop = scrollTop;
+  // フォーカスを貼り付け開始セルに戻す
+  requestAnimationFrame(() => focusCell(startAccId, startCol));
 }
 
 // ===== 横引き一括適用 =====
