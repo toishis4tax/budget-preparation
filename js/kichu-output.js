@@ -44,11 +44,16 @@ function renderKichuOutput(type, container) {
 function getKichuPL(budget) {
   if (!budget) return null;
 
-  const actualThrough = budget.actualThrough != null ? budget.actualThrough : -1;
+  // actualCols（新形式）を優先。なければ actualThrough（旧形式）から変換
+  const actualCols = getActualCols(budget);
+  const hasActual = actualCols.some(Boolean);
+  // actualThrough = 最後のtrue index（後方互換用）
+  let actualThrough = -1;
+  for (let i = 11; i >= 0; i--) { if (actualCols[i]) { actualThrough = i; break; } }
 
   // 実績側: dynamicAccounts があれば使う
   let actualAv = null;
-  if (budget.dynamicAccounts && actualThrough >= 0) {
+  if (budget.dynamicAccounts && hasActual) {
     actualAv = calcAllValuesDynamic(budget);
   }
 
@@ -61,27 +66,38 @@ function getKichuPL(budget) {
   // 実績のみ・予算のみのフォールバック
   if (!actualAv && !budgetPl) return null;
   if (!actualAv) {
-    // 実績なし → 予算のみ
+    // 実績なし → 予算のみ (動的科目があれば calcAllValuesDynamic を使う)
+    if (budget.dynamicAccounts?.length) {
+      const dv = calcAllValuesDynamic(budget);
+      // index 12 = 調整欄を含む 13要素配列のまま返す
+      const g13 = function(id) { return dv[id] || new Array(13).fill(0); };
+      return { sales: g13('sec_revenue'), gross: g13('calc_gross'), sga: g13('sec_sga'),
+               op: g13('calc_op'), ord: g13('calc_ord'), pretax: g13('calc_pretax'), net: g13('calc_net') };
+    }
     const n = function(arr) { return Array.from({length:12}, function(_,i){ return arr ? (arr[i] || 0) : 0; }); };
     return { sales: n(budgetPl.sales), gross: n(budgetPl.gross_profit), sga: n(budgetPl.sga),
              op: n(budgetPl.op_profit), ord: n(budgetPl.ord_profit),
              pretax: n(budgetPl.pretax_profit), net: n(budgetPl.net_profit) };
   }
   if (!budgetPl && actualThrough >= 11) {
-    // 全月実績 → dynamicのみ
-    const g = function(id) { return Array.from({length:12}, function(_,i){ return actualAv[id] ? (actualAv[id][i] || 0) : 0; }); };
+    // 全月実績 → dynamicのみ（index 12 含む）
+    const g = function(id) { return actualAv[id] || new Array(13).fill(0); };
     return { sales: g('sec_revenue'), gross: g('calc_gross'), sga: g('sec_sga'),
              op: g('calc_op'), ord: g('calc_ord'), pretax: g('calc_pretax'), net: g('calc_net') };
   }
 
-  // ブレンド: 0..actualThrough=実績, actualThrough+1..11=予算
+  // ブレンド: actualCols[i]=true → 実績, false → 予算
+  // index 12 (調整欄) は actualAv から取得（budgetのcorp_tax調整など）
   const blend = function(actualId, budgetArr) {
-    return Array.from({length:12}, function(_,i) {
-      if (i <= actualThrough && actualAv) {
+    const arr = Array.from({length:12}, function(_,i) {
+      if (actualCols[i] && actualAv) {
         return actualAv[actualId] ? (actualAv[actualId][i] || 0) : 0;
       }
       return budgetArr ? (budgetArr[i] || 0) : 0;
     });
+    // 調整欄（index 12）を追加: actualAv（calcAllValuesDynamic）から取得
+    arr.push(actualAv?.[actualId]?.[12] || 0);
+    return arr;
   };
 
   return {
@@ -99,6 +115,12 @@ function getKichuPL(budget) {
 function getKichuBudgetPL(budget) {
   if (!budget || !budget.rows) return null;
   try {
+    if (budget.dynamicAccounts?.length) {
+      const dv = calcAllValuesDynamic(budget);
+      const g = function(id) { return dv[id] || new Array(13).fill(0); };
+      return { sales: g('sec_revenue'), gross: g('calc_gross'), sga: g('sec_sga'),
+               op: g('calc_op'), ord: g('calc_ord'), pretax: g('calc_pretax'), net: g('calc_net') };
+    }
     const pl = calcPL(budget.rows);
     const n = function(arr) { return Array.from({length:12}, function(_,i){ return arr ? (arr[i]||0) : 0; }); };
     return { sales: n(pl.sales), gross: n(pl.gross_profit), sga: n(pl.sga),
@@ -122,10 +144,11 @@ function renderKichuMonthly(container, budget, company) {
   var pl = getKichuPL(budget);
   if (!pl) { container.innerHTML = '<div class="no-data">データがありません</div>'; return; }
 
-  var actualThrough = budget.actualThrough != null ? budget.actualThrough : -1;
-  var startMonth    = budget.startMonth || 4;
-  var labels        = getMonthLabels(startMonth);
-  var curYear       = window.App ? window.App.currentYear : new Date().getFullYear();
+  // actualCols（月次予算入力の実績/予算トグル）を参照
+  var actualCols = getActualCols(budget);
+  var startMonth = budget.startMonth || 4;
+  var labels     = getMonthLabels(startMonth);
+  var curYear    = window.App ? window.App.currentYear : new Date().getFullYear();
 
   var rows = [
     { label: '売上高',     data: pl.sales,  bold: false },
@@ -136,40 +159,53 @@ function renderKichuMonthly(container, budget, company) {
     { label: '当期純利益', data: pl.net,    bold: true  },
   ];
 
+  var actMon = actualCols.filter(Boolean).length;
+  var bdgMon = 12 - actMon;
+  var hasAct = actMon > 0;
+
+  // 実績の最初と最後のラベル（通知文用）
+  var firstActIdx = actualCols.indexOf(true);
+  var lastActIdx  = actualCols.reduce(function(last, v, i){ return v ? i : last; }, -1);
+
   // Build table header
   var thCols = '<th class="kichu-label-th">科目</th>';
   for (var m = 0; m < 12; m++) {
-    var isActual = m <= actualThrough;
-    thCols += '<th style="' + (isActual ? 'background:#1a5276' : '') + '">' + escHtml(labels[m]) + '</th>';
+    var isActual = actualCols[m];
+    thCols += '<th style="' + (isActual ? 'background:#1a5276;color:#fff' : '') + '">' + escHtml(labels[m]) + '</th>';
   }
-  thCols += '<th>年間合計</th><th style="background:#2e4057">着地予測</th>';
+  if (hasAct) thCols += '<th style="background:#1a5276;color:#fff;white-space:nowrap">実績合計<br><span style="font-size:9px;font-weight:400">' + actMon + 'か月</span></th>';
+  if (bdgMon > 0) thCols += '<th style="white-space:nowrap">予算合計<br><span style="font-size:9px;font-weight:400">' + bdgMon + 'か月</span></th>';
+  thCols += '<th style="background:#2e4057;color:#fff;white-space:nowrap">年間合計</th>';
 
   // Build table body
   var tbodyRows = rows.map(function(row) {
-    var annual = _kichuSum(row.data);
+    var actSum = 0, bdgSum = 0;
     var cells = '';
     for (var m = 0; m < 12; m++) {
       var v = row.data[m] || 0;
-      var isActual = m <= actualThrough;
-      var cls = 'kichu-table td';
+      var isAct = actualCols[m];
       var extra = '';
       if (row.bold) extra += ' kichu-bold';
-      if (isActual) extra += ' kichu-actual';
-      else          extra += ' kichu-forecast';
+      if (isAct)    { extra += ' kichu-actual'; actSum += v; }
+      else          { extra += ' kichu-forecast'; bdgSum += v; }
       if (v < 0)    extra += ' kichu-neg';
       cells += '<td class="' + extra.trim() + '">' + fmtK(v) + '</td>';
     }
+    bdgSum += (row.data[12] || 0);
+    var total = actSum + bdgSum;
+    var boldCls = row.bold ? ' kichu-bold' : '';
     return '<tr>' +
-      '<td class="kichu-label' + (row.bold ? ' kichu-bold' : '') + '">' + escHtml(row.label) + '</td>' +
+      '<td class="kichu-label' + boldCls + '">' + escHtml(row.label) + '</td>' +
       cells +
-      '<td class="' + (row.bold ? 'kichu-bold' : '') + (annual < 0 ? ' kichu-neg' : '') + '">' + fmtK(annual) + '</td>' +
-      '<td class="' + (row.bold ? 'kichu-bold' : '') + (annual < 0 ? ' kichu-neg' : '') + '" style="background:#eef2ff">' + fmtK(annual) + '</td>' +
+      (hasAct ? '<td class="' + boldCls + (actSum < 0 ? ' kichu-neg' : '') + '" style="background:#d6eaf8">' + fmtK(actSum) + '</td>' : '') +
+      (bdgMon > 0 ? '<td class="' + boldCls + (bdgSum < 0 ? ' kichu-neg' : '') + '">' + fmtK(bdgSum) + '</td>' : '') +
+      '<td class="' + boldCls + (total < 0 ? ' kichu-neg' : '') + '" style="background:#eef2ff">' + fmtK(total) + '</td>' +
     '</tr>';
   }).join('');
 
   // Actual-through notice
-  var noticeText = actualThrough >= 0
-    ? '実績確定: ' + labels[actualThrough] + 'まで（' + (actualThrough+1) + 'か月）/ 残り' + (11 - actualThrough) + 'か月は予算値'
+  var noticeText = hasAct
+    ? '実績確定: ' + labels[firstActIdx] + '～' + labels[lastActIdx] + '（' + actMon + 'か月）/ 残り' + bdgMon + 'か月は予算値'
     : '実績確定なし — 全月予算値';
 
   // Unique canvas id
@@ -204,10 +240,10 @@ function renderKichuMonthly(container, budget, company) {
   }
 
   // Build chart datasets
-  var salesActual   = pl.sales.map(function(v, i){ return i <= actualThrough ? v/1000 : null; });
-  var salesBudget   = pl.sales.map(function(v, i){ return i > actualThrough  ? v/1000 : null; });
-  var opActual      = pl.op.map(function(v, i){ return i <= actualThrough ? v/1000 : null; });
-  var opBudget      = pl.op.map(function(v, i){ return i > actualThrough  ? v/1000 : null; });
+  var salesActual = pl.sales.map(function(v, i){ return actualCols[i] ? v/1000 : null; });
+  var salesBudget = pl.sales.map(function(v, i){ return actualCols[i] ? null : v/1000; });
+  var opActual    = pl.op.map(function(v, i){ return actualCols[i] ? v/1000 : null; });
+  var opBudget    = pl.op.map(function(v, i){ return actualCols[i] ? null : v/1000; });
 
   var ctx = document.getElementById(canvasId);
   if (ctx) {

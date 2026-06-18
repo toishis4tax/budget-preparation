@@ -1,29 +1,4 @@
-// CSV・Excel出力
-
-function exportCSV(budget) {
-  if (!budget) { alert('予算データがありません'); return; }
-  const allVals = calcAllValues(budget.rows);
-  const months = ['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'];
-
-  const header = ['科目', ...months, '合計'];
-  const lines = [header.join(',')];
-
-  ACCOUNTS.forEach(acc => {
-    if (acc.type === 'separator') return;
-    const vals = allVals[acc.id] || new Array(12).fill(0);
-    const total = vals.reduce((a,b)=>a+b,0);
-    const row = [
-      `"${'　'.repeat(acc.indent)}${acc.name}"`,
-      ...vals.map(v => Math.round(v)),
-      Math.round(total)
-    ];
-    lines.push(row.join(','));
-  });
-
-  const bom = '﻿';
-  const blob = new Blob([bom + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  downloadBlob(blob, `予算_${budget.year}年度.csv`);
-}
+// Excel出力
 
 function exportExcel(budget) {
   if (!budget) { alert('予算データがありません'); return; }
@@ -32,42 +7,116 @@ function exportExcel(budget) {
     return;
   }
 
-  const allVals = calcAllValues(budget.rows);
-  const months = ['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'];
+  const company  = window.App?.currentCompany;
+  const compName = company?.name || '会社名未設定';
+  const isDynamic = !!budget.dynamicAccounts?.length;
+
+  // 月ラベル（開始月ベース）
+  const startM = budget.startMonth || 4;
+  const monthLabels = Array.from({length: 12}, (_, i) => {
+    const m = ((startM - 1 + i) % 12) + 1;
+    return `${m}月`;
+  });
+
+  const allVals = isDynamic ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
+  const remarks = budget.remarks || {};
+
   const wb = XLSX.utils.book_new();
 
-  // PL シート
-  const plData = [['科目', ...months, '合計']];
-  ACCOUNTS.filter(a => ['pl','sep'].includes(a.section) || a.section?.startsWith('pl')).forEach(acc => {
-    if (acc.type === 'separator') { plData.push([]); return; }
-    const vals = allVals[acc.id] || new Array(12).fill(0);
-    const total = vals.reduce((a,b)=>a+b,0);
-    plData.push(['　'.repeat(acc.indent) + acc.name, ...vals.map(Math.round), Math.round(total)]);
-  });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(plData), '月次予算（PL）');
+  // ─── シート生成ヘルパー ───
+  function makeSheet(accounts) {
+    const header = ['科目名', ...monthLabels, '調整', '合計', '摘要'];
+    const rows   = [header];
 
-  // BS シート
-  const bsData = [['科目', ...months, '合計']];
-  ACCOUNTS.filter(a => ['bs_asset','bs_liab','bs_equity'].includes(a.section)).forEach(acc => {
-    const vals = allVals[acc.id] || new Array(12).fill(0);
-    const total = vals.reduce((a,b)=>a+b,0);
-    bsData.push(['　'.repeat(acc.indent) + acc.name, ...vals.map(Math.round), Math.round(total)]);
-  });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(bsData), '月次予算（BS）');
+    accounts.forEach(acc => {
+      if (acc.type === 'separator') { rows.push([]); return; }
+      const raw   = allVals[acc.id] || new Array(13).fill(0);
+      const vals  = raw.slice(0, 12);
+      const adj   = raw[12] || 0;
+      const total = vals.reduce((a, b) => a + (b || 0), 0) + adj;
+      const indent = '　'.repeat(acc.indent || 0);
+      rows.push([
+        indent + (acc.name || ''),
+        ...vals.map(v => v ? Math.round(v) : 0),
+        adj ? Math.round(adj) : 0,
+        Math.round(total),
+        remarks[acc.id] || '',
+      ]);
+    });
 
-  XLSX.writeFile(wb, `予算_${budget.year}年度.xlsx`);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // 列幅設定
+    ws['!cols'] = [
+      { wch: 30 },                              // 科目名
+      ...Array(12).fill({ wch: 10 }),           // 各月
+      { wch: 8  },                              // 調整
+      { wch: 11 },                              // 合計
+      { wch: 24 },                              // 摘要
+    ];
+
+    // ヘッダー行スタイル
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = XLSX.utils.encode_cell({ r: 0, c });
+      if (!ws[cell]) continue;
+      ws[cell].s = {
+        fill: { patternType: 'solid', fgColor: { rgb: '1E40AF' } },
+        font: { color: { rgb: 'FFFFFF' }, bold: true, sz: 10 },
+        alignment: { horizontal: 'center' },
+      };
+    }
+
+    return ws;
+  }
+
+  // ─── PL シート ───
+  if (isDynamic) {
+    const plAccounts = budget.dynamicAccounts.filter(a =>
+      a.section === 'pl' || a.section == null
+    );
+    if (plAccounts.length) {
+      wb.SheetNames.push('月次予算（PL）');
+      wb.Sheets['月次予算（PL）'] = makeSheet(plAccounts);
+    }
+
+    const bsAccounts = budget.dynamicAccounts.filter(a =>
+      a.section?.startsWith('bs')
+    );
+    if (bsAccounts.length) {
+      wb.SheetNames.push('月次予算（BS）');
+      wb.Sheets['月次予算（BS）'] = makeSheet(bsAccounts);
+    }
+  } else {
+    const plAccounts = ACCOUNTS.filter(a =>
+      a.section === 'pl' || a.section?.startsWith('pl') || a.section === 'sep'
+    );
+    const bsAccounts = ACCOUNTS.filter(a =>
+      ['bs_asset', 'bs_liab', 'bs_equity'].includes(a.section)
+    );
+    if (plAccounts.length) {
+      wb.SheetNames.push('月次予算（PL）');
+      wb.Sheets['月次予算（PL）'] = makeSheet(plAccounts);
+    }
+    if (bsAccounts.length) {
+      wb.SheetNames.push('月次予算（BS）');
+      wb.Sheets['月次予算（BS）'] = makeSheet(bsAccounts);
+    }
+  }
+
+  if (!wb.SheetNames.length) {
+    alert('出力できる科目データがありません');
+    return;
+  }
+
+  XLSX.writeFile(wb, `月次予算_${compName}_${budget.year}年度.xlsx`);
 }
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
+  const a   = document.createElement('a');
+  a.href    = url;
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-// 印刷
-function printBudget() {
-  window.print();
 }

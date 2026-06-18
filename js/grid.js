@@ -206,9 +206,7 @@ function renderGrid(container, budget) {
       </div>
       <div class="toolbar-right">
         <button class="btn-solid btn-sm" onclick="showBudgetCompleteModal()" style="gap:5px">✅ 入力完了 →</button>
-        <button class="btn btn-sm" onclick="exportCSV(window.App?.currentBudget)">CSV出力</button>
-        <button class="btn btn-sm" onclick="exportExcel(window.App?.currentBudget)">Excel出力</button>
-        <button class="btn btn-sm" onclick="printBudget()">印刷</button>
+        <button class="btn btn-sm" onclick="exportExcel(window.App?.currentBudget)">📥 Excel出力</button>
       </div>
     </div>
     ${modeTabs}
@@ -249,6 +247,9 @@ function renderGridRows(budget, allVals, months) {
   const accounts = getAccountsForMode(budget);
   // 子供を持つ親のSet
   const parentIds = new Set(accounts.filter(a => a.parentId).map(a => a.parentId));
+
+  const company = window.App?.currentCompany;
+  const ctaxCls = company?.ctaxClassification || {};
 
   accounts.forEach((acc, accIdx) => {
     if (acc.type === 'separator') {
@@ -297,17 +298,40 @@ function renderGridRows(budget, allVals, months) {
       ? `<button class="collapse-btn" onclick="toggleCollapse('${acc.id}',event)" title="${isCollapsed?'展開':'折りたたむ'}">${isCollapsed?'▶':'▼'}</button>`
       : '<span class="collapse-spacer"></span>';
 
+    const isTaxRow = /tax|corp|法人税/.test(acc.id) || (acc.name || '').includes('法人税');
+
+    // 課税チェックボックス生成（PL科目・法人税等以外）
+    const _makeCtaxChk = (id, sign) => {
+      if (isTaxRow) return '';
+      const isPlAcc = acc.section === 'pl' || (!acc.section && _gridMode !== 'bs');
+      if (!isPlAcc) return '';
+      // デフォルト課税（undefined = true、明示的にfalseのみ不課税）
+      const isChecked = ctaxCls[id] !== false ? 'checked' : '';
+      const tip = sign === 1 ? '課税売上（仮受消費税）' : '課税仕入（仮払消費税）';
+      return `<label class="ctax-grid-chk" onclick="event.stopPropagation()" title="${tip}">
+        <input type="checkbox" ${isChecked} onchange="setCtaxClassification('${id}',this.checked)">
+        <span>課</span>
+      </label>`;
+    };
+
     let nameCell;
     if (isRevDisp) {
       const tentMark = acc.tentative ? '<span style="font-size:9px;background:#fcd34d;color:#78350f;border-radius:3px;padding:1px 4px;margin-left:4px;font-weight:700">未確定</span>' : '';
+      const ctaxChk = _makeCtaxChk(acc.id, acc.sign);
       nameCell = `<td class="acc-col sticky-col acc-name" style="background:#f0f9ff">
-        <span class="collapse-spacer"></span><span class="indent">${indent}</span>
-        <span style="color:#2563eb;font-size:12px">${escHtml(acc.name)}</span>${tentMark}
+        <div style="display:flex;align-items:center;min-width:0">
+          <span class="collapse-spacer"></span><span class="indent">${indent}</span>
+          <span style="color:#2563eb;font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${escHtml(acc.name)}</span>${tentMark}${ctaxChk}
+        </div>
       </td>`;
     } else if (isInput) {
+      const ctaxChk = _makeCtaxChk(acc.id, acc.sign);
       nameCell = `<td class="acc-col sticky-col acc-name" onclick="toggleRowSelect('${acc.id}',event)">
-        ${collapseBtn}<span class="indent">${indent}</span>
-        <span class="acc-label" ondblclick="editAccName(this,'${acc.id}')">${escHtml(acc.name)}</span>
+        <div style="display:flex;align-items:center;min-width:0">
+          ${collapseBtn}<span class="indent">${indent}</span>
+          <span class="acc-label" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis" ondblclick="editAccName(this,'${acc.id}')">${escHtml(acc.name)}</span>
+          ${ctaxChk}
+        </div>
       </td>`;
     } else {
       nameCell = `<td class="acc-col sticky-col acc-name ${isCalc?'calculated':acc.type}-label" onclick="toggleRowSelect('${acc.id}',event)">
@@ -319,8 +343,6 @@ function renderGridRows(budget, allVals, months) {
       const isAdj = colIdx === 12;
       return `<td class="val-cell calc-val${actualCols[colIdx]?' actual-col':''}${isAdj?' adj-col':''}" data-col="${colIdx}" style="text-align:right">${v === 0 ? '–' : safeRound(v).toLocaleString()}</td>`;
     };
-
-    const isTaxRow = /tax|corp|法人税/.test(acc.id) || (acc.name || '').includes('法人税');
 
     // Build month cells (indices 0-11)
     const monthVals = vals.slice(0, 12);
@@ -364,7 +386,7 @@ function renderGridRows(budget, allVals, months) {
     const totalStyle = isRevDisp ? 'style="text-align:right;background:#f0f9ff;color:#2563eb;font-size:12px"' : 'style="text-align:right"';
     const accId = acc.id;
     if (!budget.remarks) budget.remarks = {};
-    const remarksCell = isInput
+    const remarksCell = (isInput || isRevDisp)
       ? `<td class="remarks-col"><input type="text" class="remarks-input" value="${escHtml(budget.remarks[accId] || '')}" placeholder="摘要" data-acc-id="${accId}" onchange="updateRemark('${accId}', this.value)"></td>`
       : `<td class="remarks-col"></td>`;
     tr.innerHTML = nameCell + monthCells + adjCell +
@@ -840,11 +862,12 @@ function showBudgetCompleteModal() {
   if (budget.dynamicAccounts?.length) {
     // 動的科目: calcAllValuesDynamic を使う
     const av = calcAllValuesDynamic(budget);
-    const s12 = id => (av[id] || []).slice(0, 12).reduce((a, v) => a + v, 0);
-    sales = s12('sec_revenue');
-    gross = s12('calc_gross');
-    op    = s12('calc_op');
-    net   = s12('calc_net');
+    // index 0-11 = 月次、index 12 = 調整欄（法人税等など）を含めて合計
+    const sAll = id => (av[id] || []).reduce((a, v) => a + v, 0);
+    sales = sAll('sec_revenue');
+    gross = sAll('calc_gross');
+    op    = sAll('calc_op');
+    net   = sAll('calc_net');
   } else {
     const merged = getMergedRows(budget);
     const pl = calcPL(merged);

@@ -408,8 +408,33 @@ function renderCashFlow(container, budget) {
       </div>
     </div>`;
 
-  // 減価償却を state に保存してrunCashFlowで使う
-  window._cfState = { allVals, deprArr, monthLabels, at, budget };
+  // state 保存（localStorageにも保存して再レンダリング・リロード後も復元）
+  const _cfKey = `cf_inputs_${company?.id || ''}_${budget?.year || ''}`;
+  const _cfSaved = (() => { try { return JSON.parse(localStorage.getItem(_cfKey)); } catch { return null; } })();
+  const prev = _cfSaved || window._cfState || {};
+  window._cfState = {
+    allVals, deprArr, monthLabels, at, budget,
+    openCash:   prev.openCash  ?? autoCash,
+    loanRepay:  prev.loanRepay ?? 0,
+    newLoan:    prev.newLoan   ?? 0,
+    invest:     prev.invest    ?? 0,
+    tax1Amt:    prev.tax1Amt   ?? prepaid1,
+    tax1Month:  prev.tax1Month ?? 4,
+    ctaxTimes:  prev.ctaxTimes ?? 0,
+    ctaxAmt:    prev.ctaxAmt   ?? ctaxPrepaid,
+    _cfKey,
+  };
+  // 保存済み入力値をDOMに復元
+  const s = window._cfState;
+  const setV = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  setV('cf_open_cash',  s.openCash);
+  setV('cf_loan_repay', s.loanRepay);
+  setV('cf_new_loan',   s.newLoan);
+  setV('cf_invest',     s.invest);
+  setV('cf_tax1_amt',   s.tax1Amt);
+  setV('cf_tax1_month', s.tax1Month);
+  setV('cf_ctax_times', s.ctaxTimes);
+  setV('cf_ctax_amt',   s.ctaxAmt);
   runCashFlow();
   updateCtaxMonthFields();
 }
@@ -461,6 +486,20 @@ function runCashFlow() {
   const tax1Month = parseInt(document.getElementById('cf_tax1_month')?.value   ?? 4);
   const ctaxAmt    = parseFloat(document.getElementById('cf_ctax_amt')?.value  || 0);
   const ctaxTimes  = parseInt(document.getElementById('cf_ctax_times')?.value  || 0);
+
+  // 入力値を保存（window + localStorage）
+  Object.assign(state, {
+    openCash, loanRepay, newLoan: newLoan*12, invest: invest*12,
+    tax1Amt, tax1Month, ctaxTimes, ctaxAmt,
+  });
+  if (state._cfKey) {
+    try {
+      localStorage.setItem(state._cfKey, JSON.stringify({
+        openCash, loanRepay, newLoan: newLoan*12, invest: invest*12,
+        tax1Amt, tax1Month, ctaxTimes, ctaxAmt,
+      }));
+    } catch {}
+  }
   const ctaxMonths = _ctaxPayMonths(ctaxTimes);
 
   // 営業利益・減価償却
@@ -529,32 +568,42 @@ function runCashFlow() {
       <div class="wf-note">単位：千円　⚠ 資金ショートリスク　🟡 100万円未満</div>`;
   }
 
-  // チャート
+  // チャート（destroy/recreateをやめてupdate()に変更 → フォーカス喪失防止）
   if (typeof Chart !== 'undefined') {
     const ctx = document.getElementById('cf_chart');
     if (ctx) {
-      if (ctx._chartInst) ctx._chartInst.destroy();
-      ctx._chartInst = new Chart(ctx, {
-        data: {
-          labels: rows.map(r => r.label),
-          datasets: [
-            { type:'bar', label:'営業CF', data: rows.map(r=>r.opCF/1000),  backgroundColor:'rgba(16,185,129,.5)', stack:'cf' },
-            { type:'bar', label:'財務CF', data: rows.map(r=>r.finCF/1000), backgroundColor:'rgba(59,130,246,.5)', stack:'cf' },
-            { type:'bar', label:'税金CF', data: rows.map(r=>r.taxCF/1000), backgroundColor:'rgba(239,68,68,.5)',  stack:'cf' },
-            { type:'line',label:'月末現預金', data: rows.map(r=>r.closeM/1000),
-              borderColor:'#0f172a', borderWidth:2, pointBackgroundColor: rows.map(r=>r.shortage?'#dc2626':'#0f172a'),
-              fill:false, yAxisID:'y2', tension:.3 },
-          ]
-        },
-        options: {
-          responsive:true,
-          plugins:{ legend:{ position:'bottom' }, title:{ display:true, text:'月次CF内訳と現預金残高（千円）' } },
-          scales:{
-            y:  { stacked:true, grid:{ color:'rgba(0,0,0,.04)' } },
-            y2: { position:'right', grid:{ display:false }, title:{ display:true, text:'残高（千円）' } }
+      if (ctx._chartInst) {
+        const ds = ctx._chartInst.data.datasets;
+        ctx._chartInst.data.labels = rows.map(r => r.label);
+        ds[0].data = rows.map(r => r.opCF/1000);
+        ds[1].data = rows.map(r => r.finCF/1000);
+        ds[2].data = rows.map(r => r.taxCF/1000);
+        ds[3].data = rows.map(r => r.closeM/1000);
+        ds[3].pointBackgroundColor = rows.map(r => r.shortage ? '#dc2626' : '#0f172a');
+        ctx._chartInst.update('none');
+      } else {
+        ctx._chartInst = new Chart(ctx, {
+          data: {
+            labels: rows.map(r => r.label),
+            datasets: [
+              { type:'bar', label:'営業CF', data: rows.map(r=>r.opCF/1000),  backgroundColor:'rgba(16,185,129,.5)', stack:'cf' },
+              { type:'bar', label:'財務CF', data: rows.map(r=>r.finCF/1000), backgroundColor:'rgba(59,130,246,.5)', stack:'cf' },
+              { type:'bar', label:'税金CF', data: rows.map(r=>r.taxCF/1000), backgroundColor:'rgba(239,68,68,.5)',  stack:'cf' },
+              { type:'line',label:'月末現預金', data: rows.map(r=>r.closeM/1000),
+                borderColor:'#0f172a', borderWidth:2, pointBackgroundColor: rows.map(r=>r.shortage?'#dc2626':'#0f172a'),
+                fill:false, yAxisID:'y2', tension:.3 },
+            ]
+          },
+          options: {
+            responsive:true,
+            plugins:{ legend:{ position:'bottom' }, title:{ display:true, text:'月次CF内訳と現預金残高（千円）' } },
+            scales:{
+              y:  { stacked:true, grid:{ color:'rgba(0,0,0,.04)' } },
+              y2: { position:'right', grid:{ display:false }, title:{ display:true, text:'残高（千円）' } }
+            }
           }
-        }
-      });
+        });
+      }
     }
   }
 }

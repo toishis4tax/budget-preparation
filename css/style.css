@@ -335,6 +335,11 @@ body {
 .selected-row td { background: #fef3c7 !important; }
 .selected-row td.sticky-col { background: #fde68a !important; }
 .acc-name { cursor: pointer; }
+.ctax-method-label { font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid var(--border); }
+.ctax-grid-chk { display:inline-flex; align-items:center; gap:2px; margin-left:4px; padding:1px 3px; border-radius:3px; cursor:pointer; flex-shrink:0; }
+.ctax-grid-chk:hover { background:rgba(37,99,235,.08); }
+.ctax-grid-chk input[type=checkbox] { width:11px; height:11px; cursor:pointer; accent-color:#2563eb; }
+.ctax-grid-chk span { font-size:9px; color:#2563eb; font-weight:700; line-height:1; }
 .toolbar-hint { font-size: 11px; color: var(--emerald); font-weight: 600; margin-left: 4px; }
 .toolbar-label { font-size: 11px; color: var(--text-muted); margin-right: 4px; }
 

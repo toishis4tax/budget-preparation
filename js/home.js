@@ -452,18 +452,41 @@ function calcCtaxEstimate(budget, company) {
   }
 
   if (budget.dynamicAccounts) {
-    let kariHarai = 0, kariUke = 0, foundH = false, foundU = false;
+    const actualCols   = getActualCols(budget);
+    const actualMonths = actualCols.filter(Boolean).length;
+    const actualThrough = actualCols.lastIndexOf(true); // -1 if none
+    let kariHarai = 0, kariUke = 0;
+    let kariHaraiActual = 0, kariUkeActual = 0;
+    let foundH = false, foundU = false;
     for (const acc of budget.dynamicAccounts) {
       const name = acc.name.replace(/\s/g, '');
       const vals = allVals[acc.id] || rows[acc.id] || new Array(12).fill(0);
-      const total = vals.reduce((a, v) => a + v, 0);
-      if (name.includes('仮払消費税')) { kariHarai += Math.abs(total); foundH = true; }
-      if (name.includes('仮受消費税')) { kariUke   += Math.abs(total); foundU = true; }
+      // BS残高科目：月次値は残高（累計）なので最終実績月の残高を使う
+      const balActual = actualThrough >= 0
+        ? Math.abs(vals[actualThrough] || 0)                  // 最終実績月の残高
+        : 0;
+      // 年間試算 = 実績残高 ÷ 実績月数 × 12
+      const balAnnual = actualMonths > 0
+        ? Math.round(balActual / actualMonths * 12)
+        : Math.abs(vals[11] || 0);                            // 実績なければ年度末残高
+      if (name.includes('仮払消費税')) {
+        kariHarai       += balAnnual;
+        kariHaraiActual += balActual;
+        foundH = true;
+      }
+      if (name.includes('仮受消費税')) {
+        kariUke       += balAnnual;
+        kariUkeActual += balActual;
+        foundU = true;
+      }
     }
     if (!foundH && !foundU) return { method: 'honzoku', noData: true };
-    const k    = annualFactor;
-    const ctax = (kariUke * k) - (kariHarai * k);
-    return { method: 'honzoku', kariHarai: kariHarai * k, kariUke: kariUke * k, ctax, filledMonths, annualFactor, ctaxPrepaid };
+    const ctax = kariUke - kariHarai;
+    return {
+      method: 'honzoku', kariHarai, kariUke, ctax,
+      kariHaraiActual, kariUkeActual, actualMonths, actualThrough,
+      filledMonths, annualFactor, ctaxPrepaid,
+    };
   }
 
   return { method: 'honzoku', noData: true };
@@ -503,12 +526,13 @@ function renderPhase1Home(container, budget, company) {
   const doneCount = progressItems.filter(p => p.done).length;
   const pct = progressItems.length ? Math.round(doneCount / progressItems.length * 100) : 0;
 
-  const actualThrough = budget?.actualThrough ?? -1;
   const hasDynamic    = !!budget?.dynamicAccounts?.length;
-  const hasActual     = actualThrough >= 0;
+  // actualCols: グリッドと同じ判定（新形式 actualCols 優先、旧形式 actualThrough はフォールバック）
+  const actualCols    = budget ? getActualCols(budget) : Array(12).fill(false);
+  const actualThrough = actualCols.lastIndexOf(true); // 互換用
+  const hasActual     = actualCols.some(Boolean);
 
-  // 動的科目がある場合は calcAllValuesDynamic（実績＋残り予算のブレンド）
-  // 静的のみの場合は getMergedRows → calcAllValues
+  // 動的科目がある場合は calcAllValuesDynamic、静的は getMergedRows → calcAllValues
   const allVals = budget
     ? (hasDynamic ? calcAllValuesDynamic(budget) : calcAllValues(getMergedRows(budget)))
     : {};
@@ -521,16 +545,33 @@ function renderPhase1Home(container, budget, company) {
     { label:'当期純利益', dynId:'calc_net',    staticId:'net_profit',   isProfit:true  },
   ];
 
+  // 月名ヘルパー（actualCols ベース）
+  const startMonth = budget?.startMonth || 4;
+  const mLabel = i => `${((startMonth - 1 + i) % 12) + 1}月`;
+  const actIdxs = actualCols.map((v,i) => v ? i : -1).filter(i => i >= 0);
+  const bdgIdxs = actualCols.map((v,i) => !v ? i : -1).filter(i => i >= 0);
+  const actualMonths = actIdxs.length;
+  const budgetMonths = bdgIdxs.length;
+  const actualLabel = actualMonths > 0
+    ? (actualMonths === 1 ? mLabel(actIdxs[0]) : `${mLabel(actIdxs[0])}～${mLabel(actIdxs[actIdxs.length-1])}`)
+    : null;
+  const budgetLabel = budgetMonths > 0
+    ? (budgetMonths === 1 ? mLabel(bdgIdxs[0]) : `${mLabel(bdgIdxs[0])}～${mLabel(bdgIdxs[bdgIdxs.length-1])}`)
+    : null;
+
   // CF現預金
   const cashAcc = budget?.dynamicAccounts?.find(a =>
     a.section?.startsWith('bs') && a.name.replace(/\s/g,'').match(/現金|預金|現預金/)
   );
   const cashEnd = cashAcc ? (allVals[cashAcc.id] || [])[Math.min(actualThrough, 11)] || 0 : 0;
 
+  // サマリーは千円統一（列ごとに単位が変わると加算が合わなくなるため）
   const fmtKpi = (v, isProfit) => {
     if (!v && v !== 0) return '<span class="yr3-nodata">—</span>';
     const c = isProfit ? (v >= 0 ? '#059669' : '#dc2626') : 'inherit';
-    return `<span style="color:${c}">${fmtHome(v)}</span>`;
+    const sign = v < 0 ? '▲' : '';
+    const txt = sign + Math.round(Math.abs(v) / 1000).toLocaleString() + '千円';
+    return `<span style="color:${c}">${txt}</span>`;
   };
 
   container.innerHTML = `
@@ -554,43 +595,43 @@ function renderPhase1Home(container, budget, company) {
         </div>
       </div>
 
-      <!-- KPIサマリー -->
-      <div class="home-card">
-        <div class="home-card-title">📈 業績KPI${hasActual ? `（実績: ${actualThrough+1}か月確定）` : '（予算）'}</div>
+      <!-- 業績サマリー（実績期間 | 予算期間 | 合計） -->
+      <div class="home-card" style="grid-column:1/-1">
+        <div class="home-card-title">📊 業績サマリー</div>
         <table class="yr3-table">
           <thead>
             <tr>
               <th class="yr3-label-col">科目</th>
-              <th class="yr3-num-col">${hasDynamic ? '着地予測（年間）' : '年間予算'}</th>
-              ${hasActual ? `
-                <th class="yr3-num-col yr3-cur">実績累計<br><span class="yr3-badge">${actualThrough+1}か月</span></th>
-                <th class="yr3-num-col yr3-diff">進捗率</th>
-              ` : ''}
+              ${actualLabel ? `<th class="yr3-num-col yr3-cur">実績（${actualMonths}か月）<br><span class="yr3-badge">${actualLabel}</span></th>` : ''}
+              ${budgetLabel ? `<th class="yr3-num-col">予算（${budgetMonths}か月）<br><span class="yr3-badge">${budgetLabel}</span></th>` : ''}
+              <th class="yr3-num-col" style="font-weight:700">年間合計</th>
             </tr>
           </thead>
           <tbody>
             ${kpiRows.map(row => {
               const id  = hasDynamic ? row.dynId : row.staticId;
-              const arr = (allVals[id] || new Array(12).fill(0)).slice(0, 12);
-              const annual = arr.reduce((a, v) => a + v, 0);
-              const actual = hasActual ? arr.slice(0, actualThrough + 1).reduce((a, v) => a + v, 0) : null;
-              // 進捗率: 実績累計 ÷ 年間（残り月も含めた着地）で時間補正
-              const rate = (actual !== null && annual && actualThrough < 11)
-                ? Math.round(actual / annual * (12 / (actualThrough + 1)) * 100)
-                : (actual !== null && annual) ? Math.round(actual / annual * 100) : null;
-
+              const arr = allVals[id] || new Array(13).fill(0);
+              const actSum = actIdxs.reduce((s,i) => s + (arr[i]||0), 0);
+              const bdgSum = bdgIdxs.reduce((s,i) => s + (arr[i]||0), 0);
+              const adjVal = arr[12] || 0;
+              // 表示値を千円単位で丸めてから合算 → 年間合計 = 実績 + 予算（表示上必ず一致）
+              const actK = Math.round(actSum / 1000);
+              const bdgK = Math.round((bdgSum + adjVal) / 1000);
+              const totK = actK + bdgK;
+              const fmtK2 = (k, isProfit) => {
+                const c = isProfit ? (k >= 0 ? '#059669' : '#dc2626') : 'inherit';
+                return `<span style="color:${c}">${k < 0 ? '▲' : ''}${Math.abs(k).toLocaleString()}千円</span>`;
+              };
               return `<tr>
                 <td class="yr3-label">${row.label}</td>
-                <td class="yr3-num">${fmtKpi(annual, row.isProfit)}</td>
-                ${hasActual ? `
-                  <td class="yr3-num yr3-cur">${fmtKpi(actual, row.isProfit)}</td>
-                  <td class="yr3-num yr3-diff">${rate !== null ? `<span style="color:${rate>=100?'#059669':rate>=80?'#f59e0b':'#dc2626'}">${rate}%</span>` : '—'}</td>
-                ` : ''}
+                ${actualLabel ? `<td class="yr3-num yr3-cur">${fmtK2(actK, row.isProfit)}</td>` : ''}
+                ${budgetLabel ? `<td class="yr3-num">${fmtK2(bdgK, row.isProfit)}</td>` : ''}
+                <td class="yr3-num" style="font-weight:700">${fmtK2(totK, row.isProfit)}</td>
               </tr>`;
             }).join('')}
           </tbody>
         </table>
-        ${hasActual && hasDynamic ? `<div style="font-size:10px;color:var(--text-muted);margin-top:4px">着地予測＝実績(${actualThrough+1}か月)＋残り予算　　進捗率＝実績累計÷着地予測×年換算</div>` : ''}
+        ${actualLabel && budgetLabel ? `<div style="font-size:10px;color:var(--text-muted);margin-top:6px">青背景＝実績確定値　白背景＝予算入力値</div>` : ''}
       </div>
 
       <!-- CF残高 -->
