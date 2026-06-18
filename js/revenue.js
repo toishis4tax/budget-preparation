@@ -472,23 +472,17 @@ function applyRevenueToBudget() {
     return found ? found.id : catId;
   }
 
-  // 区分ごとに月次合計 & 個別行データを計算
-  const catTotals = {};  // resolvedCatId → [12ヶ月合計]
-  const revAccounts = []; // グリッド表示用メタ情報
+  // 個別行データを計算
+  const revAccounts = [];
 
   _revClients.filter(c => c.name).forEach(c => {
     const cat    = c.category || 'sales_advisory';
-    const catId  = resolveParentId(cat); // 実際のID
+    const catId  = resolveParentId(cat);
     const monthly = calcClientMonthly(c, startMonth, _revBudgetYear);
 
     // 個別行の値を rows に書き込み
     budget.rows[`rev_${c.id}`] = [...monthly, 0];
 
-    // カテゴリ合計に加算
-    if (!catTotals[catId]) catTotals[catId] = new Array(12).fill(0);
-    monthly.forEach((v, i) => { catTotals[catId][i] += v; });
-
-    // 表示用メタ
     revAccounts.push({
       id:        `rev_${c.id}`,
       name:      c.name,
@@ -499,22 +493,27 @@ function applyRevenueToBudget() {
     });
   });
 
-  // カテゴリ行に合計を書き込む
-  Object.entries(catTotals).forEach(([catId, totals]) => {
-    budget.rows[catId] = [...totals, 0];
-  });
-
-  // グリッド表示用に保存
   budget.revenueAccounts = revAccounts;
 
-  // dynamicAccounts がある場合はそこにも rev_ 行を注入
   if (budget.dynamicAccounts) {
+    // dynamicAccounts パス：親科目を parent タイプに変更して子集計させる
+    // カテゴリ行の既存値はクリア（rev_子科目の合計に任せる）
+    const usedParentIds = new Set(revAccounts.map(a => a.parentId));
+    usedParentIds.forEach(pid => {
+      const acc = budget.dynamicAccounts.find(a => a.id === pid);
+      if (acc) {
+        acc.type = 'parent'; // calcAllValuesDynamic が子を集計するタイプに変更
+        delete budget.rows[pid];  // 直接書いた値を消す（子の合計を使う）
+      }
+    });
+
+    // rev_ 行を親直後に注入
     const byParent = {};
     revAccounts.forEach(a => { (byParent[a.parentId] = byParent[a.parentId] || []).push(a); });
     const insertions = [];
     Object.entries(byParent).forEach(([parentId, accs]) => {
       let idx = budget.dynamicAccounts.findIndex(a => a.id === parentId);
-      if (idx < 0) idx = budget.dynamicAccounts.findIndex(a => a.id === 'sales' || a.name?.includes('売上高'));
+      if (idx < 0) idx = budget.dynamicAccounts.findIndex(a => a.name?.includes('売上高'));
       if (idx < 0) return;
       let spliceAt = idx + 1;
       while (spliceAt < budget.dynamicAccounts.length &&
@@ -523,6 +522,18 @@ function applyRevenueToBudget() {
     });
     insertions.sort((a, b) => b.spliceAt - a.spliceAt);
     insertions.forEach(({ spliceAt, accs }) => budget.dynamicAccounts.splice(spliceAt, 0, ...accs));
+
+  } else {
+    // 静的 ACCOUNTS パス：カテゴリ行に合計を直接書き込む
+    const catTotals = {};
+    revAccounts.forEach(a => {
+      const vals = budget.rows[a.id] || new Array(13).fill(0);
+      if (!catTotals[a.parentId]) catTotals[a.parentId] = new Array(13).fill(0);
+      vals.forEach((v, i) => { catTotals[a.parentId][i] += v; });
+    });
+    Object.entries(catTotals).forEach(([catId, totals]) => {
+      budget.rows[catId] = totals;
+    });
   }
 
   saveBudget(budget);
