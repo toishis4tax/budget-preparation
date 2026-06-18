@@ -480,8 +480,7 @@ function applyRevenueToBudget() {
     budget.dynamicAccounts = budget.dynamicAccounts.filter(a => !a.id.startsWith('rev_'));
   }
 
-  // 静的カテゴリID → dynamicAccounts内の実際のIDへのマッピング
-  // （試算表インポート後は科目IDが異なる場合があるため名前で照合）
+  // 静的カテゴリの定義（名前照合用）
   const CAT_NAMES = {
     sales_advisory:   '顧問報酬',
     sales_compliance: 'コンプライアンス報酬',
@@ -490,48 +489,62 @@ function applyRevenueToBudget() {
     sales_store:      '店舗売上',
     sales_other:      'その他売上',
   };
-  function resolveParentId(catId) {
+
+  // dynamicAccountsがある場合：名前照合でIDを解決、なければカテゴリ科目自体を追加
+  function ensureCategoryInDynamic(catId) {
     if (!budget.dynamicAccounts) return catId;
     const catName = CAT_NAMES[catId];
+    // 名前一致で探す
     const found = budget.dynamicAccounts.find(a => a.name === catName);
-    return found ? found.id : catId;
+    if (found) return found.id;
+    // IDで探す（静的IDがそのまま残っている場合）
+    const byId = budget.dynamicAccounts.find(a => a.id === catId);
+    if (byId) return catId;
+    // 存在しない → 売上高の下に追加
+    const salesIdx = budget.dynamicAccounts.findIndex(
+      a => a.name?.includes('売上高') || a.id === 'sales'
+    );
+    let insertAt = salesIdx >= 0 ? salesIdx + 1 : budget.dynamicAccounts.length;
+    // 既存の sales 子をスキップ
+    while (insertAt < budget.dynamicAccounts.length &&
+           (budget.dynamicAccounts[insertAt].parentId === 'sales' ||
+            budget.dynamicAccounts[insertAt].id === catId)) insertAt++;
+    budget.dynamicAccounts.splice(insertAt, 0, {
+      id: catId, name: catName, type: 'input',
+      section: 'pl', indent: 1, sign: 1, bold: false,
+      parentId: budget.dynamicAccounts[salesIdx]?.id || 'sales',
+    });
+    return catId;
   }
 
   // 区分ごとに月次合計を計算
-  const catTotals = {};  // resolvedCatId → [13要素配列]
+  const catTotals = {};
   const revAccounts = [];
 
   _revClients.filter(c => c.name).forEach(c => {
     const cat    = c.category || 'sales_advisory';
-    const catId  = resolveParentId(cat);
+    const catId  = ensureCategoryInDynamic(cat);
     const monthly = calcClientMonthly(c, startMonth, _revBudgetYear);
 
-    // 個別行の値を rows に書き込み（グリッド表示用）
     budget.rows[`rev_${c.id}`] = [...monthly, 0];
 
     if (!catTotals[catId]) catTotals[catId] = new Array(13).fill(0);
     monthly.forEach((v, i) => { catTotals[catId][i] += v; });
 
     revAccounts.push({
-      id:        `rev_${c.id}`,
-      name:      c.name,
-      parentId:  catId,
-      indent:    2,
-      tentative: c.confirmed === false,
-      section:   'pl',
+      id: `rev_${c.id}`, name: c.name, parentId: catId,
+      indent: 2, tentative: c.confirmed === false, section: 'pl',
     });
   });
 
-  // カテゴリ行に合計を直接書き込む（二重計上を防ぐためシンプルに上書き）
-  // dynamicAccounts パスでも静的パスでも同じ処理
+  // カテゴリ行に合計を上書き（実績月は上書きしない）
+  const actualCols = budget.actualCols || [];
   Object.entries(catTotals).forEach(([catId, totals]) => {
-    budget.rows[catId] = totals;
+    const existing = budget.rows[catId] || new Array(13).fill(0);
+    budget.rows[catId] = totals.map((v, i) => actualCols[i] ? existing[i] : v);
   });
 
   budget.revenueAccounts = revAccounts;
-
-  // 静的ACCOUNTSパス：grridでrev_行を補助科目として表示（dynamicAccountsは触らない）
-  // dynamicAccountsパス：カテゴリ行に値が入るだけ（個別行はrevenue管理ページで確認）
 
   saveBudget(budget);
   window.App.currentBudget = budget;
