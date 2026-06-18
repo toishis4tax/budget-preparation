@@ -1,6 +1,5 @@
-// 法定福利費簡易計算
+// 法定福利費計算（複数従業員・複数賞与対応）
 
-// 協会けんぽ保険料率（2024年度）標準的な値
 const KENPO_RATES = {
   '北海道': { health: 0.1030, care: 0.0182 },
   '青森県': { health: 0.0988, care: 0.0182 },
@@ -50,41 +49,27 @@ const KENPO_RATES = {
   '沖縄県': { health: 0.0956, care: 0.0182 },
 };
 
-const KOSEI_RATE     = 0.183;   // 厚生年金保険料率（労使折半なので各9.15%）
-const KODOMO_RATE    = 0.0036;  // 子ども・子育て拠出金（会社全額）
-const PENSION_MAX_STD = 650000; // 厚生年金標準報酬月額上限
-const HEALTH_MAX_STD  = 1390000; // 健康保険標準報酬月額上限
+const KOSEI_RATE     = 0.183;
+const KODOMO_RATE    = 0.0036;
+const PENSION_MAX_STD = 650000;
+const HEALTH_MAX_STD  = 1390000;
 
+// 後方互換: exec-comp.js から参照される
 function calcSocialInsurance(salary, bonusAnnual, age, pref) {
-  const rates = KENPO_RATES[pref] || KENPO_RATES['東京都'];
-
-  // 標準報酬月額 (簡易: 給与＝標準報酬月額とみなす)
-  const stdSalary = salary;
-  const stdPension = Math.min(stdSalary, PENSION_MAX_STD);
-  const stdHealth  = Math.min(stdSalary, HEALTH_MAX_STD);
-
+  const rates    = KENPO_RATES[pref] || KENPO_RATES['東京都'];
   const careFlag = age >= 40 && age < 65;
+  const stdPension = Math.min(salary, PENSION_MAX_STD);
+  const stdHealth  = Math.min(salary, HEALTH_MAX_STD);
 
-  // 健康保険（労使折半）
-  const healthTotal    = stdHealth * rates.health;
-  const healthCompany  = Math.floor(healthTotal / 2);
+  const healthCompany  = Math.floor(stdHealth  * rates.health / 2);
+  const careCompany    = careFlag ? Math.floor(stdHealth * rates.care / 2) : 0;
+  const pensionCompany = Math.floor(stdPension * KOSEI_RATE / 2);
+  const kodomo         = Math.floor(stdPension * KODOMO_RATE);
 
-  // 介護保険（40歳以上65歳未満、労使折半）
-  const careTotal   = careFlag ? stdHealth * rates.care : 0;
-  const careCompany = Math.floor(careTotal / 2);
-
-  // 厚生年金（労使折半）
-  const pensionTotal   = stdPension * KOSEI_RATE;
-  const pensionCompany = Math.floor(pensionTotal / 2);
-
-  // 子ども・子育て拠出金（会社全額）
-  const kodomo = Math.floor(stdSalary * KODOMO_RATE);
-
-  // 賞与（年1回として月割）
-  const bonusMonth = bonusAnnual / 12;
-  const stdBonusPension = Math.min(bonusMonth, PENSION_MAX_STD);
-  const stdBonusHealth  = Math.min(bonusMonth, HEALTH_MAX_STD);
-  const bonusHealthComp  = Math.floor(stdBonusHealth * rates.health / 2);
+  const bonusMonth       = bonusAnnual / 12;
+  const stdBonusPension  = Math.min(bonusMonth, PENSION_MAX_STD);
+  const stdBonusHealth   = Math.min(bonusMonth, HEALTH_MAX_STD);
+  const bonusHealthComp  = Math.floor(stdBonusHealth  * rates.health / 2);
   const bonusCareComp    = careFlag ? Math.floor(stdBonusHealth * rates.care / 2) : 0;
   const bonusPensionComp = Math.floor(stdBonusPension * KOSEI_RATE / 2);
   const bonusKodomoComp  = Math.floor(stdBonusPension * KODOMO_RATE);
@@ -94,84 +79,329 @@ function calcSocialInsurance(salary, bonusAnnual, age, pref) {
   const annualCompany  = monthlyCompany * 12 + bonusCompany;
 
   return {
-    health:   { rate: rates.health,  monthly: healthCompany  },
-    care:     { rate: rates.care,    monthly: careCompany, applicable: careFlag },
-    pension:  { rate: KOSEI_RATE,    monthly: pensionCompany },
-    kodomo:   { rate: KODOMO_RATE,   monthly: kodomo },
-    monthly:  monthlyCompany,
-    annual:   annualCompany,
+    health:  { rate: rates.health, monthly: healthCompany },
+    care:    { rate: rates.care,   monthly: careCompany, applicable: careFlag },
+    pension: { rate: KOSEI_RATE,   monthly: pensionCompany },
+    kodomo:  { rate: KODOMO_RATE,  monthly: kodomo },
+    monthly: monthlyCompany,
+    annual:  annualCompany,
   };
 }
 
+// ===== 複数従業員 =====
+
+const WELFARE_KEY = 'welfare_employees_v2';
+
+function loadWelfareEmployees(companyId) {
+  try {
+    const raw = localStorage.getItem(WELFARE_KEY);
+    const all = raw ? JSON.parse(raw) : {};
+    return all[companyId] || [];
+  } catch { return []; }
+}
+
+function saveWelfareEmployees(companyId, employees) {
+  try {
+    const raw = localStorage.getItem(WELFARE_KEY);
+    const all = raw ? JSON.parse(raw) : {};
+    all[companyId] = employees;
+    localStorage.setItem(WELFARE_KEY, JSON.stringify(all));
+  } catch {}
+}
+
+function newEmployee() {
+  return {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+    name: '',
+    salary: 300000,
+    age: 35,
+    bonuses: [
+      { month: 6,  amount: 500000 },
+      { month: 12, amount: 500000 },
+    ],
+  };
+}
+
+// 従業員1人の月次法定福利費（12要素配列、カレンダー月）
+function calcEmpMonthly(emp, pref) {
+  const rates    = KENPO_RATES[pref] || KENPO_RATES['東京都'];
+  const careFlag = emp.age >= 40 && emp.age < 65;
+  const stdPension = Math.min(emp.salary || 0, PENSION_MAX_STD);
+  const stdHealth  = Math.min(emp.salary || 0, HEALTH_MAX_STD);
+
+  const healthComp  = Math.floor(stdHealth  * rates.health / 2);
+  const careComp    = careFlag ? Math.floor(stdHealth  * rates.care   / 2) : 0;
+  const pensionComp = Math.floor(stdPension * KOSEI_RATE / 2);
+  const kodomoComp  = Math.floor(stdPension * KODOMO_RATE);
+  const monthlySI   = healthComp + careComp + pensionComp + kodomoComp;
+
+  // インデックス0=1月 〜 11=12月
+  const result = Array(12).fill(monthlySI);
+
+  (emp.bonuses || []).forEach(b => {
+    const m = (b.month || 1) - 1; // 0-based calendar month index
+    const stdBH = Math.min(b.amount || 0, HEALTH_MAX_STD);
+    const stdBP = Math.min(b.amount || 0, PENSION_MAX_STD);
+    const bH  = Math.floor(stdBH * rates.health / 2);
+    const bC  = careFlag ? Math.floor(stdBH * rates.care / 2) : 0;
+    const bP  = Math.floor(stdBP * KOSEI_RATE / 2);
+    const bK  = Math.floor(stdBP * KODOMO_RATE);
+    result[m] += bH + bC + bP + bK;
+  });
+
+  return result; // index 0=1月
+}
+
+// カレンダー月配列を予算月順に並び替え
+function calTobudgetOrder(calArr, startMonth) {
+  return Array.from({ length: 12 }, (_, i) => calArr[(startMonth - 1 + i) % 12]);
+}
+
+// ===== State =====
+let _wfEmployees = [];
+let _wfCompanyId = null;
+
+// ===== レンダリング =====
 function renderWelfare(container) {
+  const company = window.App?.currentCompany;
+  const budget  = window.App?.currentBudget;
+  _wfCompanyId  = company?.id || null;
+  const pref    = company?.prefecture || '東京都';
+  const startMonth = budget?.startMonth || 4;
+
+  _wfEmployees = _wfCompanyId ? loadWelfareEmployees(_wfCompanyId) : [];
+  if (!_wfEmployees.length) _wfEmployees = [newEmployee()];
+
   const prefs = Object.keys(KENPO_RATES);
-  const prefOptions = prefs.map(p => `<option value="${p}"${p==='東京都'?' selected':''}>${p}</option>`).join('');
+  const prefOptions = prefs.map(p =>
+    `<option value="${p}"${p === pref ? ' selected' : ''}>${p}</option>`
+  ).join('');
 
   container.innerHTML = `
     <div class="sim-panel">
-      <h2 class="section-title">法定福利費簡易計算</h2>
-      <div class="sim-grid">
-        <div class="sim-inputs card">
-          <h3>入力</h3>
-          <div class="form-group">
-            <label>月額給与（円）</label>
-            <input type="number" id="wf_salary" value="300000" class="form-input" step="10000">
-          </div>
-          <div class="form-group">
-            <label>賞与（年間合計額・円）</label>
-            <input type="number" id="wf_bonus" value="600000" class="form-input" step="10000">
-          </div>
-          <div class="form-group">
-            <label>年齢</label>
-            <input type="number" id="wf_age" value="40" class="form-input" min="15" max="80">
-          </div>
-          <div class="form-group">
-            <label>協会けんぽ（都道府県）</label>
-            <select id="wf_pref" class="form-input">${prefOptions}</select>
-          </div>
-          <button class="btn btn-primary" onclick="runWelfare()">計算</button>
+      <div class="flex-between" style="margin-bottom:16px">
+        <div>
+          <h2 class="section-title">法定福利費計算</h2>
+          <p class="section-sub">複数従業員・複数賞与対応　会社負担額の月次シミュレーション</p>
         </div>
-        <div class="sim-results card">
-          <h3>会社負担額（月額）</h3>
-          <div id="wf_result"></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="font-size:12px;color:var(--text-muted)">協会けんぽ都道府県</label>
+          <select id="wf_pref" class="form-input" style="width:120px;font-size:12px"
+            onchange="_wfRender()">${prefOptions}</select>
+          <button class="btn-solid" onclick="_wfAddEmployee()">＋ 従業員追加</button>
+          <button class="btn-outline" onclick="_wfApplyToBudget()" title="予算の法定福利費行に反映">📊 予算へ反映</button>
         </div>
       </div>
+
+      <div id="wf_emp_list"></div>
+
+      <div class="card" style="padding:0;overflow:hidden;margin-top:16px">
+        <div style="overflow-x:auto">
+          <table class="result-table" id="wf_monthly_table" style="min-width:900px">
+            <thead><tr id="wf_thead_row"></tr></thead>
+            <tbody id="wf_tbody"></tbody>
+            <tfoot id="wf_tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="background:#e0f2fe;border-color:#bae6fd;padding:12px 16px;font-size:11.5px;color:#0369a1;margin-top:12px">
+        💡 標準報酬月額は月額給与をそのまま使用した概算です。健保上限${Math.round(HEALTH_MAX_STD/10000)}万・厚年上限${Math.round(PENSION_MAX_STD/10000)}万。
+        賞与は指定した月に一括計上。介護保険は40〜64歳が対象。
+      </div>
     </div>`;
-  runWelfare();
+
+  _wfRender();
 }
 
-function runWelfare() {
-  const salary = parseFloat(document.getElementById('wf_salary')?.value || 300000);
-  const bonus  = parseFloat(document.getElementById('wf_bonus')?.value  || 0);
-  const age    = parseInt(document.getElementById('wf_age')?.value       || 40);
-  const pref   = document.getElementById('wf_pref')?.value              || '東京都';
+function _wfRender() {
+  _wfRenderEmployees();
+  _wfRenderTable();
+}
 
-  const r = calcSocialInsurance(salary, bonus, age, pref);
-  const el = document.getElementById('wf_result');
+function _wfSave() {
+  if (_wfCompanyId) saveWelfareEmployees(_wfCompanyId, _wfEmployees);
+}
+
+function _wfAddEmployee() {
+  _wfEmployees.push(newEmployee());
+  _wfSave();
+  _wfRender();
+}
+
+function _wfRemoveEmployee(idx) {
+  if (_wfEmployees.length <= 1) { alert('最低1名は必要です'); return; }
+  if (!confirm(`「${_wfEmployees[idx].name || '(未入力)'}」を削除しますか？`)) return;
+  _wfEmployees.splice(idx, 1);
+  _wfSave();
+  _wfRender();
+}
+
+function _wfAddBonus(empIdx) {
+  if (!_wfEmployees[empIdx].bonuses) _wfEmployees[empIdx].bonuses = [];
+  _wfEmployees[empIdx].bonuses.push({ month: 12, amount: 300000 });
+  _wfSave();
+  _wfRender();
+}
+
+function _wfRemoveBonus(empIdx, bonusIdx) {
+  _wfEmployees[empIdx].bonuses.splice(bonusIdx, 1);
+  _wfSave();
+  _wfRender();
+}
+
+function _wfRenderEmployees() {
+  const el = document.getElementById('wf_emp_list');
   if (!el) return;
 
-  // 月別（賞与は年総額なので毎月ゼロ表示、参考表示）
-  el.innerHTML = `
-    <table class="result-table">
-      <thead>
-        <tr><th>保険種別</th><th>保険料率</th><th>月額会社負担</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>健康保険</td><td>${(r.health.rate*100).toFixed(3)}%（折半）</td><td class="num">${fmt(r.health.monthly)}</td></tr>
-        <tr>
-          <td>介護保険</td>
-          <td>${r.care.applicable ? (r.care.rate*100).toFixed(3)+'%（折半）' : '対象外'}</td>
-          <td class="num">${r.care.applicable ? fmt(r.care.monthly) : '－'}</td>
-        </tr>
-        <tr><td>厚生年金</td><td>${(r.pension.rate*100).toFixed(3)}%（折半）</td><td class="num">${fmt(r.pension.monthly)}</td></tr>
-        <tr><td>子ども子育て拠出金</td><td>${(r.kodomo.rate*100).toFixed(3)}%（全額）</td><td class="num">${fmt(r.kodomo.monthly)}</td></tr>
-        <tr class="total-row"><td colspan="2"><strong>月額合計</strong></td><td class="num"><strong>${fmt(r.monthly)}</strong></td></tr>
-        <tr class="total-row"><td colspan="2"><strong>年間合計（賞与分含む）</strong></td><td class="num"><strong>${fmt(r.annual)}</strong></td></tr>
-      </tbody>
-    </table>
-    <div class="wf-note">
-      ※ 標準報酬月額は給与額をそのまま使用した概算値です。<br>
-      ※ 健康保険の上限: ${fmt(HEALTH_MAX_STD)}、厚生年金の上限: ${fmt(PENSION_MAX_STD)}
-    </div>
-  `;
+  const MONTH_OPTS = Array.from({ length: 12 }, (_, i) =>
+    `<option value="${i+1}">${i+1}月</option>`
+  ).join('');
+
+  el.innerHTML = _wfEmployees.map((emp, ei) => {
+    const bonusRows = (emp.bonuses || []).map((b, bi) => `
+      <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
+        <span style="font-size:11px;color:var(--text-muted);width:32px">賞与${bi+1}</span>
+        <select class="form-input" style="width:68px;font-size:11px;padding:3px"
+          onchange="_wfEmployees[${ei}].bonuses[${bi}].month=+this.value;_wfSave();_wfRenderTable()">
+          ${Array.from({length:12},(_,i)=>`<option value="${i+1}"${b.month===i+1?' selected':''}>${i+1}月</option>`).join('')}
+        </select>
+        <input type="number" class="form-input" style="width:110px;font-size:12px;text-align:right"
+          value="${b.amount||''}" placeholder="0" step="10000"
+          oninput="_wfEmployees[${ei}].bonuses[${bi}].amount=+this.value||0;_wfSave();_wfRenderTable()">
+        <span style="font-size:11px;color:var(--text-muted)">円</span>
+        <button onclick="_wfRemoveBonus(${ei},${bi})"
+          style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer">✕</button>
+      </div>`).join('');
+
+    const annualBonus = (emp.bonuses || []).reduce((s, b) => s + (b.amount || 0), 0);
+    const pref = document.getElementById('wf_pref')?.value || window.App?.currentCompany?.prefecture || '東京都';
+    const si   = calcSocialInsurance(emp.salary || 0, annualBonus, emp.age || 35, pref);
+
+    return `
+      <div class="card" style="padding:14px 16px;margin-bottom:10px">
+        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+          <div style="flex:1;min-width:160px">
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">氏名</label>
+            <input class="form-input" style="font-size:13px;font-weight:600" value="${escHtml(emp.name)}" placeholder="従業員名"
+              oninput="_wfEmployees[${ei}].name=this.value;_wfSave();_wfRenderTable()">
+          </div>
+          <div style="min-width:130px">
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">月額給与（円）</label>
+            <input type="number" class="form-input" style="font-size:12px;text-align:right"
+              value="${emp.salary||''}" placeholder="300000" step="10000"
+              oninput="_wfEmployees[${ei}].salary=+this.value||0;_wfSave();_wfRenderTable()">
+          </div>
+          <div style="min-width:80px">
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">年齢</label>
+            <input type="number" class="form-input" style="font-size:12px"
+              value="${emp.age||35}" min="15" max="80"
+              oninput="_wfEmployees[${ei}].age=+this.value||35;_wfSave();_wfRenderTable()">
+          </div>
+          <div style="min-width:180px">
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">賞与</label>
+            ${bonusRows}
+            <button onclick="_wfAddBonus(${ei})"
+              style="margin-top:6px;font-size:11px;background:var(--emerald-light);border:1px solid var(--teal);color:var(--emerald-dark);border-radius:4px;padding:2px 10px;cursor:pointer">＋ 賞与追加</button>
+          </div>
+          <div style="min-width:120px;border-left:1px solid var(--border);padding-left:14px">
+            <div style="font-size:10px;color:var(--text-muted)">月額法定福利費</div>
+            <div style="font-size:18px;font-weight:700;color:var(--emerald-dark)">${fmt(si.monthly)}</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px">年間合計</div>
+            <div style="font-size:14px;font-weight:600">${fmt(si.annual)}</div>
+            ${emp.age>=40&&emp.age<65?'<div style="font-size:10px;color:#d97706;margin-top:2px">介護保険対象</div>':''}
+          </div>
+          <button onclick="_wfRemoveEmployee(${ei})" title="削除"
+            style="align-self:flex-start;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer">🗑</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function _wfRenderTable() {
+  const theadRow = document.getElementById('wf_thead_row');
+  const tbody    = document.getElementById('wf_tbody');
+  const tfoot    = document.getElementById('wf_tfoot');
+  if (!theadRow || !tbody || !tfoot) return;
+
+  const pref       = document.getElementById('wf_pref')?.value || window.App?.currentCompany?.prefecture || '東京都';
+  const startMonth = window.App?.currentBudget?.startMonth || 4;
+  const months     = getMonthLabels(startMonth); // ['4月',...,'3月']
+
+  theadRow.innerHTML = `
+    <th style="position:sticky;left:0;background:#e0f2fe;z-index:5">従業員</th>
+    <th style="text-align:right">月額SI</th>
+    ${months.map(m => `<th style="text-align:right">${m}</th>`).join('')}
+    <th style="text-align:right">年間合計</th>`;
+
+  // 従業員ごとに月次法定福利費を計算（予算月順）
+  const empData = _wfEmployees.map(emp => {
+    const calMonthly   = calcEmpMonthly(emp, pref);           // index0=1月
+    const budgetMonthly = calTobudgetOrder(calMonthly, startMonth);
+    const annualTotal   = budgetMonthly.reduce((s, v) => s + v, 0);
+    const annualBonus   = (emp.bonuses || []).reduce((s, b) => s + (b.amount || 0), 0);
+    const si            = calcSocialInsurance(emp.salary || 0, annualBonus, emp.age || 35, pref);
+    return { emp, budgetMonthly, annualTotal, monthlySI: si.monthly };
+  });
+
+  const bonusMonths = new Set(); // budget-month indices that have any bonus
+  _wfEmployees.forEach(emp => {
+    (emp.bonuses || []).forEach(b => {
+      const idx = ((b.month - 1) - (startMonth - 1) + 12) % 12;
+      bonusMonths.add(idx);
+    });
+  });
+
+  tbody.innerHTML = empData.map(({ emp, budgetMonthly, annualTotal, monthlySI }) => `
+    <tr>
+      <td style="position:sticky;left:0;background:#fff;font-weight:600;font-size:12px">${escHtml(emp.name||'(未入力)')}</td>
+      <td style="text-align:right;font-size:11px;color:var(--text-muted)">${fmt(monthlySI)}</td>
+      ${budgetMonthly.map((v, mi) => {
+        const isBonusMonth = bonusMonths.has(mi) && v > monthlySI;
+        return `<td style="text-align:right;font-size:12px;${isBonusMonth?'background:#fffbeb;font-weight:700;color:#d97706':''}">
+          ${isBonusMonth ? `<div>${fmt(v)}</div><div style="font-size:9px">▲賞与</div>` : fmt(v)}
+        </td>`;
+      }).join('')}
+      <td style="text-align:right;font-weight:700;color:var(--emerald-dark)">${fmt(annualTotal)}</td>
+    </tr>`).join('');
+
+  // 月次合計
+  const monthTotals = Array.from({ length: 12 }, (_, mi) =>
+    empData.reduce((s, { budgetMonthly }) => s + budgetMonthly[mi], 0)
+  );
+  const grandTotal = monthTotals.reduce((s, v) => s + v, 0);
+
+  tfoot.innerHTML = `
+    <tr style="background:#f0f9ff;font-weight:700">
+      <td style="position:sticky;left:0;background:#f0f9ff;padding:8px 10px">合計</td>
+      <td></td>
+      ${monthTotals.map(v => `<td style="text-align:right;padding:6px 8px">${fmt(v)}</td>`).join('')}
+      <td style="text-align:right;padding:6px 8px;color:var(--emerald-dark)">${fmt(grandTotal)}</td>
+    </tr>`;
+}
+
+function _wfApplyToBudget() {
+  const budget = window.App?.currentBudget;
+  if (!budget) { alert('予算データがありません'); return; }
+
+  const pref       = document.getElementById('wf_pref')?.value || window.App?.currentCompany?.prefecture || '東京都';
+  const startMonth = budget.startMonth || 4;
+
+  const monthTotals = Array.from({ length: 12 }, (_, mi) =>
+    _wfEmployees.reduce((s, emp) => {
+      const cal = calcEmpMonthly(emp, pref);
+      return s + cal[(startMonth - 1 + mi) % 12];
+    }, 0)
+  );
+
+  if (!budget.rows) budget.rows = {};
+  budget.rows['sga_welfare'] = monthTotals;
+
+  saveBudget(budget);
+  window.App.currentBudget = budget;
+  alert(`法定福利費を予算に反映しました。\n年間合計：${fmt(monthTotals.reduce((s,v)=>s+v,0))}`);
+}
+
+function fmt(n) {
+  return Math.round(n || 0).toLocaleString();
 }
