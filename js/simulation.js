@@ -46,32 +46,75 @@ function runNextYearSim() {
   const budget = window.App?.currentBudget;
   if (!budget) return;
 
-  const rows = budget.rows;
-  const getRate = (id) => (parseFloat(document.getElementById(`ny_${id}`)?.value || 100)) / 100;
-  const annSum = (id) => (rows[id] || new Array(12).fill(0)).reduce((a,b)=>a+b,0);
+  const getRate = id => parseFloat(document.getElementById(`ny_${id}`)?.value || 100) / 100;
 
-  // 全入力科目に増減率を適用
+  // --- Static mode (動的科目なし) ---
+  if (!budget.dynamicAccounts?.length) {
+    const newRows = {};
+    Object.keys(budget.rows).forEach(id => {
+      const rate = getRate(id);
+      newRows[id] = (budget.rows[id] || new Array(12).fill(0)).map(v => Math.round(v * rate));
+    });
+    const pl = calcPL(newRows);
+    _nyDisplay([
+      { label: '売上高',               vals: pl.sales },
+      { label: '売上原価',             vals: pl.cogs },
+      { label: '売上総利益',           vals: pl.gross_profit, bold: true },
+      { label: '販売費及び一般管理費', vals: pl.sga },
+      { label: '営業利益',             vals: pl.op_profit, bold: true },
+      { label: '経常利益',             vals: pl.ord_profit, bold: true },
+      { label: '税引前当期純利益',     vals: pl.pretax_profit, bold: true },
+      { label: '当期純利益',           vals: pl.net_profit, bold: true },
+    ]);
+    return;
+  }
+
+  // --- Dynamic mode (試算表インポートあり) ---
+  const accts = budget.dynamicAccounts;
   const newRows = {};
-  Object.keys(rows).forEach(id => {
-    const rate = getRate(id);
-    newRows[id] = (rows[id] || new Array(12).fill(0)).map(v => Math.round(v * rate));
+
+  // 各入力科目に科目名キーワードで増減率を適用
+  Object.keys(budget.rows).forEach(id => {
+    const acc = accts.find(a => a.id === id);
+    const rate = _nyRate(acc, getRate);
+    const orig = budget.rows[id] || [];
+    // index 0-11 = 月次に率適用; index 12 = 調整欄はそのまま
+    newRows[id] = orig.map((v, i) => i < 12 ? Math.round(v * rate) : v);
   });
 
-  const pl = calcPL(newRows);
-  const PLItems = [
-    { label: '売上高',           vals: pl.sales },
-    { label: '売上原価',         vals: pl.cogs },
-    { label: '売上総利益',       vals: pl.gross_profit, bold: true },
-    { label: '販売費及び一般管理費', vals: pl.sga },
-    { label: '営業利益',         vals: pl.op_profit, bold: true },
-    { label: '経常利益',         vals: pl.ord_profit, bold: true },
-    { label: '税引前当期純利益', vals: pl.pretax_profit, bold: true },
-    { label: '当期純利益',       vals: pl.net_profit, bold: true },
-  ];
+  const allVals = calcAllValuesDynamic({ ...budget, rows: newRows });
+  const get12 = id => {
+    const v = allVals[id];
+    return Array.from({ length: 12 }, (_, i) => (v ? (v[i] || 0) : 0));
+  };
 
+  // PL section・calculated科目を順序どおり表示
+  const items = accts
+    .filter(a => a.section === 'pl' && (!a.parentId || a.parentId === ''))
+    .map(a => ({ label: a.name, vals: get12(a.id), bold: a.type === 'calculated' || !!a.bold }));
+
+  _nyDisplay(items);
+}
+
+// 科目名から増減率カテゴリを判定
+function _nyRate(acc, getRate) {
+  if (!acc) return 1;
+  const n = acc.name || '';
+  if (/役員.*(報酬|給与)/.test(n))        return getRate('sga_exec');
+  if (/給与|賃金/.test(n))                 return getRate('sga_emp');
+  if (/賞与/.test(n))                      return getRate('sga_bonus');
+  if (/法定福利|社会保険|厚生年金|健康保険|雇用保険/.test(n)) return getRate('sga_welfare');
+  if (/地代|賃借料|家賃/.test(n))          return getRate('sga_rent');
+  if (/減価償却/.test(n))                  return getRate('sga_depr');
+  if (/支払利息/.test(n))                  return getRate('int_expense');
+  if (acc.sign === 1)                      return getRate('sales');
+  if (/原価/.test(n))                      return getRate('cogs');
+  return getRate('sga_other');
+}
+
+function _nyDisplay(items) {
   const el = document.getElementById('ny_result');
   if (!el) return;
-
   el.innerHTML = `
     <h3>翌年度PL予測</h3>
     <div class="table-scroll">
@@ -79,16 +122,16 @@ function runNextYearSim() {
       <thead>
         <tr>
           <th class="acc-col">科目</th>
-          ${Array.from({length:12},(_,i)=>`<th>${i+1}月</th>`).join('')}
+          ${Array.from({ length: 12 }, (_, i) => `<th>${i + 1}月</th>`).join('')}
           <th>合計</th>
         </tr>
       </thead>
       <tbody>
-        ${PLItems.map(item => {
-          const total = item.vals.reduce((a,b)=>a+b,0);
-          return `<tr class="${item.bold?'bold-row':''}">
+        ${items.map(item => {
+          const total = item.vals.reduce((a, b) => a + b, 0);
+          return `<tr class="${item.bold ? 'bold-row' : ''}">
             <td>${item.label}</td>
-            ${item.vals.map(v=>`<td class="num">${fmtK(v)}</td>`).join('')}
+            ${item.vals.map(v => `<td class="num">${fmtK(v)}</td>`).join('')}
             <td class="num total">${fmtK(total)}</td>
           </tr>`;
         }).join('')}

@@ -51,8 +51,10 @@ const KENPO_RATES = {
 
 const KOSEI_RATE     = 0.183;
 const KODOMO_RATE    = 0.0036;
-const PENSION_MAX_STD = 650000;
-const HEALTH_MAX_STD  = 1390000;
+const PENSION_MAX_STD  = 650000;   // 月額標準報酬上限
+const HEALTH_MAX_STD   = 1390000;  // 月額標準報酬上限
+const BONUS_MAX_PENSION = 1500000; // 賞与標準賞与額上限（1回の支給につき）
+const BONUS_MAX_HEALTH  = 5730000; // 賞与標準賞与額上限（年度累計）
 
 // 後方互換: exec-comp.js から参照される
 function calcSocialInsurance(salary, bonusAnnual, age, pref) {
@@ -66,9 +68,9 @@ function calcSocialInsurance(salary, bonusAnnual, age, pref) {
   const pensionCompany = Math.floor(stdPension * KOSEI_RATE / 2);
   const kodomo         = Math.floor(stdPension * KODOMO_RATE);
 
-  const bonusMonth       = bonusAnnual / 12;
-  const stdBonusPension  = Math.min(bonusMonth, PENSION_MAX_STD);
-  const stdBonusHealth   = Math.min(bonusMonth, HEALTH_MAX_STD);
+  // 健保：年度累計573万円上限、厚年：1回150万円上限（概算として1回払い想定）
+  const stdBonusHealth   = Math.min(bonusAnnual, BONUS_MAX_HEALTH);
+  const stdBonusPension  = Math.min(bonusAnnual, BONUS_MAX_PENSION);
   const bonusHealthComp  = Math.floor(stdBonusHealth  * rates.health / 2);
   const bonusCareComp    = careFlag ? Math.floor(stdBonusHealth * rates.care / 2) : 0;
   const bonusPensionComp = Math.floor(stdBonusPension * KOSEI_RATE / 2);
@@ -138,10 +140,19 @@ function calcEmpMonthly(emp, pref) {
   // インデックス0=1月 〜 11=12月
   const result = Array(12).fill(monthlySI);
 
-  (emp.bonuses || []).forEach(b => {
-    const m = (b.month || 1) - 1; // 0-based calendar month index
-    const stdBH = Math.min(b.amount || 0, HEALTH_MAX_STD);
-    const stdBP = Math.min(b.amount || 0, PENSION_MAX_STD);
+  // 健保は年度累計573万円上限のため支給月順に累計管理（保険年度=4月〜3月）
+  let healthCumulative = 0;
+  const sortedBonuses = [...(emp.bonuses || [])].sort((a, b) => {
+    const ai = ((a.month || 1) - 4 + 12) % 12; // 保険年度順（4月=0）
+    const bi = ((b.month || 1) - 4 + 12) % 12;
+    return ai - bi;
+  });
+  sortedBonuses.forEach(b => {
+    const m = (b.month || 1) - 1;
+    const remaining = Math.max(0, BONUS_MAX_HEALTH - healthCumulative);
+    const stdBH = Math.min(b.amount || 0, remaining);
+    const stdBP = Math.min(b.amount || 0, BONUS_MAX_PENSION);
+    healthCumulative += b.amount || 0;
     const bH  = Math.floor(stdBH * rates.health / 2);
     const bC  = careFlag ? Math.floor(stdBH * rates.care / 2) : 0;
     const bP  = Math.floor(stdBP * KOSEI_RATE / 2);
@@ -415,17 +426,32 @@ function _wfRenderTable() {
     </tr>`;
 }
 
-function _wfEnsureAccount(budget, newId, newName, parentId, parentNameKeyword) {
+// 勘定科目を動的に追加する汎用関数
+// parentExcludeKeyword: 名前にこれを含む科目は親候補から除外
+function _wfEnsureAccount(budget, newId, newName, parentId, parentNameKeyword, parentExcludeKeyword) {
   const accounts = budget.dynamicAccounts;
   if (!accounts) return;
   if (accounts.find(a => a.id === newId)) return; // 既存
 
-  const parent = accounts.find(a => a.id === parentId) ||
-                 accounts.find(a => a.name?.includes(parentNameKeyword));
+  let parent = accounts.find(a => a.id === parentId);
+  if (!parent) {
+    parent = accounts.find(a =>
+      a.name?.includes(parentNameKeyword) &&
+      (!parentExcludeKeyword || !a.name?.includes(parentExcludeKeyword))
+    );
+  }
+  // 除外キーワードで弾かれた場合、該当科目を parentNameKeyword にリネームして親として使用
+  if (!parent && parentExcludeKeyword) {
+    const excluded = accounts.find(a => a.id === parentId) ||
+                     accounts.find(a => a.name?.includes(parentNameKeyword));
+    if (excluded) {
+      excluded.name = parentNameKeyword;
+      parent = excluded;
+    }
+  }
   if (!parent) return;
 
   let insertAt = accounts.indexOf(parent) + 1;
-  // 既存の子をスキップして末尾に挿入
   while (insertAt < accounts.length && accounts[insertAt].parentId === parent.id) insertAt++;
 
   accounts.splice(insertAt, 0, {
@@ -448,9 +474,48 @@ function _wfApplyToBudget() {
   if (!budget.rows) budget.rows = {};
 
   if (budget.dynamicAccounts) {
+    // 旧コードが作った wf_auto_* 科目を除去
+    budget.dynamicAccounts = budget.dynamicAccounts.filter(a => !a.id?.startsWith('wf_auto_'));
+    const accts = budget.dynamicAccounts;
+
+    // 正しい親科目を特定
+    const welfarePar = accts.find(a => a.id === 'sga_welfare') ||
+                       accts.find(a => a.name?.includes('法定福利費') && !a.name?.includes('役員') && !a.name?.includes('従業員'));
+    const bonusPar   = accts.find(a => a.id === 'sga_bonus') ||
+                       accts.find(a => a.name?.includes('賞与') && !a.id?.startsWith('wf_') && !a.id?.startsWith('exec_'));
+
+    // 「役員賞与」→「賞与」リネーム
+    if (bonusPar && bonusPar.name !== '賞与') bonusPar.name = '賞与';
+
+    // 既存の自動生成科目：名前・parentId・indent を正規化
+    const wfWelfareBonus = accts.find(a => a.id === 'wf_welfare_bonus');
+    if (wfWelfareBonus && welfarePar) {
+      wfWelfareBonus.name     = '法定福利費（従業員賞与）';
+      wfWelfareBonus.parentId = welfarePar.id;
+      wfWelfareBonus.indent   = (welfarePar.indent ?? 1) + 1;
+    }
+    const wfEmpBonus = accts.find(a => a.id === 'wf_emp_bonus');
+    if (wfEmpBonus && bonusPar) {
+      wfEmpBonus.name     = '賞与（従業員）';
+      wfEmpBonus.parentId = bonusPar.id;
+      wfEmpBonus.indent   = (bonusPar.indent ?? 1) + 1;
+    }
+    const execBonus = accts.find(a => a.id === 'exec_bonus');
+    if (execBonus && bonusPar) {
+      execBonus.name     = '賞与（役員）';
+      execBonus.parentId = bonusPar.id;
+      execBonus.indent   = (bonusPar.indent ?? 1) + 1;
+    }
+    const execWelfareBonus = accts.find(a => a.id === 'exec_welfare_bonus');
+    if (execWelfareBonus && welfarePar) {
+      execWelfareBonus.name     = '法定福利費（役員賞与）';
+      execWelfareBonus.parentId = welfarePar.id;
+      execWelfareBonus.indent   = (welfarePar.indent ?? 1) + 1;
+    }
+
     // 新規勘定科目を追加（なければ）
-    _wfEnsureAccount(budget, 'wf_welfare_bonus', '法定福利費（従業員賞与）', 'sga_welfare', '法定福利費');
-    _wfEnsureAccount(budget, 'wf_emp_bonus',     '賞与（従業員）',           'sga_bonus',   '賞与');
+    _wfEnsureAccount(budget, 'wf_welfare_bonus', '法定福利費（従業員賞与）', 'sga_welfare', '法定福利費', '役員');
+    _wfEnsureAccount(budget, 'wf_emp_bonus', '賞与（従業員）', 'sga_bonus', '賞与', '役員');
     budget.rows['sga_welfare']      = regularSI;
     budget.rows['wf_welfare_bonus'] = bonusSI;
     budget.rows['wf_emp_bonus']     = bonusSalary;

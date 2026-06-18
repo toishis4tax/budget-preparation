@@ -69,7 +69,7 @@ let _execState = {
   targetProfit: 0,
 };
 
-let _execTab = 'zero'; // 'zero' | 'optimize' | 'si'
+let _execTab = 'si'; // 'zero' | 'optimize' | 'si'
 
 const EXEC_COMP_KEY = 'exec_comp_state_v2';
 
@@ -107,6 +107,59 @@ function _execSave() {
   } catch {}
 }
 
+// 役員1人の月次法定福利費（カレンダー月配列、index0=1月）
+function _execCalcOfficerMonthly(officer, pref) {
+  const rates    = (typeof KENPO_RATES !== 'undefined' ? KENPO_RATES : {})[pref] || { health: 0.0982, care: 0.0182 };
+  const careFlag = (officer.age || 50) >= 40 && (officer.age || 50) < 65;
+  const stdP = Math.min(officer.monthly || 0, PENSION_MAX_STD);
+  const stdH = Math.min(officer.monthly || 0, HEALTH_MAX_STD);
+  const healthC  = Math.floor(stdH * rates.health / 2);
+  const careC    = careFlag ? Math.floor(stdH * rates.care / 2) : 0;
+  const pensionC = Math.floor(stdP * KOSEI_RATE / 2);
+  const kodomoC  = Math.floor(stdP * KODOMO_RATE);
+  const monthlySI = healthC + careC + pensionC + kodomoC;
+  const result = Array(12).fill(monthlySI);
+  // 健保は年度累計573万円上限のため支給月順に累計管理（保険年度=4月〜3月）
+  let healthCumulative = 0;
+  const sortedBonuses = [...(officer.bonuses || [])].sort((a, b) => {
+    const ai = ((a.month || 1) - 4 + 12) % 12;
+    const bi = ((b.month || 1) - 4 + 12) % 12;
+    return ai - bi;
+  });
+  sortedBonuses.forEach(b => {
+    const m = (b.month || 1) - 1;
+    const remaining = Math.max(0, BONUS_MAX_HEALTH - healthCumulative);
+    const sbH = Math.min(b.amount || 0, remaining);
+    const sbP = Math.min(b.amount || 0, BONUS_MAX_PENSION);
+    healthCumulative += b.amount || 0;
+    result[m] += Math.floor(sbH * rates.health / 2) +
+                 (careFlag ? Math.floor(sbH * rates.care / 2) : 0) +
+                 Math.floor(sbP * KOSEI_RATE / 2) +
+                 Math.floor(sbP * KODOMO_RATE);
+  });
+  return result;
+}
+
+function _execCalcBreakdown(pref, startMonth) {
+  const regularSI  = Array(12).fill(0);
+  const bonusSI    = Array(12).fill(0);
+  const bonusSalary = Array(12).fill(0);
+  _execState.officers.forEach(o => {
+    const baseSI     = calcSocialInsurance(o.monthly || 0, 0, o.age || 50, pref).monthly;
+    const calMonthly = _execCalcOfficerMonthly(o, pref);
+    for (let i = 0; i < 12; i++) {
+      const calIdx = (startMonth - 1 + i) % 12;
+      regularSI[i] += baseSI;
+      bonusSI[i]   += Math.max(0, calMonthly[calIdx] - baseSI);
+    }
+    (o.bonuses || []).forEach(b => {
+      const bi = ((b.month - 1) - (startMonth - 1) + 12) % 12;
+      bonusSalary[bi] += b.amount || 0;
+    });
+  });
+  return { regularSI, bonusSI, bonusSalary };
+}
+
 function renderExecComp(container, budget) {
   _execLoad();
   // 予算から税引前利益を取得
@@ -132,9 +185,9 @@ function renderExecComp(container, budget) {
     <div class="sim-panel">
       <!-- タブ -->
       <div class="grid-mode-tabs" style="margin-bottom:18px">
-        <button class="grid-mode-tab${_execTab==='zero'?' active':''}" onclick="switchExecTab('zero')">①今期　利益ゼロ化（賞与調整）</button>
-        <button class="grid-mode-tab${_execTab==='optimize'?' active':''}" onclick="switchExecTab('optimize')">②翌期　トータル最適化（報酬設計）</button>
-        <button class="grid-mode-tab${_execTab==='si'?' active':''}" onclick="switchExecTab('si')">③ 法定福利費シミュレーター</button>
+        <button class="grid-mode-tab${_execTab==='si'?' active':''}" onclick="switchExecTab('si')">① 法定福利費計算（役員）</button>
+        <button class="grid-mode-tab${_execTab==='zero'?' active':''}" onclick="switchExecTab('zero')">② 今期　利益ゼロ化（賞与調整）</button>
+        <button class="grid-mode-tab${_execTab==='optimize'?' active':''}" onclick="switchExecTab('optimize')">③ 翌期　トータル最適化（報酬設計）</button>
       </div>
 
       <!-- ①利益ゼロ化 -->
@@ -264,32 +317,26 @@ function renderExecComp(container, budget) {
       </div>
       </div><!-- /#exec_tab_optimize -->
 
-      <!-- ③ 法定福利費シミュレーター -->
+      <!-- ① 法定福利費計算（役員） -->
       <div id="exec_tab_si" style="display:${_execTab==='si'?'block':'none'}">
-        <div style="display:grid;grid-template-columns:320px 1fr;gap:18px">
-          <div class="card-h">
-            <h3>入力</h3>
-            <div class="form-group">
-              <label>月額報酬（円）</label>
-              <input type="number" id="si_salary" class="form-input" value="500000" step="10000" oninput="runSICalc()">
-            </div>
-            <div class="form-group">
-              <label>年齢</label>
-              <input type="number" id="si_age" class="form-input" value="50" min="15" max="80" oninput="runSICalc()">
-            </div>
-            <div class="form-group">
-              <label>協会けんぽ</label>
-              <select id="si_pref" class="form-input" onchange="runSICalc()">${prefOptions}</select>
-            </div>
-            <div class="form-group" style="margin:0">
-              <label>賞与</label>
-              <div id="si_bonus_list"></div>
-              <button onclick="addSIBonus()" style="margin-top:6px;font-size:11px;background:var(--emerald-light);border:1px solid var(--teal);color:var(--emerald-dark);border-radius:4px;padding:2px 10px;cursor:pointer">＋ 賞与追加</button>
-            </div>
+        <div class="flex-between" style="margin-bottom:12px">
+          <div>
+            <h2 class="section-title">法定福利費計算（役員）</h2>
+            <p class="section-sub">役員ごとの月額報酬・賞与から月次法定福利費を自動計算</p>
           </div>
-          <div class="card-h" id="si_result">
-            <h3>法定福利費（会社負担）</h3>
-            <div class="no-data-small">左の値を入力してください</div>
+          <button class="btn-solid" onclick="_execApplySIToBudget()">📊 予算へ反映</button>
+        </div>
+
+        <div id="exec_si_officer_cards"></div>
+        <button class="btn-outline btn-sm" onclick="addOfficer();renderExecSITable()" style="margin-bottom:16px">＋ 役員追加</button>
+
+        <div class="card" style="padding:0;overflow:hidden;margin-top:4px">
+          <div style="overflow-x:auto">
+            <table class="result-table" style="min-width:900px">
+              <thead><tr id="exec_si_thead"></tr></thead>
+              <tbody id="exec_si_tbody"></tbody>
+              <tfoot id="exec_si_tfoot"></tfoot>
+            </table>
           </div>
         </div>
       </div>
@@ -299,8 +346,7 @@ function renderExecComp(container, budget) {
   renderOfficerList();
   updateExecCalc();
   calcZeroOut();
-  renderSIBonusList();
-  if (_execTab === 'si') runSICalc();
+  renderExecSITable();
 }
 
 function renderOfficerList() {
@@ -570,9 +616,244 @@ function switchExecTab(tab) {
   document.querySelectorAll('.grid-mode-tab').forEach(btn => {
     btn.classList.toggle('active',
       (btn.textContent.includes('ゼロ化') && tab === 'zero') ||
-      (btn.textContent.includes('最適化') && tab === 'optimize') || (btn.textContent.includes('法定福利費') && tab === 'si')
+      (btn.textContent.includes('最適化') && tab === 'optimize') || (btn.textContent.includes('法定福利費計算') && tab === 'si')
     );
   });
+}
+
+function renderExecSICards() {
+  const el = document.getElementById('exec_si_officer_cards');
+  if (!el) return;
+  const pref = document.getElementById('zero_pref')?.value || window.App?.currentCompany?.prefecture || '東京都';
+
+  el.innerHTML = _execState.officers.map((o, i) => {
+    const baseSI = calcSocialInsurance(o.monthly || 0, 0, o.age || 50, pref).monthly;
+    const annualBonus = _execTotalBonus(o);
+    const totalSI = calcSocialInsurance(o.monthly || 0, annualBonus, o.age || 50, pref).annual;
+
+    const bonusRows = (o.bonuses || []).map((b, bi) => `
+      <div style="display:flex;gap:5px;align-items:center;margin-bottom:4px">
+        <span style="font-size:11px;color:var(--text-muted);width:32px">賞与${bi+1}</span>
+        <select class="form-input" style="width:68px;font-size:11px;padding:3px"
+          onchange="_execState.officers[${i}].bonuses[${bi}].month=+this.value;_execSave();renderExecSITable()">
+          ${Array.from({length:12},(_,m)=>`<option value="${m+1}"${b.month===m+1?' selected':''}>${m+1}月</option>`).join('')}
+        </select>
+        <input type="number" class="form-input" style="width:110px;font-size:12px;text-align:right"
+          value="${b.amount||''}" placeholder="0" step="100000"
+          oninput="_execState.officers[${i}].bonuses[${bi}].amount=+this.value||0;_execSave()"
+          onblur="renderExecSITable()">
+        <span style="font-size:11px;color:var(--text-muted)">円</span>
+        <button onclick="removeOfficerBonus(${i},${bi});renderExecSITable()"
+          style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer">✕</button>
+      </div>`).join('');
+
+    return `
+      <div class="card" style="padding:14px 16px;margin-bottom:10px">
+        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+          <div style="flex:1;min-width:160px">
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">氏名</label>
+            <input class="form-input" style="font-size:13px;font-weight:600" value="${escHtml(o.name)}" placeholder="役員名"
+              oninput="_execState.officers[${i}].name=this.value;_execSave()"
+              onblur="renderExecSITable()">
+          </div>
+          <div style="min-width:130px">
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">月額報酬（円）</label>
+            <input type="number" class="form-input" style="font-size:12px;text-align:right"
+              value="${o.monthly||''}" placeholder="800000" step="10000"
+              oninput="_execState.officers[${i}].monthly=+this.value||0;_execSave()"
+              onblur="renderExecSITable()">
+          </div>
+          <div style="min-width:80px">
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">年齢</label>
+            <input type="number" class="form-input" style="font-size:12px"
+              value="${o.age||50}" min="15" max="80"
+              oninput="_execState.officers[${i}].age=+this.value||50;_execSave()"
+              onblur="renderExecSITable()">
+          </div>
+          <div style="min-width:180px">
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">役員賞与</label>
+            ${bonusRows}
+            <button onclick="addOfficerBonus(${i});renderExecSITable()"
+              style="margin-top:4px;font-size:11px;background:var(--emerald-light);border:1px solid var(--teal);color:var(--emerald-dark);border-radius:4px;padding:2px 10px;cursor:pointer">＋ 賞与追加</button>
+          </div>
+          <div style="min-width:130px;border-left:1px solid var(--border);padding-left:14px">
+            <div style="font-size:10px;color:var(--text-muted)">月額法定福利費</div>
+            <div style="font-size:18px;font-weight:700;color:var(--emerald-dark)">${Math.round(baseSI).toLocaleString()}</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px">年間合計</div>
+            <div style="font-size:14px;font-weight:600">${Math.round(totalSI).toLocaleString()}</div>
+            ${(o.age||50)>=40&&(o.age||50)<65?'<div style="font-size:10px;color:#d97706;margin-top:2px">介護保険対象</div>':''}
+          </div>
+          ${i > 0 ? `<button onclick="removeOfficer(${i});renderExecSITable()" title="削除"
+            style="align-self:flex-start;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer">🗑</button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderExecSITable() {
+  renderExecSICards();
+  const thead = document.getElementById('exec_si_thead');
+  const tbody = document.getElementById('exec_si_tbody');
+  const tfoot = document.getElementById('exec_si_tfoot');
+  if (!thead || !tbody || !tfoot) return;
+
+  const pref       = window.App?.currentCompany?.prefecture || '東京都';
+  const startMonth = window.App?.currentBudget?.startMonth || 4;
+  const months     = getMonthLabels(startMonth);
+
+  thead.innerHTML = `
+    <th style="position:sticky;left:0;background:#e0f2fe;z-index:5">役員</th>
+    <th style="text-align:right">月額SI</th>
+    ${months.map(m => `<th style="text-align:right">${m}</th>`).join('')}
+    <th style="text-align:right">年間合計</th>`;
+
+  const officerData = _execState.officers.map(o => {
+    const calMonthly    = _execCalcOfficerMonthly(o, pref);
+    const budgetMonthly = Array.from({length:12},(_,i)=>calMonthly[(startMonth-1+i)%12]);
+    const annualTotal   = budgetMonthly.reduce((s,v)=>s+v,0);
+    const baseSI        = calcSocialInsurance(o.monthly||0, 0, o.age||50, pref).monthly;
+    return { o, budgetMonthly, annualTotal, baseSI };
+  });
+
+  const bonusMonths = new Set();
+  _execState.officers.forEach(o => {
+    (o.bonuses||[]).forEach(b => {
+      bonusMonths.add(((b.month-1)-(startMonth-1)+12)%12);
+    });
+  });
+
+  tbody.innerHTML = officerData.map(({ o, budgetMonthly, annualTotal, baseSI }) => `
+    <tr>
+      <td style="position:sticky;left:0;background:#fff;font-weight:600;font-size:12px">${escHtml(o.name||'(未入力)')}</td>
+      <td style="text-align:right;font-size:11px;color:var(--text-muted)">${Math.round(baseSI).toLocaleString()}</td>
+      ${budgetMonthly.map((v, mi) => {
+        const bonusPart = Math.max(0, v - baseSI);
+        return `<td style="text-align:right;font-size:12px;${bonusPart>0?'background:#fffbeb':''}">
+          <div style="${bonusPart>0?'font-weight:700':''}">${Math.round(baseSI).toLocaleString()}</div>
+          ${bonusPart>0?`<div style="font-size:9px;color:#d97706;font-weight:700">+${Math.round(bonusPart).toLocaleString()}<br>▲賞与SI</div>`:''}
+        </td>`;
+      }).join('')}
+      <td style="text-align:right;font-weight:700;color:var(--emerald-dark)">${Math.round(annualTotal).toLocaleString()}</td>
+    </tr>`).join('');
+
+  const { regularSI, bonusSI, bonusSalary } = _execCalcBreakdown(pref, startMonth);
+  const tfRow = (label, arr, total, bg, color, bold) => `
+    <tr style="background:${bg}">
+      <td style="position:sticky;left:0;background:${bg};padding:6px 10px;font-size:11.5px;${bold?'font-weight:700':'color:var(--text-muted)'}">${label}</td>
+      <td></td>
+      ${arr.map(v=>`<td style="text-align:right;padding:5px 8px;font-size:11.5px;${v>0&&color?'color:'+color:''}">${v?Math.round(v).toLocaleString():'–'}</td>`).join('')}
+      <td style="text-align:right;padding:5px 8px;font-weight:700;${color?'color:'+color:''}">${Math.round(total).toLocaleString()}</td>
+    </tr>`;
+
+  tfoot.innerHTML =
+    tfRow('法定福利費（月額）合計', regularSI, regularSI.reduce((s,v)=>s+v,0), '#f0f9ff', '', true) +
+    tfRow('うち賞与分法定福利費',  bonusSI,   bonusSI.reduce((s,v)=>s+v,0),   '#fffbeb', '#d97706', false) +
+    tfRow('役員賞与支給額合計',   bonusSalary, bonusSalary.reduce((s,v)=>s+v,0),'#fff7f0','#ea580c', false) +
+    `<tr style="background:#e0f2fe;font-weight:700;border-top:2px solid #bae6fd">
+      <td style="position:sticky;left:0;background:#e0f2fe;padding:7px 10px">法定福利費 総合計</td><td></td>
+      ${Array.from({length:12},(_,i)=>`<td style="text-align:right;padding:6px 8px">${Math.round(regularSI[i]+bonusSI[i]).toLocaleString()}</td>`).join('')}
+      <td style="text-align:right;padding:6px 8px;color:var(--emerald-dark)">${Math.round(regularSI.reduce((s,v)=>s+v,0)+bonusSI.reduce((s,v)=>s+v,0)).toLocaleString()}</td>
+    </tr>`;
+}
+
+function _execEnsureAccount(budget, newId, newName, parentId, parentNameKeyword, parentExcludeKeyword) {
+  const accounts = budget.dynamicAccounts;
+  if (!accounts) return;
+  if (accounts.find(a => a.id === newId)) return;
+  let parent = accounts.find(a => a.id === parentId);
+  if (!parent) {
+    parent = accounts.find(a =>
+      a.name?.includes(parentNameKeyword) &&
+      (!parentExcludeKeyword || !a.name?.includes(parentExcludeKeyword))
+    );
+  }
+  // 除外キーワードで弾かれた場合、該当科目を parentNameKeyword にリネームして親として使用
+  if (!parent && parentExcludeKeyword) {
+    const excluded = accounts.find(a => a.id === parentId) ||
+                     accounts.find(a => a.name?.includes(parentNameKeyword));
+    if (excluded) {
+      excluded.name = parentNameKeyword;
+      parent = excluded;
+    }
+  }
+  if (!parent) return;
+  let insertAt = accounts.indexOf(parent) + 1;
+  while (insertAt < accounts.length && accounts[insertAt].parentId === parent.id) insertAt++;
+  accounts.splice(insertAt, 0, {
+    id: newId, name: newName, type: 'input',
+    indent: (parent.indent ?? 1) + 1, parentId: parent.id,
+    section: parent.section || 'pl', sign: parent.sign ?? 1,
+    bold: false, custom: true,
+  });
+}
+
+function _execApplySIToBudget() {
+  const budget = window.App?.currentBudget;
+  if (!budget) { alert('予算データがありません'); return; }
+  const pref       = window.App?.currentCompany?.prefecture || '東京都';
+  const startMonth = budget.startMonth || 4;
+  const { regularSI, bonusSI, bonusSalary } = _execCalcBreakdown(pref, startMonth);
+  if (!budget.rows) budget.rows = {};
+  if (budget.dynamicAccounts) {
+    // 旧コードが作った wf_auto_* 科目を除去
+    budget.dynamicAccounts = budget.dynamicAccounts.filter(a => !a.id?.startsWith('wf_auto_'));
+    const accts = budget.dynamicAccounts;
+
+    // 正しい親科目を特定
+    const welfarePar = accts.find(a => a.id === 'sga_welfare') ||
+                       accts.find(a => a.name?.includes('法定福利費') && !a.name?.includes('役員') && !a.name?.includes('従業員'));
+    const bonusPar   = accts.find(a => a.id === 'sga_bonus') ||
+                       accts.find(a => a.name?.includes('賞与') && !a.id?.startsWith('wf_') && !a.id?.startsWith('exec_'));
+
+    // 「役員賞与」→「賞与」リネーム
+    if (bonusPar && bonusPar.name !== '賞与') bonusPar.name = '賞与';
+
+    // 既存の自動生成科目：名前・parentId・indent を正規化
+    const wfWelfareBonus = accts.find(a => a.id === 'wf_welfare_bonus');
+    if (wfWelfareBonus && welfarePar) {
+      wfWelfareBonus.name     = '法定福利費（従業員賞与）';
+      wfWelfareBonus.parentId = welfarePar.id;
+      wfWelfareBonus.indent   = (welfarePar.indent ?? 1) + 1;
+    }
+    const wfEmpBonus = accts.find(a => a.id === 'wf_emp_bonus');
+    if (wfEmpBonus && bonusPar) {
+      wfEmpBonus.name     = '賞与（従業員）';
+      wfEmpBonus.parentId = bonusPar.id;
+      wfEmpBonus.indent   = (bonusPar.indent ?? 1) + 1;
+    }
+    const execBonusAcc = accts.find(a => a.id === 'exec_bonus');
+    if (execBonusAcc && bonusPar) {
+      execBonusAcc.name     = '賞与（役員）';
+      execBonusAcc.parentId = bonusPar.id;
+      execBonusAcc.indent   = (bonusPar.indent ?? 1) + 1;
+    }
+    const execWelfareBonus = accts.find(a => a.id === 'exec_welfare_bonus');
+    if (execWelfareBonus && welfarePar) {
+      execWelfareBonus.name     = '法定福利費（役員賞与）';
+      execWelfareBonus.parentId = welfarePar.id;
+      execWelfareBonus.indent   = (welfarePar.indent ?? 1) + 1;
+    }
+
+    _execEnsureAccount(budget, 'exec_welfare_bonus', '法定福利費（役員賞与）', 'sga_welfare', '法定福利費', null);
+    _execEnsureAccount(budget, 'exec_bonus',         '賞与（役員）',           'sga_bonus',   '賞与',       '役員');
+    budget.rows['sga_exec']           = _execState.officers.map ? Array(12).fill(_execState.officers.reduce((s,o)=>s+(o.monthly||0),0)) : Array(12).fill(0);
+    budget.rows['sga_welfare']        = regularSI;
+    budget.rows['exec_welfare_bonus'] = bonusSI;
+    budget.rows['exec_bonus']         = bonusSalary;
+  } else {
+    budget.rows['sga_exec']    = Array(12).fill(_execState.officers.reduce((s,o)=>s+(o.monthly||0),0));
+    budget.rows['sga_welfare'] = regularSI.map((v,i)=>v+bonusSI[i]);
+    budget.rows['sga_bonus']   = bonusSalary;
+  }
+  saveBudget(budget);
+  window.App.currentBudget = budget;
+  alert(
+    `予算に反映しました。\n` +
+    `役員報酬：${Math.round(_execState.officers.reduce((s,o)=>s+(o.monthly||0),0)).toLocaleString()}円/月\n` +
+    `法定福利費（月額）：${Math.round(regularSI.reduce((s,v)=>s+v,0)).toLocaleString()}\n` +
+    `法定福利費（賞与分）：${Math.round(bonusSI.reduce((s,v)=>s+v,0)).toLocaleString()}\n` +
+    `役員賞与合計：${Math.round(bonusSalary.reduce((s,v)=>s+v,0)).toLocaleString()}`
+  );
 }
 
 let _siBonuses = [{ month: 6, amount: 0 }, { month: 12, amount: 0 }];
@@ -627,16 +908,24 @@ function runSICalc() {
   const kodomoC  = Math.floor(stdP * KODOMO_RATE);
   const monthlySI = healthC + careC + pensionC + kodomoC;
 
-  // 賞与月別
+  // 賞与月別（健保は年度累計573万円上限、4月〜3月の保険年度順で処理）
+  const sortedSIBonuses = [..._siBonuses.filter(b=>b.amount)]
+    .sort((a, b) => ((a.month||1)-4+12)%12 - ((b.month||1)-4+12)%12);
+  let siHealthCumulative = 0;
+  const bonusSIMap = new Map();
+  sortedSIBonuses.forEach(b => {
+    const remaining = Math.max(0, BONUS_MAX_HEALTH - siHealthCumulative);
+    const sbH = Math.min(b.amount, remaining);
+    const sbP = Math.min(b.amount, BONUS_MAX_PENSION);
+    siHealthCumulative += b.amount;
+    const total = Math.floor(sbH*rates.health/2) + (careFlag?Math.floor(sbH*rates.care/2):0)
+                + Math.floor(sbP*KOSEI_RATE/2) + Math.floor(sbP*KODOMO_RATE);
+    bonusSIMap.set(b, total);
+  });
+
   const bonusRows = _siBonuses.map((b, bi) => {
     if (!b.amount) return '';
-    const sbH  = Math.min(b.amount, HEALTH_MAX_STD);
-    const sbP  = Math.min(b.amount, PENSION_MAX_STD);
-    const bHC  = Math.floor(sbH * rates.health / 2);
-    const bCC  = careFlag ? Math.floor(sbH * rates.care / 2) : 0;
-    const bPC  = Math.floor(sbP * KOSEI_RATE / 2);
-    const bKC  = Math.floor(sbP * KODOMO_RATE);
-    const total = bHC + bCC + bPC + bKC;
+    const total = bonusSIMap.get(b) ?? 0;
     return `<tr style="background:#fffbeb">
       <td>賞与${bi+1}（${b.month}月・${Math.round(b.amount/10000).toLocaleString()}万円）</td>
       <td class="num" style="color:#d97706;font-weight:700">${Math.round(total).toLocaleString()}</td>
@@ -644,12 +933,7 @@ function runSICalc() {
   }).filter(Boolean).join('');
 
   const annualBonus = _siBonuses.reduce((s,b)=>s+(b.amount||0),0);
-  const annualSI = monthlySI * 12 + _siBonuses.reduce((s, b) => {
-    const sbH = Math.min(b.amount||0, HEALTH_MAX_STD);
-    const sbP = Math.min(b.amount||0, PENSION_MAX_STD);
-    return s + Math.floor(sbH*rates.health/2) + (careFlag?Math.floor(sbH*rates.care/2):0)
-             + Math.floor(sbP*KOSEI_RATE/2) + Math.floor(sbP*KODOMO_RATE);
-  }, 0);
+  const annualSI = monthlySI * 12 + [...bonusSIMap.values()].reduce((s,v)=>s+v,0);
 
   el.innerHTML = `
     <h3>法定福利費（会社負担）</h3>
@@ -755,7 +1039,10 @@ function calcZeroOut() {
       ※役員賞与を損金算入するには事前確定届出給与の届出が必要です<br>
       ※社会保険料率は月額報酬の標準報酬月額から概算
     </div>
-    <button class="btn-solid" onclick="applyZeroOutToAdj(${totalBonus}, ${totalWelfare})">調整列に反映する →</button>`;
+    <button class="btn-solid" onclick="applyZeroOutToAdj(${totalBonus}, ${totalWelfare})">調整列に反映する →</button>
+    <div style="margin-top:16px;text-align:right">
+      <button class="btn-solid" onclick="_execApplyZeroToBudget(${bonus1},${bonus2},${welfare1},${welfare2})">📊 この金額を予算へ反映</button>
+    </div>`;
 }
 
 // 調整列（col 12）へ反映
@@ -798,6 +1085,38 @@ function applyZeroOutToAdj(bonus, welfare) {
 
   alert(`調整列に反映しました。\n役員賞与：${Math.round(bonus).toLocaleString()}円\n法定福利費：${Math.round(welfare).toLocaleString()}円`);
   showPage('budget');
+}
+
+function _execApplyZeroToBudget(bonus1, bonus2, welfare1, welfare2) {
+  const budget = window.App?.currentBudget;
+  if (!budget) { alert('予算データがありません'); return; }
+  const pref = document.getElementById('zero_pref')?.value || '東京都';
+  const startMonth = budget.startMonth || 4;
+  if (!budget.rows) budget.rows = {};
+
+  // 役員賞与を支払月に計上（デフォルト: 12月）
+  const bonusByMonth = Array(12).fill(0);
+  const welfareBonus = Array(12).fill(0);
+  const bonusMonth = ((12 - 1) - (startMonth - 1) + 12) % 12; // 12月の予算月インデックス
+  bonusByMonth[bonusMonth] = bonus1 + bonus2;
+  welfareBonus[bonusMonth] = welfare1 + welfare2;
+
+  if (budget.dynamicAccounts) {
+    _execEnsureAccount(budget, 'exec_welfare_bonus', '法定福利費（役員賞与）', 'sga_welfare', '法定福利費', null);
+    _execEnsureAccount(budget, 'exec_bonus', '賞与（役員）', 'sga_bonus', '賞与', null);
+    const cur = budget.rows['exec_bonus'] || Array(12).fill(0);
+    budget.rows['exec_bonus'] = bonusByMonth;
+    const curW = budget.rows['exec_welfare_bonus'] || Array(12).fill(0);
+    budget.rows['exec_welfare_bonus'] = welfareBonus;
+  } else {
+    const curBonus = budget.rows['sga_bonus'] || Array(12).fill(0);
+    curBonus[bonusMonth] = (curBonus[bonusMonth]||0) + bonus1 + bonus2;
+    budget.rows['sga_bonus'] = curBonus;
+  }
+
+  saveBudget(budget);
+  window.App.currentBudget = budget;
+  alert(`役員賞与を12月に計上しました。\n合計賞与：${(bonus1+bonus2).toLocaleString()}円\n賞与法定福利費：${(welfare1+welfare2).toLocaleString()}円`);
 }
 
 function annualTotal(arr) { return (arr || []).reduce((a,b)=>a+b,0); }

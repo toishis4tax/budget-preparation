@@ -95,38 +95,90 @@ function calcAllTax(pretaxProfit, capital) {
 }
 
 function renderTaxSimulator(container) {
+  const budget  = window.App?.currentBudget;
+  const company = window.App?.currentCompany;
+
+  // 税引前利益を予算から自動取得
+  let budgetPretax = 0;
+  if (budget) {
+    if (budget.dynamicAccounts) {
+      const av = calcAllValuesDynamic(budget);
+      budgetPretax = (av['calc_pretax'] || []).reduce((a,v)=>a+v,0);
+    } else {
+      const pl = calcPL(budget.rows);
+      budgetPretax = pl.pretax_profit.reduce((a,v)=>a+v,0);
+    }
+  }
+
+  const capital  = company?.capital  || 10_000_000;
+  const prepaid1 = company?.prepaid1 || 0;
+  const prepaid2 = company?.prepaid2 || 0;
+
   container.innerHTML = `
     <div class="sim-panel">
       <h2 class="section-title">法人税額シミュレーション</h2>
       <div class="sim-grid">
-        <div class="sim-inputs card">
-          <h3>入力</h3>
+
+        <div class="card-h" style="display:flex;flex-direction:column;gap:0">
+          <h3>📋 基本情報</h3>
           <div class="form-group">
-            <label>税引前利益（円）</label>
-            <input type="number" id="tax_pretax" value="10000000" class="form-input" step="10000">
+            <label>税引前利益（予算ベース・円）
+              <span style="font-size:10px;background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:4px;margin-left:6px">自動取得</span>
+            </label>
+            <input type="number" id="tax_pretax" value="${Math.round(budgetPretax)}" class="form-input" step="10000" oninput="runTaxSim()">
           </div>
           <div class="form-group">
             <label>資本金（円）</label>
-            <input type="number" id="tax_capital" value="10000000" class="form-input" step="10000">
+            <input type="number" id="tax_capital" value="${capital}" class="form-input" step="100000" oninput="runTaxSim()">
           </div>
+
+          <h3 style="margin-top:14px">📝 税務調整</h3>
+          <div class="form-group">
+            <label>役員賞与（損金不算入・加算）</label>
+            <input type="number" id="tax_adj_exec_bonus" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>交際費等（損金不算入・加算）</label>
+            <input type="number" id="tax_adj_entertainment" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>その他加算項目</label>
+            <input type="number" id="tax_adj_add" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>その他減算項目</label>
+            <input type="number" id="tax_adj_sub" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>繰越欠損金控除（マイナスで入力）</label>
+            <input type="number" id="tax_nol" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0（控除する場合は入力）">
+            <div style="font-size:10px;color:var(--text-muted);margin-top:3px">※ 所得の最大50%まで控除可（中小法人は100%）</div>
+          </div>
+
+          <h3 style="margin-top:14px">💳 予定納税</h3>
           <div class="form-group">
             <label>第1回予定納税（円）</label>
-            <input type="number" id="tax_prepaid1" value="0" class="form-input" step="10000">
+            <input type="number" id="tax_prepaid1" value="${prepaid1}" class="form-input" step="10000" oninput="runTaxSim()">
           </div>
-          <div class="form-group">
+          <div class="form-group" style="margin-bottom:0">
             <label>第2回予定納税（円）</label>
-            <input type="number" id="tax_prepaid2" value="0" class="form-input" step="10000">
+            <input type="number" id="tax_prepaid2" value="${prepaid2}" class="form-input" step="10000" oninput="runTaxSim()">
           </div>
-          <button class="btn btn-primary" onclick="runTaxSim()">計算</button>
         </div>
-        <div class="sim-results card">
-          <h3>税額内訳</h3>
+
+        <div class="card-h">
+          <h3>💡 計算結果</h3>
+          <div id="tax_adj_summary" style="background:#f0f9ff;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px"></div>
           <table class="result-table" id="tax_result_table">
-            <thead><tr><th>税目</th><th>概算税額</th></tr></thead>
+            <thead><tr><th>税目</th><th style="text-align:right">概算税額</th></tr></thead>
             <tbody id="tax_tbody"></tbody>
           </table>
-          <div id="tax_summary" class="tax-summary"></div>
+          <div id="tax_summary" class="tax-summary" style="margin-top:14px"></div>
+          <div style="margin-top:18px;text-align:right">
+            <button class="btn-solid" onclick="applyTaxToBudget()">📊 法人税等へ反映</button>
+          </div>
         </div>
+
       </div>
     </div>`;
   runTaxSim();
@@ -134,13 +186,51 @@ function renderTaxSimulator(container) {
 
 function runTaxSim() {
   const pretax   = parseFloat(document.getElementById('tax_pretax')?.value  || 0);
-  const capital  = parseFloat(document.getElementById('tax_capital')?.value || 10000000);
+  const capital  = parseFloat(document.getElementById('tax_capital')?.value || 10_000_000);
   const prepaid1 = parseFloat(document.getElementById('tax_prepaid1')?.value || 0);
   const prepaid2 = parseFloat(document.getElementById('tax_prepaid2')?.value || 0);
 
-  const taxes = calcAllTax(pretax, capital);
+  const adjExecBonus     = parseFloat(document.getElementById('tax_adj_exec_bonus')?.value     || 0);
+  const adjEntertainment = parseFloat(document.getElementById('tax_adj_entertainment')?.value   || 0);
+  const adjAdd           = parseFloat(document.getElementById('tax_adj_add')?.value             || 0);
+  const adjSub           = parseFloat(document.getElementById('tax_adj_sub')?.value             || 0);
+  const nolRaw           = parseFloat(document.getElementById('tax_nol')?.value                 || 0);
+
+  const totalAdd = adjExecBonus + adjEntertainment + adjAdd;
+  const totalSub = adjSub;
+
+  // 課税所得 = 税引前利益 + 加算 - 減算 - 欠損金
+  const incomeBeforeNol = pretax + totalAdd - totalSub;
+  const small = isSmall(capital);
+  // 欠損金控除: 中小は100%、大法人は50%上限
+  const nolLimit = small ? incomeBeforeNol : incomeBeforeNol * 0.5;
+  const nolDeduction = Math.min(Math.abs(nolRaw), Math.max(0, nolLimit));
+  const taxableIncome = Math.max(0, incomeBeforeNol - nolDeduction);
+
+  const taxes = calcAllTax(taxableIncome, capital);
   const prepaid = prepaid1 + prepaid2;
   const balance = taxes.total - prepaid;
+
+  // 調整サマリー
+  const adjEl = document.getElementById('tax_adj_summary');
+  if (adjEl) {
+    adjEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span>税引前利益</span><span>${Math.round(pretax).toLocaleString()}円</span>
+      </div>
+      ${totalAdd > 0 ? `<div style="display:flex;justify-content:space-between;color:#d97706">
+        <span>＋ 加算合計（損金不算入等）</span><span>${Math.round(totalAdd).toLocaleString()}円</span>
+      </div>` : ''}
+      ${totalSub > 0 ? `<div style="display:flex;justify-content:space-between;color:#059669">
+        <span>－ 減算合計</span><span>${Math.round(totalSub).toLocaleString()}円</span>
+      </div>` : ''}
+      ${nolDeduction > 0 ? `<div style="display:flex;justify-content:space-between;color:#059669">
+        <span>－ 繰越欠損金控除</span><span>${Math.round(nolDeduction).toLocaleString()}円</span>
+      </div>` : ''}
+      <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #bae6fd;padding-top:4px;margin-top:4px">
+        <span>課税所得</span><span>${Math.round(taxableIncome).toLocaleString()}円</span>
+      </div>`;
+  }
 
   const tbody = document.getElementById('tax_tbody');
   if (!tbody) return;
@@ -155,11 +245,12 @@ function runTaxSim() {
 
   const summaryEl = document.getElementById('tax_summary');
   if (summaryEl) {
-    const tag = isSmall(capital) ? '中小法人' : '大法人';
+    const tag = small ? '中小法人' : '大法人';
     const effectiveRate = pretax > 0 ? (taxes.total / pretax * 100).toFixed(1) : '0.0';
     summaryEl.innerHTML = `
       <div class="summary-item"><span>判定</span><span class="badge">${tag}</span></div>
-      <div class="summary-item"><span>実効税率（概算）</span><span>${effectiveRate}%</span></div>
+      <div class="summary-item"><span>実効税率（課税所得ベース）</span><span>${taxableIncome > 0 ? (taxes.total/taxableIncome*100).toFixed(1) : '0.0'}%</span></div>
+      <div class="summary-item"><span>実効税率（税引前利益ベース）</span><span>${effectiveRate}%</span></div>
       <div class="summary-item"><span>予定納税合計</span><span>${fmt(prepaid)}</span></div>
       <div class="summary-item ${balance >= 0 ? 'positive' : 'negative'}">
         <span>${balance >= 0 ? '納付差額（追加納付）' : '還付見込額'}</span>
@@ -167,6 +258,57 @@ function runTaxSim() {
       </div>
     `;
   }
+
+  // グローバルに最新税額を保持（applyTaxToBudget で参照）
+  window._lastTaxTotal = taxes.total;
+}
+
+function applyTaxToBudget() {
+  const budget = window.App?.currentBudget;
+  if (!budget) { alert('予算データがありません'); return; }
+  const total = window._lastTaxTotal || 0;
+  if (!budget.rows) budget.rows = {};
+
+  // 調整欄（index12）に一括計上
+  const monthly = [...Array(12).fill(0), Math.round(total)];
+
+  // 法人税等（PL費用科目）を特定・なければ動的追加
+  let taxAccId = 'corp_tax';
+  if (budget.dynamicAccounts) {
+    const accts = budget.dynamicAccounts;
+
+    // PL section の法人税等 input 科目のみ対象（BSの未払法人税等は除外）
+    let taxAcc = accts.find(a => a.id === 'corp_tax' && a.section === 'pl') ||
+                 accts.find(a => a.section === 'pl' && a.type === 'input' &&
+                   a.name?.replace(/\s+/g,'').includes('法人税') &&
+                   !a.name?.includes('未払'));
+
+    if (!taxAcc) {
+      // PL科目として新規作成（calc_pretax の直後）
+      const pretaxIdx = accts.findIndex(a => a.id === 'calc_pretax');
+      const insertAt = pretaxIdx >= 0 ? pretaxIdx + 1 : accts.length;
+      taxAcc = {
+        id: 'corp_tax', name: '法人税等', type: 'input',
+        indent: 0, section: 'pl', sign: -1, bold: false, custom: true,
+      };
+      accts.splice(insertAt, 0, taxAcc);
+    }
+    taxAccId = taxAcc.id;
+
+    // calc_net の formula を正しいPL科目を参照するよう強制更新
+    const calcNet = accts.find(a => a.id === 'calc_net');
+    if (calcNet) {
+      calcNet.formula = `calc_pretax - ${taxAccId}`;
+    }
+  }
+
+  budget.rows[taxAccId] = monthly;
+  saveBudget(budget);
+  window.App.currentBudget = budget;
+  const calcNet = budget.dynamicAccounts?.find(a => a.id === 'calc_net');
+  const taxAccCheck = budget.dynamicAccounts?.find(a => a.id === taxAccId);
+  console.log('applyTax: taxAccId=', taxAccId, 'taxAcc=', taxAccCheck, 'calc_net formula=', calcNet?.formula, 'rows=', budget.rows[taxAccId]);
+  alert(`反映完了\n科目ID: ${taxAccId}\n科目名: ${taxAccCheck?.name ?? '見つからず'}\n当期純利益formula: ${calcNet?.formula ?? 'なし'}\n月次合計: ${(budget.rows[taxAccId]||[]).reduce((s,v)=>s+v,0).toLocaleString()}円`);
 }
 
 // 消費税関連ページ

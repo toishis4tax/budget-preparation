@@ -284,6 +284,11 @@ function renderGridRows(budget, allVals, months) {
       acc.tentative? 'tentative-row':'',
       _selectedRows.has(acc.id) ? 'selected-row' : '',
     ].filter(Boolean).join(' ');
+    // 自動生成科目（welfare/exec反映）は薄いアンバーで強調
+    if (acc.id.startsWith('wf_') || acc.id.startsWith('exec_')) {
+      tr.style.background = '#fffbeb';
+      tr.style.borderLeft = '3px solid #f59e0b';
+    }
 
     // 科目名セル
     const indent = '　'.repeat(acc.indent || 0);

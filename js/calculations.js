@@ -113,12 +113,14 @@ function calcAllValuesDynamic(budget) {
   });
 
   // 下から上へ: 子の合計を親に集計（逆順で処理）
+  // type:'input'でも子が追加された場合（自動生成科目など）は子の合計を使う
   [...accts].reverse().forEach(a => {
-    if (a.type === 'parent' || a.type === 'section') {
-      const cids = kids[a.id] || [];
+    const cids = kids[a.id] || [];
+    if ((a.type === 'parent' || a.type === 'section' || cids.length > 0) && cids.length > 0) {
       const hasCData = cids.some(cid => result[cid]?.some(v => v !== 0));
       if (hasCData) {
-        result[a.id] = new Array(12).fill(0).map((_,i) =>
+        // index 0-11 = 月次、index 12 = 調整欄（含めて集計）
+        result[a.id] = new Array(13).fill(0).map((_,i) =>
           cids.reduce((s,cid) => s + (result[cid]?.[i] || 0), 0)
         );
       }
@@ -136,7 +138,7 @@ function calcAllValuesDynamic(budget) {
 
 function evalDynFormula(formula, vals) {
   const tokens = formula.trim().split(/\s+/);
-  const get = id => vals[id] || new Array(12).fill(0);
+  const get = id => vals[id] || new Array(13).fill(0);
   let res = [...get(tokens[0])];
   for (let i = 1; i + 1 < tokens.length; i += 2) {
     const b = get(tokens[i + 1]);
