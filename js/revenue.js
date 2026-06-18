@@ -517,31 +517,62 @@ function applyRevenueToBudget() {
     return catId;
   }
 
-  // 区分ごとに月次合計を計算
-  const catTotals = {};
-  const revAccounts = [];
+  const actualCols = budget.actualCols || [];
 
+  // 各クライアントの月次データを計算
+  const clientsByCat = {}; // catId → [{c, monthly}]
   _revClients.filter(c => c.name).forEach(c => {
-    const cat    = c.category || 'sales_advisory';
-    const catId  = ensureCategoryInDynamic(cat);
+    const cat   = c.category || 'sales_advisory';
+    const catId = ensureCategoryInDynamic(cat);
     const monthly = calcClientMonthly(c, startMonth, _revBudgetYear);
-
-    budget.rows[`rev_${c.id}`] = [...monthly, 0];
-
-    if (!catTotals[catId]) catTotals[catId] = new Array(13).fill(0);
-    monthly.forEach((v, i) => { catTotals[catId][i] += v; });
-
-    revAccounts.push({
-      id: `rev_${c.id}`, name: c.name, parentId: catId,
-      indent: 2, tentative: c.confirmed === false, section: 'pl',
-    });
+    if (!clientsByCat[catId]) clientsByCat[catId] = [];
+    clientsByCat[catId].push({ c, monthly });
   });
 
-  // カテゴリ行に合計を上書き（実績月は上書きしない）
-  const actualCols = budget.actualCols || [];
-  Object.entries(catTotals).forEach(([catId, totals]) => {
-    const existing = budget.rows[catId] || new Array(13).fill(0);
-    budget.rows[catId] = totals.map((v, i) => actualCols[i] ? existing[i] : v);
+  const revAccounts = [];
+
+  Object.entries(clientsByCat).forEach(([catId, entries]) => {
+    const accInDynamic = budget.dynamicAccounts?.find(a => a.id === catId);
+    // dynamicAccountsでparent/sectionタイプ（子を持つ）かどうか
+    const isParentType = accInDynamic &&
+      (accInDynamic.type === 'parent' || accInDynamic.type === 'section' ||
+       budget.dynamicAccounts.some(a => a.parentId === catId && !a.id.startsWith('rev_')));
+
+    if (isParentType && budget.dynamicAccounts) {
+      // 子を持つ親 → rev_ を子として注入（実績月は0にして二重計上を防ぐ）
+      entries.forEach(({ c, monthly }) => {
+        const budgetOnly = monthly.map((v, i) => actualCols[i] ? 0 : v);
+        budget.rows[`rev_${c.id}`] = [...budgetOnly, 0];
+        revAccounts.push({
+          id: `rev_${c.id}`, name: c.name, parentId: catId,
+          indent: 2, tentative: c.confirmed === false, section: 'pl',
+        });
+      });
+      // dynamicAccounts に rev_ 行を注入（親の直後）
+      const parentIdx = budget.dynamicAccounts.findIndex(a => a.id === catId);
+      if (parentIdx >= 0) {
+        let spliceAt = parentIdx + 1;
+        while (spliceAt < budget.dynamicAccounts.length &&
+               budget.dynamicAccounts[spliceAt].parentId === catId) spliceAt++;
+        const newAccs = entries.map(({ c }) => ({
+          id: `rev_${c.id}`, name: c.name, type: 'rev_display',
+          section: 'pl', parentId: catId, indent: 2, sign: 1, bold: false,
+          tentative: c.confirmed === false,
+        }));
+        budget.dynamicAccounts.splice(spliceAt, 0, ...newAccs);
+      }
+    } else {
+      // input タイプ（直接値）→ 予算月のみ合計を書き込む
+      const totals = new Array(13).fill(0);
+      entries.forEach(({ monthly }) => monthly.forEach((v, i) => { totals[i] += v; }));
+      const existing = budget.rows[catId] || new Array(13).fill(0);
+      budget.rows[catId] = totals.map((v, i) => actualCols[i] ? existing[i] : v);
+      // 静的グリッド用に revenueAccounts に追加
+      entries.forEach(({ c }) => revAccounts.push({
+        id: `rev_${c.id}`, name: c.name, parentId: catId,
+        indent: 2, tentative: c.confirmed === false, section: 'pl',
+      }));
+    }
   });
 
   budget.revenueAccounts = revAccounts;
