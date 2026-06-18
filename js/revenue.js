@@ -20,6 +20,16 @@ function saveRevenueClients(companyId, year, clients) {
   } catch {}
 }
 
+// 売上区分の定義
+const REV_CATEGORIES = [
+  { id: 'sales_advisory',   name: '顧問報酬' },
+  { id: 'sales_compliance', name: 'コンプライアンス報酬' },
+  { id: 'sales_consulting', name: 'コンサルティング報酬' },
+  { id: 'sales_ec',         name: 'EC売上' },
+  { id: 'sales_store',      name: '店舗売上' },
+  { id: 'sales_other',      name: 'その他売上' },
+];
+
 function newClient() {
   const now = new Date();
   return {
@@ -27,6 +37,7 @@ function newClient() {
     name: '',
     confirmed: true,       // 確定/未確定
     indiv: false,          // true=個人（申告月+3）、false=法人（申告月+2）
+    category: 'sales_advisory', // 売上区分
     contractStart: { year: now.getFullYear(), month: now.getMonth() + 1 },
     retainer: 0,
     filingCalMonth: -1,
@@ -145,6 +156,8 @@ function renderRevenue(container) {
           <table class="result-table" style="min-width:1100px;table-layout:fixed">
             <colgroup>
               <col style="width:170px">
+              <col style="width:120px"><!-- 区分 -->
+              <col style="width:60px"> <!-- 確定 -->
               <col style="width:110px"><!-- 契約開始 -->
               <col style="width:88px"> <!-- 顧問料 -->
               <col style="width:72px"> <!-- 決算月 -->
@@ -158,7 +171,8 @@ function renderRevenue(container) {
             <thead>
               <tr>
                 <th style="position:sticky;left:0;background:#f0fdf4;z-index:5">顧問先名</th>
-                <th style="width:60px">確定</th>
+                <th>区分</th>
+                <th>確定</th>
                 <th>契約開始</th>
                 <th>顧問料/月</th>
                 <th>決算月</th>
@@ -235,6 +249,10 @@ function renderRevTable(startMonth, months) {
 
     const isConfirmed = c.confirmed !== false;
     const rowBg = isConfirmed ? '' : 'background:#fffbeb';
+    const catOpts = REV_CATEGORIES.map(cat =>
+      `<option value="${cat.id}"${(c.category||'sales_advisory')===cat.id?' selected':''}>${cat.name}</option>`
+    ).join('');
+
     return `<tr data-ci="${ci}" style="${rowBg}">
       <td style="padding:4px 6px;position:sticky;left:0;background:${isConfirmed?'#fff':'#fffbeb'};z-index:2">
         <div style="display:flex;align-items:center;gap:5px">
@@ -243,6 +261,12 @@ function renderRevTable(startMonth, months) {
             oninput="_revClients[${ci}].name=this.value;_revSave()">
           ${!isConfirmed ? '<span style="font-size:9px;background:#fcd34d;color:#78350f;border-radius:3px;padding:1px 4px;white-space:nowrap;font-weight:700">未確定</span>' : ''}
         </div>
+      </td>
+      <td style="padding:4px 5px">
+        <select class="form-input" style="width:115px;font-size:11px;padding:3px 4px"
+          onchange="_revClients[${ci}].category=this.value;_revSave()">
+          ${catOpts}
+        </select>
       </td>
       <td style="padding:4px 5px;text-align:center">
         <label style="cursor:pointer;display:flex;align-items:center;justify-content:center;gap:3px;font-size:11px">
@@ -428,48 +452,59 @@ function applyRevenueToBudget() {
   if (!budget.rows) budget.rows = {};
   Object.keys(budget.rows).forEach(k => { if (k.startsWith('rev_')) delete budget.rows[k]; });
 
-  // sales 科目の位置を探す（直後に挿入するため）
-  let insertIdx = budget.dynamicAccounts.findIndex(a => a.id === 'sales');
-  // sales が見つからない場合は売上高に相当しそうな科目を探す
-  if (insertIdx < 0) {
-    insertIdx = budget.dynamicAccounts.findIndex(a =>
-      a.name?.includes('売上') && (a.type === 'calc' || a.type === 'header')
-    );
-  }
-  // それでも見つからなければ先頭に
-  if (insertIdx < 0) insertIdx = 0;
-
-  // 挿入位置を sales の次（既存の sales 子科目をスキップ）にする
-  let spliceAt = insertIdx + 1;
-  while (spliceAt < budget.dynamicAccounts.length &&
-         budget.dynamicAccounts[spliceAt].parentId === 'sales') {
-    spliceAt++;
-  }
-
-  // 各顧問先を補助科目として生成
-  const newAccs = [];
-  _revClients.filter(c => c.name).forEach((c, ci) => {
-    const monthly = calcClientMonthly(c, startMonth, _revBudgetYear);
-    const accId = `rev_${c.id}`;
-    newAccs.push({
-      id:        accId,
-      name:      c.name || `顧問先${ci+1}`,
-      type:      'input',
-      section:   'pl',
-      parentId:  'sales',
-      indent:    1,
-      sign:      1,
-      bold:      false,
-      isRevenue: true,
-      tentative: c.confirmed === false,
-    });
-
-    // 予算データに追加
-    budget.rows[accId] = [...monthly, 0]; // 12ヶ月 + 調整列
+  // 区分ごとに顧問先を分類
+  const byCategory = {};
+  _revClients.filter(c => c.name).forEach(c => {
+    const cat = c.category || 'sales_advisory';
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(c);
   });
 
-  // sales の直後に一括挿入
-  budget.dynamicAccounts.splice(spliceAt, 0, ...newAccs);
+  // 各区分の直後にそれぞれ挿入（後ろから処理して挿入位置がずれないようにする）
+  // まず全区分の挿入位置を計算してから、後ろ順に splice
+  const insertions = []; // { spliceAt, accs }
+
+  for (const [catId, clients] of Object.entries(byCategory)) {
+    // 区分科目の位置を探す
+    let catIdx = budget.dynamicAccounts.findIndex(a => a.id === catId);
+    if (catIdx < 0) {
+      // 区分科目がない → sales の直後にフォールバック
+      catIdx = budget.dynamicAccounts.findIndex(a => a.id === 'sales');
+      if (catIdx < 0) catIdx = 0;
+    }
+
+    // 区分科目の子をスキップして挿入位置を決める
+    let spliceAt = catIdx + 1;
+    while (spliceAt < budget.dynamicAccounts.length &&
+           budget.dynamicAccounts[spliceAt].parentId === catId) {
+      spliceAt++;
+    }
+
+    const accs = clients.map(c => {
+      const monthly = calcClientMonthly(c, startMonth, _revBudgetYear);
+      budget.rows[`rev_${c.id}`] = [...monthly, 0];
+      return {
+        id:        `rev_${c.id}`,
+        name:      c.name,
+        type:      'input',
+        section:   'pl',
+        parentId:  catId,
+        indent:    2,
+        sign:      1,
+        bold:      false,
+        isRevenue: true,
+        tentative: c.confirmed === false,
+      };
+    });
+
+    insertions.push({ spliceAt, accs });
+  }
+
+  // 後ろから挿入（位置ずれ防止）
+  insertions.sort((a, b) => b.spliceAt - a.spliceAt);
+  insertions.forEach(({ spliceAt, accs }) => {
+    budget.dynamicAccounts.splice(spliceAt, 0, ...accs);
+  });
 
   saveBudget(budget);
   window.App.currentBudget = budget;
@@ -489,7 +524,7 @@ function exportRevenueExcel() {
 
   // ヘッダー行
   const headers = [
-    '顧問先名', '確定', '区分', '契約開始年', '契約開始月',
+    '顧問先名', '確定', '法人個人', '売上区分', '契約開始年', '契約開始月',
     '顧問料/月', '決算月', '決算報酬', '年末調整',
     ...months.map(m => `コンサル_${m}`)
   ];
@@ -499,10 +534,12 @@ function exportRevenueExcel() {
     const decMonth = c.filingCalMonth > 0
       ? MONTH_LABELS_JP[((c.filingCalMonth - 1 + (c.indiv ? 9 : 10)) % 12)]
       : '';
+    const catName = REV_CATEGORIES.find(r => r.id === (c.category || 'sales_advisory'))?.name || '顧問報酬';
     return [
       c.name || '',
       c.confirmed === false ? '未確定' : '確定',
       c.indiv ? '個人' : '法人',
+      catName,
       cs.year || '',
       cs.month ? MONTH_LABELS_JP[cs.month - 1] : '',
       c.retainer || 0,
@@ -541,7 +578,8 @@ function importRevenueExcel(file) {
       const header = data[0].map(h => String(h).trim());
       const nameIdx      = header.findIndex(h => h.includes('顧問先名'));
       const confirmedIdx = header.findIndex(h => h.includes('確定') && !h.includes('法人'));
-      const indivIdx     = header.findIndex(h => h.includes('法人個人') || h.includes('個人法人') || h === '区分');
+      const indivIdx     = header.findIndex(h => h.includes('法人個人') || h.includes('個人法人'));
+      const catIdx       = header.findIndex(h => h.includes('売上区分'));
       const yearIdx      = header.findIndex(h => h.includes('契約開始年'));
       const monthIdx     = header.findIndex(h => h.includes('契約開始月'));
       const retIdx       = header.findIndex(h => h.includes('顧問料'));
@@ -581,11 +619,16 @@ function importRevenueExcel(file) {
           ? true
           : !['未確定','×','no','false','0'].includes(confirmedVal);
 
+        // 売上区分
+        const catName = catIdx >= 0 ? String(row[catIdx] ?? '').trim() : '';
+        const category = REV_CATEGORIES.find(r => r.name === catName)?.id || 'sales_advisory';
+
         imported.push({
           id: Date.now().toString(36) + Math.random().toString(36).slice(2,5) + ri,
           name,
           confirmed,
           indiv,
+          category,
           contractStart: {
             year:  parseInt(row[yearIdx]) || new Date().getFullYear(),
             month: startMonthNum >= 0 ? startMonthNum + 1 : 1,
