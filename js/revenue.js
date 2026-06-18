@@ -519,61 +519,81 @@ function applyRevenueToBudget() {
 
   const actualCols = budget.actualCols || [];
 
-  // 各クライアントの月次データを計算
-  const clientsByCat = {}; // catId → [{c, monthly}]
-  _revClients.filter(c => c.name).forEach(c => {
-    const cat   = c.category || 'sales_advisory';
-    const catId = ensureCategoryInDynamic(cat);
-    const monthly = calcClientMonthly(c, startMonth, _revBudgetYear);
-    if (!clientsByCat[catId]) clientsByCat[catId] = [];
-    clientsByCat[catId].push({ c, monthly });
-  });
+  // dynamicAccounts内で名前が一致する子科目を探す
+  function findExistingChild(catId, clientName) {
+    if (!budget.dynamicAccounts) return null;
+    return budget.dynamicAccounts.find(a =>
+      a.parentId === catId && a.name === clientName && !a.id.startsWith('rev_')
+    ) || null;
+  }
 
+  // 新規クライアント（名前不一致）のrev_注入用
+  const newRevToInject = []; // { catId, acc }
   const revAccounts = [];
 
-  Object.entries(clientsByCat).forEach(([catId, entries]) => {
-    const accInDynamic = budget.dynamicAccounts?.find(a => a.id === catId);
-    // dynamicAccountsでparent/sectionタイプ（子を持つ）かどうか
-    const isParentType = accInDynamic &&
-      (accInDynamic.type === 'parent' || accInDynamic.type === 'section' ||
-       budget.dynamicAccounts.some(a => a.parentId === catId && !a.id.startsWith('rev_')));
+  _revClients.filter(c => c.name).forEach(c => {
+    const cat     = c.category || 'sales_advisory';
+    const catId   = ensureCategoryInDynamic(cat);
+    const monthly = calcClientMonthly(c, startMonth, _revBudgetYear);
 
-    if (isParentType && budget.dynamicAccounts) {
-      // 子を持つ親 → rev_ を子として注入（実績月は0にして二重計上を防ぐ）
-      entries.forEach(({ c, monthly }) => {
-        const budgetOnly = monthly.map((v, i) => actualCols[i] ? 0 : v);
-        budget.rows[`rev_${c.id}`] = [...budgetOnly, 0];
-        revAccounts.push({
-          id: `rev_${c.id}`, name: c.name, parentId: catId,
-          indent: 2, tentative: c.confirmed === false, section: 'pl',
+    if (budget.dynamicAccounts) {
+      // dynamicAccounts パス
+      const existing = findExistingChild(catId, c.name);
+      if (existing) {
+        // 名前一致 → 同じ行の予算月だけ上書き（実績月は触らない）
+        const cur = budget.rows[existing.id] || new Array(13).fill(0);
+        budget.rows[existing.id] = monthly.map((v, i) => i < 12 && !actualCols[i] ? v : cur[i]);
+      } else {
+        // 名前不一致 → 新しいrev_行として追加
+        const revId = `rev_${c.id}`;
+        budget.rows[revId] = [...monthly.map((v, i) => actualCols[i] ? 0 : v), 0];
+        newRevToInject.push({
+          catId,
+          acc: {
+            id: revId, name: c.name, type: 'rev_display',
+            section: 'pl', parentId: catId, indent: 2, sign: 1, bold: false,
+            tentative: c.confirmed === false,
+          },
         });
-      });
-      // dynamicAccounts に rev_ 行を注入（親の直後）
-      const parentIdx = budget.dynamicAccounts.findIndex(a => a.id === catId);
-      if (parentIdx >= 0) {
-        let spliceAt = parentIdx + 1;
-        while (spliceAt < budget.dynamicAccounts.length &&
-               budget.dynamicAccounts[spliceAt].parentId === catId) spliceAt++;
-        const newAccs = entries.map(({ c }) => ({
-          id: `rev_${c.id}`, name: c.name, type: 'rev_display',
-          section: 'pl', parentId: catId, indent: 2, sign: 1, bold: false,
-          tentative: c.confirmed === false,
-        }));
-        budget.dynamicAccounts.splice(spliceAt, 0, ...newAccs);
+        revAccounts.push({ id: revId, name: c.name, parentId: catId,
+          indent: 2, tentative: c.confirmed === false, section: 'pl' });
       }
     } else {
-      // input タイプ（直接値）→ 予算月のみ合計を書き込む
-      const totals = new Array(13).fill(0);
-      entries.forEach(({ monthly }) => monthly.forEach((v, i) => { totals[i] += v; }));
-      const existing = budget.rows[catId] || new Array(13).fill(0);
-      budget.rows[catId] = totals.map((v, i) => actualCols[i] ? existing[i] : v);
-      // 静的グリッド用に revenueAccounts に追加
-      entries.forEach(({ c }) => revAccounts.push({
-        id: `rev_${c.id}`, name: c.name, parentId: catId,
-        indent: 2, tentative: c.confirmed === false, section: 'pl',
-      }));
+      // 静的ACCOUNTSパス → カテゴリ行に予算月のみ書き込む（+rev_表示）
+      const revId = `rev_${c.id}`;
+      budget.rows[revId] = [...monthly, 0];
+      revAccounts.push({ id: revId, name: c.name, parentId: catId,
+        indent: 2, tentative: c.confirmed === false, section: 'pl' });
     }
   });
+
+  // 静的ACCOUNTSパスのカテゴリ合計書き込み
+  if (!budget.dynamicAccounts) {
+    const catTotals = {};
+    revAccounts.forEach(a => {
+      const vals = budget.rows[a.id] || [];
+      if (!catTotals[a.parentId]) catTotals[a.parentId] = new Array(13).fill(0);
+      vals.forEach((v, i) => { catTotals[a.parentId][i] += v; });
+    });
+    Object.entries(catTotals).forEach(([catId, totals]) => {
+      const existing = budget.rows[catId] || new Array(13).fill(0);
+      budget.rows[catId] = totals.map((v, i) => actualCols[i] ? existing[i] : v);
+    });
+  }
+
+  // 新規クライアントをdynamicAccountsに注入（カテゴリ直後）
+  if (budget.dynamicAccounts && newRevToInject.length) {
+    const byCat = {};
+    newRevToInject.forEach(({ catId, acc }) => { (byCat[catId] = byCat[catId] || []).push(acc); });
+    Object.entries(byCat).reverse().forEach(([catId, accs]) => {
+      let idx = budget.dynamicAccounts.findIndex(a => a.id === catId);
+      if (idx < 0) return;
+      let spliceAt = idx + 1;
+      while (spliceAt < budget.dynamicAccounts.length &&
+             budget.dynamicAccounts[spliceAt].parentId === catId) spliceAt++;
+      budget.dynamicAccounts.splice(spliceAt, 0, ...accs);
+    });
+  }
 
   budget.revenueAccounts = revAccounts;
 
