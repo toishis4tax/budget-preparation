@@ -644,8 +644,10 @@ function renderPhase1Home(container, budget, company) {
         <div class="home-card-title">📄 成果物を出力</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('monthly')">月次業績報告書</button>
+          <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('prevcomp')">前期比較表</button>
           <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('cashflow')">資金繰り予測表</button>
           <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('forecast')">着地予測・税金概算</button>
+          <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('taxplanning')">決算対策提案書</button>
           <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('execcomp')">役員報酬提案書</button>
         </div>
       </div>
@@ -741,6 +743,7 @@ function renderPhase2Home(container, budget, company) {
         <div class="home-card-title">📄 成果物を出力</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('forecast')">着地予測・税金概算</button>
+          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('taxplanning')">決算対策提案書</button>
           <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('execcomp')">役員報酬提案書</button>
           <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('socialins')">社会保険試算</button>
         </div>

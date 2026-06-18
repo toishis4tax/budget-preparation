@@ -9,11 +9,13 @@ function showKichuOutput(type) {
   const title = document.getElementById('kichu_output_title');
   if (!modal) return;
   const titles = {
-    monthly:   '月次業績報告書',
-    cashflow:  '資金繰り予測表',
-    forecast:  '着地予測・税金概算',
-    execcomp:  '役員報酬提案書',
-    socialins: '社会保険試算'
+    monthly:    '月次業績報告書',
+    cashflow:   '資金繰り予測表',
+    forecast:   '着地予測・税金概算',
+    execcomp:   '役員報酬提案書',
+    socialins:  '社会保険試算',
+    prevcomp:   '前期比較表',
+    taxplanning:'決算対策提案書',
   };
   title.textContent = titles[type] || type;
   modal.style.display = 'block';
@@ -31,11 +33,13 @@ function renderKichuOutput(type, container) {
     container.innerHTML = '<div class="no-data">会社を選択してください</div>';
     return;
   }
-  if (type === 'monthly')   renderKichuMonthly(container, budget, company);
-  if (type === 'cashflow')  renderKichuCashflow(container, budget, company);
-  if (type === 'forecast')  renderKichuForecast(container, budget, company);
-  if (type === 'execcomp')  renderKichuExecComp(container, budget, company);
-  if (type === 'socialins') renderKichuSocialIns(container, budget, company);
+  if (type === 'monthly')     renderKichuMonthly(container, budget, company);
+  if (type === 'cashflow')    renderKichuCashflow(container, budget, company);
+  if (type === 'forecast')    renderKichuForecast(container, budget, company);
+  if (type === 'execcomp')    renderKichuExecComp(container, budget, company);
+  if (type === 'socialins')   renderKichuSocialIns(container, budget, company);
+  if (type === 'prevcomp')    renderKichuPrevComp(container, budget, company);
+  if (type === 'taxplanning') renderKichuTaxPlanning(container, budget, company);
 }
 
 // ===== Helper: 実績＋予算をブレンドした着地予測用PL =====
@@ -977,4 +981,379 @@ function renderKichuSocialIns(container, budget, company) {
     document.getElementById('si_pref').value = defaultPref;
     window.calcSocialInsUI();
   }
+}
+
+// ===== ⑥ 前期比較表 =====
+function renderKichuPrevComp(container, budget, company) {
+  var curYear   = window.App ? window.App.currentYear : new Date().getFullYear();
+  var prevBudget = (typeof getBudget === 'function') ? getBudget(company.id, curYear - 1) : null;
+
+  var curPL  = getKichuPL(budget);
+  var prevPL = prevBudget ? getKichuPL(prevBudget) : null;
+
+  if (!curPL) { container.innerHTML = '<div class="no-data">当期データがありません</div>'; return; }
+
+  var ROWS = [
+    { label: '売上高',     key: 'sales',  bold: true  },
+    { label: '売上総利益', key: 'gross',  bold: true  },
+    { label: '（粗利率）', key: '_gross_rate', rate: true },
+    { label: '販管費',     key: 'sga',    bold: false },
+    { label: '営業利益',   key: 'op',     bold: true  },
+    { label: '（営業利益率）', key: '_op_rate', rate: true },
+    { label: '経常利益',   key: 'ord',    bold: true  },
+    { label: '当期純利益', key: 'net',    bold: true  },
+  ];
+
+  var sum = function(arr) { return arr ? arr.reduce(function(a,v){ return a+(v||0); }, 0) : 0; };
+
+  var curTotals  = { sales: sum(curPL.sales), gross: sum(curPL.gross), sga: sum(curPL.sga), op: sum(curPL.op), ord: sum(curPL.ord), net: sum(curPL.net) };
+  var prevTotals = prevPL ? { sales: sum(prevPL.sales), gross: sum(prevPL.gross), sga: sum(prevPL.sga), op: sum(prevPL.op), ord: sum(prevPL.ord), net: sum(prevPL.net) } : null;
+
+  // 月次列ヘッダー
+  var startMonth = budget.startMonth || 4;
+  var labels = getMonthLabels(startMonth);
+  var actualCols = getActualCols(budget);
+  var actMon = actualCols.filter(Boolean).length;
+
+  // 月次テーブル（当期 vs 前期）
+  var monthTh = '<th class="kichu-label-th">科目</th>';
+  for (var m = 0; m < 12; m++) {
+    monthTh += '<th style="font-size:10px;' + (actualCols[m] ? 'background:#1a5276;color:#fff' : '') + '">' + labels[m] + '</th>';
+  }
+  monthTh += '<th style="background:#2e4057;color:#fff">年間計</th>';
+
+  var monthRows = ROWS.filter(function(r){ return !r.rate; }).map(function(row) {
+    var boldCls = row.bold ? ' kichu-bold' : '';
+    var cells = '';
+    for (var m = 0; m < 12; m++) {
+      var cv = (curPL[row.key] || [])[m] || 0;
+      var pv = prevPL ? ((prevPL[row.key] || [])[m] || 0) : null;
+      var diff = pv !== null ? cv - pv : null;
+      var diffStr = diff !== null ? (diff >= 0 ? '+' + fmtK(diff) : fmtK(diff)) : '—';
+      var diffColor = diff !== null ? (diff >= 0 ? '#059669' : '#dc2626') : '#94a3b8';
+      cells += '<td style="padding:3px 6px;text-align:right">' +
+        '<div class="' + boldCls + '">' + fmtK(cv) + '</div>' +
+        (pv !== null ? '<div style="font-size:9px;color:#64748b">' + fmtK(pv) + '</div>' : '') +
+        '<div style="font-size:9px;color:' + diffColor + '">' + diffStr + '</div>' +
+      '</td>';
+    }
+    var ct = curTotals[row.key] || 0;
+    var pt = prevTotals ? (prevTotals[row.key] || 0) : null;
+    var td = pt !== null ? ct - pt : null;
+    var tStr = td !== null ? (td >= 0 ? '+' + fmtK(td) : fmtK(td)) : '—';
+    var tColor = td !== null ? (td >= 0 ? '#059669' : '#dc2626') : '#94a3b8';
+    cells += '<td style="background:#eef2ff;padding:3px 8px;text-align:right">' +
+      '<div class="kichu-bold">' + fmtK(ct) + '</div>' +
+      (pt !== null ? '<div style="font-size:9px;color:#64748b">' + fmtK(pt) + '</div>' : '') +
+      '<div style="font-size:9px;color:' + tColor + '">' + tStr + '</div>' +
+    '</td>';
+    return '<tr><td class="kichu-label' + boldCls + '">' + escHtml(row.label) + '</td>' + cells + '</tr>';
+  }).join('');
+
+  // サマリー行（科目別・年間比較）
+  var pct = function(cur, prev) {
+    if (!prev || prev === 0) return '—';
+    var p = (cur - prev) / Math.abs(prev) * 100;
+    return (p >= 0 ? '+' : '') + p.toFixed(1) + '%';
+  };
+
+  var summaryRows = ROWS.map(function(row) {
+    var cur, prev, boldCls = row.bold ? ' kichu-bold' : '';
+    if (row.rate) {
+      var baseKey = row.key === '_gross_rate' ? 'gross' : 'op';
+      cur  = curTotals.sales  ? curTotals[baseKey]  / curTotals.sales  * 100 : 0;
+      prev = prevTotals && prevTotals.sales ? prevTotals[baseKey] / prevTotals.sales * 100 : null;
+      var diff = prev !== null ? cur - prev : null;
+      var diffStr = diff !== null ? (diff >= 0 ? '+' : '') + diff.toFixed(1) + 'pt' : '—';
+      var diffColor = diff !== null ? (diff >= 0 ? '#059669' : '#dc2626') : '#94a3b8';
+      return '<tr style="background:#f8fafc">' +
+        '<td class="kichu-label" style="color:#64748b;font-size:11px">' + escHtml(row.label) + '</td>' +
+        '<td style="text-align:right;color:#64748b;font-size:11px">' + cur.toFixed(1) + '%</td>' +
+        '<td style="text-align:right;color:#64748b;font-size:11px">' + (prev !== null ? prev.toFixed(1) + '%' : '—') + '</td>' +
+        '<td style="text-align:right;font-size:11px;color:' + diffColor + '">' + diffStr + '</td>' +
+        '<td></td>' +
+      '</tr>';
+    }
+    cur  = curTotals[row.key]  || 0;
+    prev = prevTotals ? (prevTotals[row.key] || 0) : null;
+    var diff = prev !== null ? cur - prev : null;
+    var p    = prev !== null ? pct(cur, prev) : '—';
+    var diffColor = diff !== null ? (diff >= 0 ? '#059669' : '#dc2626') : '#94a3b8';
+    return '<tr>' +
+      '<td class="kichu-label' + boldCls + '">' + escHtml(row.label) + '</td>' +
+      '<td class="' + boldCls + '" style="text-align:right">' + fmtK(cur) + '</td>' +
+      '<td style="text-align:right;color:#64748b">' + (prev !== null ? fmtK(prev) : '—') + '</td>' +
+      '<td style="text-align:right;color:' + diffColor + '">' + (diff !== null ? (diff >= 0 ? '+' : '') + fmtK(diff) : '—') + '</td>' +
+      '<td style="text-align:right;color:' + diffColor + ';font-weight:600">' + p + '</td>' +
+    '</tr>';
+  }).join('');
+
+  var noPrevNote = prevPL ? '' :
+    '<div style="font-size:11px;background:#fff7ed;border-left:3px solid #f59e0b;padding:8px 12px;margin-bottom:12px;border-radius:4px">⚠️ 前期データ（' + (curYear-1) + '年度）が未登録のため前期比較列は表示できません。前期データを登録してください。</div>';
+
+  container.innerHTML = `
+    <div class="kichu-doc-title">${escHtml(company.name)} — 前期比較表</div>
+    <div class="kichu-doc-sub">${curYear}年度　作成日: ${_kichuToday()}</div>
+    ${noPrevNote}
+
+    <div class="kichu-section">
+      <div class="kichu-section-title">年間サマリー（当期 vs 前期）</div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:6px">単位：千円　当期着地予測（実績${actMon}か月＋残り予算）vs 前期実績</div>
+      <div style="overflow-x:auto">
+        <table class="kichu-table">
+          <thead>
+            <tr>
+              <th class="kichu-label-th">科目</th>
+              <th>当期着地（千円）</th>
+              <th>前期実績（千円）</th>
+              <th>増減額（千円）</th>
+              <th>増減率</th>
+            </tr>
+          </thead>
+          <tbody>${summaryRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="kichu-section">
+      <div class="kichu-section-title">月次明細（上段: 当期 / 中段: 前期 / 下段: 増減）</div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:6px">単位：千円　青背景＝実績月</div>
+      <div style="overflow-x:auto">
+        <table class="kichu-table" style="font-size:11px">
+          <thead><tr>${monthTh}</tr></thead>
+          <tbody>${monthRows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ===== ⑦ 決算対策提案書 =====
+function renderKichuTaxPlanning(container, budget, company) {
+  var curYear    = window.App ? window.App.currentYear : new Date().getFullYear();
+  var pl         = getKichuPL(budget);
+  if (!pl) { container.innerHTML = '<div class="no-data">データがありません</div>'; return; }
+
+  var capital    = company.capital || 10000000;
+  var isSmall    = capital <= 100000000; // 中小企業判定（1億円以下）
+  var actualCols = getActualCols(budget);
+  var actMon     = actualCols.filter(Boolean).length;
+  var remainMon  = 12 - actMon;
+  var startMonth = budget.startMonth || 4;
+  var labels     = getMonthLabels(startMonth);
+
+  var sum = function(arr) { return arr ? arr.reduce(function(a,v){ return a+(v||0); }, 0) : 0; };
+  var landingPretax = sum(pl.pretax);
+  var landingSales  = sum(pl.sales);
+  var taxBreak = landingPretax > 0 ? calcAllTax(landingPretax, capital) : null;
+  var currentTax = taxBreak ? taxBreak.total : 0;
+
+  // 決算月ラベル
+  var lastMonIdx  = (startMonth - 2 + 12) % 12; // 期末月インデックス（0-based暦月）
+  var lastFisIdx  = 11; // 期末 = 第12月
+  var lastMonLabel = labels[lastFisIdx];
+  var endMonthCal  = ((startMonth - 1 + 11) % 12) + 1; // カレンダー上の決算月
+
+  // 節税メニュー定義
+  var measures = [];
+
+  if (landingPretax > 0) {
+    // 倒産防止共済
+    var touson_max = Math.min(2400000, Math.floor(landingPretax * 0.5 / 200000) * 200000);
+    if (touson_max > 0) {
+      var touson_tax = calcAllTax(Math.max(0, landingPretax - touson_max), capital);
+      measures.push({
+        name: '経営セーフティ共済（倒産防止共済）',
+        desc: '月額最大20万円・年間240万円まで損金算入。解約時は益金算入に注意。',
+        limit: '年間240万円',
+        amount: touson_max,
+        taxSave: currentTax - (touson_tax ? touson_tax.total : 0),
+        priority: 'high',
+        deadline: '決算月末までに加入・掛金払込',
+        note: '解約手当金は益金。40ヶ月以上加入で全額返戻。',
+        isSmallOnly: false,
+      });
+    }
+
+    // 決算賞与
+    var bonus_est = Math.min(Math.floor(landingPretax * 0.3 / 100000) * 100000, 5000000);
+    if (bonus_est > 0) {
+      var bonus_tax = calcAllTax(Math.max(0, landingPretax - bonus_est), capital);
+      measures.push({
+        name: '決算賞与の支給',
+        desc: '決算月末日までに全従業員へ通知・同時期支給で損金算入可。役員賞与は事前確定届出が必要。',
+        limit: '上限なし（相当額）',
+        amount: bonus_est,
+        taxSave: currentTax - (bonus_tax ? bonus_tax.total : 0),
+        priority: 'high',
+        deadline: '決算日までに通知・支給（または未払計上）',
+        note: '役員賞与は事前確定届出給与の届出が必要。従業員分は翌月末支払でも可。',
+        isSmallOnly: false,
+      });
+    }
+
+    // 少額減価償却（中小のみ）
+    if (isSmall) {
+      var shoug_est = Math.min(Math.floor(landingPretax * 0.15 / 300000) * 300000, 3000000);
+      if (shoug_est > 0) {
+        var shoug_tax = calcAllTax(Math.max(0, landingPretax - shoug_est), capital);
+        measures.push({
+          name: '少額減価償却資産の取得（30万円未満）',
+          desc: '取得価額30万円未満の資産は全額即時損金算入（年間300万円上限）。決算前の設備購入で活用。',
+          limit: '年間300万円',
+          amount: shoug_est,
+          taxSave: currentTax - (shoug_tax ? shoug_tax.total : 0),
+          priority: 'mid',
+          deadline: '決算日までに取得・事業供用',
+          note: '中小企業者等の少額減価償却資産の特例（措法67条の5）。令和8年3月末まで。',
+          isSmallOnly: true,
+        });
+      }
+    }
+
+    // 修繕費・前払費用
+    var repair_est = Math.round(landingPretax * 0.05 / 100000) * 100000;
+    if (repair_est > 200000) {
+      measures.push({
+        name: '修繕費・前払費用の計上',
+        desc: '事務所・設備の修繕や保険料・リース料等の短期前払費用を計上。継続適用が条件。',
+        limit: '実費・継続適用要件あり',
+        amount: repair_est,
+        taxSave: null,
+        priority: 'mid',
+        deadline: '決算日までに支出・契約',
+        note: '短期前払費用は翌年以降も継続して同様の処理が必要。',
+        isSmallOnly: false,
+      });
+    }
+
+    // 不良在庫・貸倒引当金
+    measures.push({
+      name: '不良在庫・不良債権の評価損・貸倒処理',
+      desc: '回収見込みのない売掛金の貸倒損失、陳腐化した棚卸資産の評価損を計上。',
+      limit: '実態に応じて',
+      amount: null,
+      taxSave: null,
+      priority: 'mid',
+      deadline: '決算日まで',
+      note: '税務上の要件（事実上の貸倒等）を満たすか顧問税理士と確認。',
+      isSmallOnly: false,
+    });
+
+    // 小規模企業共済
+    if (isSmall) {
+      measures.push({
+        name: '小規模企業共済（個人向け）',
+        desc: '経営者個人の掛金（月最大7万円・年84万円）が全額所得控除。役員報酬と組み合わせると効果的。',
+        limit: '月7万円（年84万円）',
+        amount: 840000,
+        taxSave: null,
+        priority: 'low',
+        deadline: '加入は随時。掛金は月払い。',
+        note: '法人の損金ではなく経営者個人の所得控除。役員報酬最適化とセットで検討。',
+        isSmallOnly: true,
+      });
+    }
+  }
+
+  // 利益が少ない・赤字の場合
+  if (landingPretax <= 0) {
+    measures.push({
+      name: '繰越欠損金の確認',
+      desc: '当期が赤字の場合、翌期以降10年間繰越可能。過去の黒字と通算できなかった欠損金の確認を。',
+      limit: '翌期以降10年間',
+      amount: null,
+      taxSave: null,
+      priority: 'high',
+      deadline: '申告時に確認',
+      note: '繰越欠損金は法人税申告書別表七(一)で管理。',
+      isSmallOnly: false,
+    });
+    measures.push({
+      name: '中間納付の還付確認',
+      desc: '中間納付額が確定税額を超える場合は還付申請が可能。資金繰りへの影響を確認。',
+      limit: '—',
+      amount: null,
+      taxSave: null,
+      priority: 'high',
+      deadline: '申告書提出時',
+      note: '',
+      isSmallOnly: false,
+    });
+  }
+
+  var priorityLabel = { high: '優先度：高', mid: '優先度：中', low: '優先度：低' };
+  var priorityColor = { high: '#dc2626', mid: '#d97706', low: '#64748b' };
+  var priorityBg    = { high: '#fef2f2', mid: '#fffbeb', low: '#f8fafc' };
+
+  var measureCards = measures.map(function(m) {
+    var amtHtml = m.amount ? '<span style="font-size:13px;font-weight:600;color:#1e40af">' + fmtK(m.amount) + '千円の損金算入目安</span>' : '';
+    var taxHtml = m.taxSave && m.taxSave > 0
+      ? '<span style="font-size:12px;color:#059669">→ 概算節税効果: <strong>' + fmtK(m.taxSave) + '千円</strong></span>'
+      : '';
+    return `
+      <div style="background:${priorityBg[m.priority]};border:0.5px solid ${priorityColor[m.priority]}44;border-left:4px solid ${priorityColor[m.priority]};border-radius:0 8px 8px 0;padding:14px 16px;margin-bottom:10px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px">
+          <div style="font-size:14px;font-weight:600;color:#1e293b">${escHtml(m.name)}</div>
+          <div style="font-size:10px;color:${priorityColor[m.priority]};background:${priorityColor[m.priority]}18;padding:2px 8px;border-radius:99px;white-space:nowrap;flex-shrink:0">${priorityLabel[m.priority]}</div>
+        </div>
+        <div style="font-size:12px;color:#475569;line-height:1.6;margin-bottom:6px">${escHtml(m.desc)}</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:4px">
+          ${amtHtml}
+          ${taxHtml}
+        </div>
+        <div style="font-size:11px;color:#64748b;display:flex;gap:16px;flex-wrap:wrap">
+          <span>⏰ ${escHtml(m.deadline)}</span>
+          <span>上限: ${escHtml(m.limit)}</span>
+        </div>
+        ${m.note ? '<div style="font-size:10px;color:#94a3b8;margin-top:4px">※ ' + escHtml(m.note) + '</div>' : ''}
+      </div>`;
+  }).join('');
+
+  var lastActLabel = actMon > 0 ? labels[actMon - 1] : '—';
+  var companyId = company.id || 'default';
+  var advKey2   = 'taxplan_advice_' + companyId + '_' + curYear;
+  var advText2  = localStorage.getItem(advKey2) || '';
+
+  container.innerHTML = `
+    <div class="kichu-doc-title">${escHtml(company.name)} — 決算対策提案書</div>
+    <div class="kichu-doc-sub">${curYear}年度　作成日: ${_kichuToday()}</div>
+
+    <div class="kichu-section">
+      <div class="kichu-summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+        <div class="kichu-summary-card">
+          <div class="kichu-summary-label">着地予測 税引前利益</div>
+          <div class="kichu-summary-val ${landingPretax >= 0 ? 'positive' : 'negative'}">${fmtK(landingPretax)}千円</div>
+        </div>
+        <div class="kichu-summary-card">
+          <div class="kichu-summary-label">現状の概算税額</div>
+          <div class="kichu-summary-val ${currentTax > 0 ? 'negative' : ''}">${fmtK(currentTax)}千円</div>
+        </div>
+        <div class="kichu-summary-card">
+          <div class="kichu-summary-label">実績確定済み</div>
+          <div class="kichu-summary-val">${actMon}か月（〜${lastActLabel}）</div>
+        </div>
+        <div class="kichu-summary-card" style="border-color:#ef4444;border-width:2px">
+          <div class="kichu-summary-label">決算まで残り</div>
+          <div class="kichu-summary-val" style="color:#dc2626">${remainMon}か月</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kichu-section">
+      <div class="kichu-section-title">今期実施可能な決算対策</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:12px">
+        ※ 金額はすべて概算・参考値です。実施前に必ず詳細を確認してください。
+      </div>
+      ${measureCards || '<div class="no-data-small">該当する対策項目がありません</div>'}
+    </div>
+
+    <div class="kichu-section">
+      <div class="kichu-section-title">税理士コメント・追加対策メモ</div>
+      <textarea class="kichu-advice-area" id="kichu_taxplan_advice"
+        placeholder="個別の対策案・顧問先へのメモを入力..."
+        onblur="localStorage.setItem('${advKey2}', this.value)"
+      >${escHtml(advText2)}</textarea>
+    </div>
+  `;
 }
