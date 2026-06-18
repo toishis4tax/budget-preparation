@@ -1041,6 +1041,7 @@ function executeImport() {
       if (isBS) budget.dynamicAccounts = budget.dynamicAccounts.filter(a => !a.section?.startsWith('bs'));
       budget.dynamicAccounts = [...budget.dynamicAccounts, ...result.dynamicAccounts];
     }
+    budget.dynamicAccountsFromImport = true;
   }
 
   // インポートした月数を自動検出してactualThroughを設定

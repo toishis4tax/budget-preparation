@@ -447,8 +447,12 @@ function applyRevenueToBudget() {
 
   // 既存の rev_ データを全削除（重複防止）
   Object.keys(budget.rows).forEach(k => { if (k.startsWith('rev_')) delete budget.rows[k]; });
-  // dynamicAccounts にある rev_ も削除
-  if (budget.dynamicAccounts) {
+
+  // dynamicAccounts が試算表インポート由来でない場合はクリア
+  // （以前のコードでACCOUNTSコピーとして設定されたものをリセット）
+  if (budget.dynamicAccounts && !budget.dynamicAccountsFromImport) {
+    budget.dynamicAccounts = null;
+  } else if (budget.dynamicAccounts) {
     budget.dynamicAccounts = budget.dynamicAccounts.filter(a => !a.id.startsWith('rev_'));
   }
 
