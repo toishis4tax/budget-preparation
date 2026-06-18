@@ -269,6 +269,27 @@ function renderKichuMonthly(container, budget, company) {
 }
 
 // ===== ② 資金繰り予測表 =====
+
+// 前期末現預金を取得（budgetPrev1のBS現金・預金科目から）
+function _getPrevYearCash(budgetPrev1) {
+  if (!budgetPrev1) return null;
+  if (budgetPrev1.dynamicAccounts && budgetPrev1.dynamicAccounts.length) {
+    var cashAcc = budgetPrev1.dynamicAccounts.find(function(a) {
+      return a.name && a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section && a.section.startsWith('bs');
+    });
+    if (cashAcc) {
+      var src = budgetPrev1.actualRows || budgetPrev1.rows || {};
+      var vals = src[cashAcc.id];
+      if (vals) {
+        for (var i = 11; i >= 0; i--) {
+          if (vals[i] != null && vals[i] !== 0) return vals[i];
+        }
+      }
+    }
+  }
+  return null;
+}
+
 function renderKichuCashflow(container, budget, company) {
   var pl = getKichuPL(budget);
   if (!pl) { container.innerHTML = '<div class="no-data">データがありません</div>'; return; }
@@ -277,43 +298,112 @@ function renderKichuCashflow(container, budget, company) {
   var labels     = getMonthLabels(startMonth);
   var curYear    = window.App ? window.App.currentYear : new Date().getFullYear();
   var companyId  = company.id || 'default';
-  var lsKey      = 'kichu_cf_' + companyId + '_' + curYear;
-  var startCash  = parseFloat(localStorage.getItem(lsKey) || '0') * 1000; // stored in 千円, convert to 円
+  var lsKey      = 'kichu_cf2_' + companyId + '_' + curYear;
 
-  // Build monthly data
+  // 前期末現預金を自動取得
+  var budgetPrev1    = (typeof getBudget === 'function') ? getBudget(company.id, curYear - 1) : null;
+  var prevCashAuto   = _getPrevYearCash(budgetPrev1);
+
+  // localStorage から設定値を読み込む
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(lsKey) || '{}'); } catch(e) {}
+
+  // 期首現預金: 手動入力 > 前期末自動取得
+  var startCashK = saved.startCash != null ? saved.startCash
+                 : (prevCashAuto != null ? Math.round(prevCashAuto / 1000) : 0);
+  var prevCorpTaxK = saved.prevCorpTax || 0;  // 前期法人税等（千円）
+  var prevCtaxK    = saved.prevCtax    || 0;  // 前期消費税等（千円）
+
+  // 中間納付: 会社設定から（千円単位に変換）
+  var interimCorpK = Math.round(((company.prepaid1 || 0) + (company.prepaid2 || 0)) / 1000);
+  var interimCtaxK = Math.round((company.ctaxPrepaid || 0) / 1000);
+
+  // 納税アウトフロー（千円、負値）
+  // 前期申告納税: 第2月（index 1）/ 中間納付: 第8月（index 7）
+  var taxOutflow = new Array(12).fill(0);
+  if (prevCorpTaxK > 0 || prevCtaxK > 0) taxOutflow[1] -= (prevCorpTaxK + prevCtaxK);
+  if (interimCorpK > 0)                  taxOutflow[7] -= interimCorpK;
+  if (interimCtaxK > 0)                  taxOutflow[7] -= interimCtaxK;
+
+  var startCash = startCashK * 1000;
+
+  function save() {
+    var sc = parseFloat(document.getElementById('kichu_cf2_startcash')?.value || startCashK);
+    var pc = parseFloat(document.getElementById('kichu_cf2_prevcorp')?.value  || 0);
+    var px = parseFloat(document.getElementById('kichu_cf2_prevctax')?.value  || 0);
+    localStorage.setItem(lsKey, JSON.stringify({ startCash: sc, prevCorpTax: pc, prevCtax: px }));
+    renderKichuOutput('cashflow', document.getElementById('kichu_output_body'));
+  }
+  window._kichuCfSave = save;
+
+  // 月次データ構築
   var monthData = [];
-  var cumCF = 0;
+  var cumCF = 0, runCash = startCash;
   for (var i = 0; i < 12; i++) {
-    var ord = pl.ord[i] || 0;
-    var cf  = Math.round(ord * 0.662);
-    cumCF += cf;
-    monthData.push({ label: labels[i], ord: ord, cf: cf, cumCF: cumCF, endCash: startCash + cumCF });
+    var ord    = pl.ord[i] || 0;
+    var opCF   = Math.round(ord * 0.662);
+    var taxOut = taxOutflow[i] * 1000; // 千円 → 円
+    var netCF  = opCF + taxOut;
+    cumCF   += netCF;
+    runCash += netCF;
+    monthData.push({ label: labels[i], ord: ord, opCF: opCF, taxOut: taxOut, netCF: netCF, cumCF: cumCF, endCash: runCash });
   }
 
+  var hasTax = taxOutflow.some(function(v){ return v !== 0; });
+
   var tableRows = monthData.map(function(d) {
+    var taxCell = hasTax
+      ? '<td class="' + (d.taxOut < 0 ? 'kichu-neg' : '') + '" style="background:#fff8f0">' + (d.taxOut !== 0 ? fmtK(d.taxOut) : '—') + '</td>'
+      : '';
     return '<tr>' +
       '<td class="kichu-label">' + escHtml(d.label) + '</td>' +
-      '<td class="' + (d.ord < 0 ? 'kichu-neg' : '') + '">' + fmtK(d.ord) + '</td>' +
-      '<td class="' + (d.cf  < 0 ? 'kichu-neg' : '') + '">' + fmtK(d.cf)  + '</td>' +
-      '<td class="' + (d.cumCF < 0 ? 'kichu-neg' : '') + '">' + fmtK(d.cumCF) + '</td>' +
+      '<td class="' + (d.ord   < 0 ? 'kichu-neg' : '') + '">' + fmtK(d.ord)     + '</td>' +
+      '<td class="' + (d.opCF  < 0 ? 'kichu-neg' : '') + '">' + fmtK(d.opCF)    + '</td>' +
+      taxCell +
+      '<td class="' + (d.netCF < 0 ? 'kichu-neg' : '') + '">' + fmtK(d.netCF)   + '</td>' +
       '<td class="' + (d.endCash < 0 ? 'kichu-neg kichu-bold' : 'kichu-bold') + '">' + fmtK(d.endCash) + '</td>' +
     '</tr>';
   }).join('');
 
+  var taxTh = hasTax ? '<th style="background:#7c4700;color:#fff;white-space:nowrap">納税等（千円）</th>' : '';
+
   var canvasId = 'kichu_cf_chart_' + Date.now();
+
+  var autoNote = prevCashAuto != null
+    ? '前期末現預金より自動取得: ' + Math.round(prevCashAuto/1000).toLocaleString() + '千円'
+    : '前期データなし（手動入力）';
+
+  var interimNote = (interimCorpK > 0 || interimCtaxK > 0)
+    ? '中間納付 法人税等 ' + interimCorpK.toLocaleString() + '千円・消費税 ' + interimCtaxK.toLocaleString() + '千円 → 第8月に計上'
+    : '';
 
   container.innerHTML = `
     <div class="kichu-doc-title">${escHtml(company.name)} — 資金繰り予測表</div>
     <div class="kichu-doc-sub">${curYear}年度　作成日: ${_kichuToday()}</div>
 
     <div class="kichu-section">
-      <div class="kichu-section-title">期首現預金残高</div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-        <input type="number" id="kichu_cf_startcash" class="form-input" style="width:200px"
-          placeholder="0" value="${parseFloat(localStorage.getItem(lsKey) || '0')}"
-          onchange="localStorage.setItem('${lsKey}', this.value||'0'); renderKichuOutput('cashflow', document.getElementById('kichu_output_body'))">
-        <span style="font-size:12px;color:var(--text-muted)">千円（入力後Enterまたはタブで反映）</span>
+      <div class="kichu-section-title">基本設定</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:8px">
+        <div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">期首現預金残高（千円）</label>
+          <input type="number" id="kichu_cf2_startcash" class="form-input" style="width:100%"
+            value="${startCashK}" placeholder="0" onchange="window._kichuCfSave()">
+          <div style="font-size:10px;color:#64748b;margin-top:3px">📌 ${escHtml(autoNote)}</div>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">前期法人税等 申告納税額（千円）</label>
+          <input type="number" id="kichu_cf2_prevcorp" class="form-input" style="width:100%"
+            value="${prevCorpTaxK}" placeholder="0" onchange="window._kichuCfSave()">
+          <div style="font-size:10px;color:#64748b;margin-top:3px">第2月（${escHtml(labels[1])}）に支出</div>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">前期消費税等 申告納税額（千円）</label>
+          <input type="number" id="kichu_cf2_prevctax" class="form-input" style="width:100%"
+            value="${prevCtaxK}" placeholder="0" onchange="window._kichuCfSave()">
+          <div style="font-size:10px;color:#64748b;margin-top:3px">第2月（${escHtml(labels[1])}）に支出</div>
+        </div>
       </div>
+      ${interimNote ? '<div style="font-size:11px;background:#fffbeb;border-left:3px solid #f59e0b;padding:6px 10px;border-radius:4px">⚙️ ' + escHtml(interimNote) + '</div>' : ''}
     </div>
 
     <div class="kichu-section">
@@ -323,14 +413,16 @@ function renderKichuCashflow(container, budget, company) {
             <tr>
               <th class="kichu-label-th">月</th>
               <th>経常利益（千円）</th>
-              <th>推定CF（千円）</th>
-              <th>累計CF（千円）</th>
-              <th>推定期末現預金（千円）</th>
+              <th>営業CF推定（千円）</th>
+              ${taxTh}
+              <th>月次純CF（千円）</th>
+              <th style="background:#2e4057;color:#fff">推定期末現預金（千円）</th>
             </tr>
           </thead>
           <tbody>${tableRows}</tbody>
         </table>
       </div>
+      <div style="font-size:10px;color:#64748b;margin-top:4px">単位：千円　営業CFは経常利益×66.2%の簡易推定</div>
     </div>
 
     <div class="kichu-section">
@@ -339,7 +431,7 @@ function renderKichuCashflow(container, budget, company) {
     </div>
 
     <div style="font-size:11px;color:#64748b;border-top:1px solid var(--border);padding-top:10px;margin-top:8px">
-      ※ 推定CFは経常利益×66.2%の簡易計算です。詳細な資金繰りは別途ご確認ください。
+      ※ 推定CFは経常利益×66.2%の簡易計算です。借入返済・設備投資等は含まれていません。詳細は別途ご確認ください。
     </div>
   `;
 
@@ -356,7 +448,7 @@ function renderKichuCashflow(container, budget, company) {
         datasets: [
           {
             label: '推定期末現預金（千円）',
-            data: monthData.map(function(d){ return d.endCash / 1000; }),
+            data: monthData.map(function(d){ return Math.round(d.endCash / 1000); }),
             borderColor: '#2563eb',
             backgroundColor: 'rgba(37,99,235,0.1)',
             fill: true,
@@ -376,9 +468,7 @@ function renderKichuCashflow(container, budget, company) {
           }
         },
         scales: {
-          y: {
-            ticks: { callback: function(v){ return v.toLocaleString() + '千'; } }
-          }
+          y: { ticks: { callback: function(v){ return v.toLocaleString() + '千'; } } }
         }
       }
     });
