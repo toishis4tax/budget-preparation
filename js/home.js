@@ -647,7 +647,6 @@ function renderPhase1Home(container, budget, company) {
           <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('cashflow')">資金繰り予測表</button>
           <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('forecast')">着地予測・税金概算</button>
           <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('execcomp')">役員報酬提案書</button>
-          <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('socialins')">社会保険試算</button>
         </div>
       </div>
     </div>`;
