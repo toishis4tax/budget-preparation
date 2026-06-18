@@ -480,36 +480,27 @@ function renderKichuForecast(container, budget, company) {
   var pl = getKichuPL(budget);
   if (!pl) { container.innerHTML = '<div class="no-data">データがありません</div>'; return; }
 
-  var actualThrough = budget.actualThrough != null ? budget.actualThrough : -1;
-  var startMonth    = budget.startMonth || 4;
-  var labels        = getMonthLabels(startMonth);
-  var curYear       = window.App ? window.App.currentYear : new Date().getFullYear();
-  var capital       = company.capital || 10000000;
+  var actualCols = getActualCols(budget);
+  var actMon     = actualCols.filter(Boolean).length;
+  var lastActIdx = actualCols.reduce(function(last, v, i){ return v ? i : last; }, -1);
+  var startMonth = budget.startMonth || 4;
+  var labels     = getMonthLabels(startMonth);
+  var curYear    = window.App ? window.App.currentYear : new Date().getFullYear();
+  var capital    = company.capital || 10000000;
 
   // Landing forecast = sum all 12 months (actual months already contain actual data)
   var annualPretax = _kichuSum(pl.pretax);
   var annualNet    = _kichuSum(pl.net);
-  var annualOp     = _kichuSum(pl.op);
   var annualSales  = _kichuSum(pl.sales);
-
-  // Budget = same (in this app budget.rows is the only source)
-  var budgetPretax = annualPretax;
-
-  // Actual cumulative
-  var actualCumPretax = actualThrough >= 0
-    ? pl.pretax.slice(0, actualThrough + 1).reduce(function(a,v){ return a+(v||0); }, 0)
-    : 0;
 
   // 純予算PL（比較用: 実績に関係なく予算入力値のみ）
   var budgetOnlyPL = getKichuBudgetPL(budget);
   var budgetAnnualPretax = budgetOnlyPL ? _kichuSum(budgetOnlyPL.pretax) : annualPretax;
   var budgetAnnualNet    = budgetOnlyPL ? _kichuSum(budgetOnlyPL.net)    : annualNet;
 
-  // 実績累計（actualThrough月まで）
-  var actualCumPretax = actualThrough >= 0
-    ? pl.pretax.slice(0, actualThrough + 1).reduce(function(a,v){ return a+(v||0); }, 0) : null;
-  var actualCumSales = actualThrough >= 0
-    ? pl.sales.slice(0, actualThrough + 1).reduce(function(a,v){ return a+(v||0); }, 0) : null;
+  // 実績累計（実績月のみ合計）
+  var actualCumPretax = actMon > 0
+    ? pl.pretax.reduce(function(a,v,i){ return actualCols[i] ? a+(v||0) : a; }, 0) : null;
 
   // 着地予測 = ブレンド済みpl の合計（実績月＋残り予算月）
   var landingPretax = annualPretax;
@@ -596,7 +587,7 @@ function renderKichuForecast(container, budget, company) {
 
   // Monthly mini-table
   var miniRows = labels.map(function(lbl, i) {
-    var isActual = i <= actualThrough;
+    var isActual = actualCols[i];
     return '<tr>' +
       '<td class="kichu-label">' + escHtml(lbl) + (isActual ? ' <span style="font-size:9px;color:#2196f3">実</span>' : '') + '</td>' +
       '<td class="' + (isActual ? 'kichu-actual' : 'kichu-forecast') + '">' + fmtK(pl.pretax[i] || 0) + '</td>' +
@@ -615,9 +606,9 @@ function renderKichuForecast(container, budget, company) {
           <div class="kichu-summary-label">年間予算利益（税引前）</div>
           <div class="kichu-summary-val ${budgetAnnualPretax >= 0 ? 'positive' : 'negative'}">${fmtK(budgetAnnualPretax)}千円</div>
         </div>
-        ${actualThrough >= 0 ? `
+        ${actMon > 0 ? `
         <div class="kichu-summary-card">
-          <div class="kichu-summary-label">実績累計（${labels[actualThrough]}まで ${actualThrough+1}か月）</div>
+          <div class="kichu-summary-label">実績累計（${labels[lastActIdx]}まで ${actMon}か月）</div>
           <div class="kichu-summary-val ${actualCumPretax >= 0 ? 'positive' : 'negative'}">${fmtK(actualCumPretax)}千円</div>
         </div>` : `
         <div class="kichu-summary-card" style="opacity:.45">
@@ -625,7 +616,7 @@ function renderKichuForecast(container, budget, company) {
           <div class="kichu-summary-val" style="font-size:13px;color:var(--text-muted)">実績インポート待ち</div>
         </div>`}
         <div class="kichu-summary-card" style="border-color:#3b82f6;border-width:2px">
-          <div class="kichu-summary-label">着地予測利益（税引前）${actualThrough >= 0 ? '<br><span style="font-size:9px;color:#3b82f6">実績'+labels[actualThrough]+'まで＋残り予算</span>' : ''}</div>
+          <div class="kichu-summary-label">着地予測利益（税引前）${actMon > 0 ? '<br><span style="font-size:9px;color:#3b82f6">実績'+labels[lastActIdx]+'まで＋残り予算</span>' : ''}</div>
           <div class="kichu-summary-val ${landingPretax >= 0 ? 'positive' : 'negative'}">${fmtK(landingPretax)}千円</div>
         </div>
         <div class="kichu-summary-card">
@@ -639,7 +630,7 @@ function renderKichuForecast(container, budget, company) {
             <thead>
               <tr>
                 <th class="kichu-label-th">月</th>
-                <th>${actualThrough >= 0 ? '実績／予算（千円）<br><span style="font-weight:400;font-size:9px">🔵実績 ⬜予算</span>' : '予算（千円）'}</th>
+                <th>${actMon > 0 ? '実績／予算（千円）<br><span style="font-weight:400;font-size:9px">🔵実績 ⬜予算</span>' : '予算（千円）'}</th>
               </tr>
             </thead>
             <tbody>${miniRows}</tbody>
