@@ -443,71 +443,48 @@ function applyRevenueToBudget() {
   if (!budget || !company) { alert('予算データがありません'); return; }
 
   const startMonth = budget.startMonth || 4;
+  if (!budget.rows) budget.rows = {};
 
-  // dynamicAccounts が空なら静的ACCOUNTSをベースにコピー
-  if (!budget.dynamicAccounts || budget.dynamicAccounts.length === 0) {
-    budget.dynamicAccounts = JSON.parse(JSON.stringify(
-      (typeof ACCOUNTS !== 'undefined' ? ACCOUNTS : [])
-    ));
+  // 既存の rev_ データを全削除（重複防止）
+  Object.keys(budget.rows).forEach(k => { if (k.startsWith('rev_')) delete budget.rows[k]; });
+  // dynamicAccounts にある rev_ も削除
+  if (budget.dynamicAccounts) {
+    budget.dynamicAccounts = budget.dynamicAccounts.filter(a => !a.id.startsWith('rev_'));
   }
 
-  // 既存の rev_ 科目と rows を全削除（重複防止）
-  budget.dynamicAccounts = budget.dynamicAccounts.filter(a => !a.id.startsWith('rev_'));
-  if (!budget.rows) budget.rows = {};
-  Object.keys(budget.rows).forEach(k => { if (k.startsWith('rev_')) delete budget.rows[k]; });
+  // 区分ごとに月次合計 & 個別行データを計算
+  const catTotals = {};  // catId → [12ヶ月合計]
+  const revAccounts = []; // グリッド表示用メタ情報
 
-  // 区分ごとに顧問先を分類
-  const byCategory = {};
   _revClients.filter(c => c.name).forEach(c => {
     const cat = c.category || 'sales_advisory';
-    if (!byCategory[cat]) byCategory[cat] = [];
-    byCategory[cat].push(c);
-  });
+    const monthly = calcClientMonthly(c, startMonth, _revBudgetYear);
 
-  // 挿入位置を計算してから後ろ順に splice（位置ずれ防止）
-  const insertions = [];
+    // 個別行の値を rows に書き込み
+    budget.rows[`rev_${c.id}`] = [...monthly, 0];
 
-  for (const [catId, clients] of Object.entries(byCategory)) {
-    // 区分科目（sales_advisory 等）の位置を探す
-    let catIdx = budget.dynamicAccounts.findIndex(a => a.id === catId);
-    if (catIdx < 0) {
-      // なければ sales の直後にフォールバック
-      catIdx = budget.dynamicAccounts.findIndex(a => a.id === 'sales');
-      if (catIdx < 0) catIdx = 0;
-    }
+    // カテゴリ合計に加算
+    if (!catTotals[cat]) catTotals[cat] = new Array(12).fill(0);
+    monthly.forEach((v, i) => { catTotals[cat][i] += v; });
 
-    // 区分科目の既存子をスキップして末尾挿入位置を決める
-    let spliceAt = catIdx + 1;
-    while (spliceAt < budget.dynamicAccounts.length &&
-           budget.dynamicAccounts[spliceAt].parentId === catId) {
-      spliceAt++;
-    }
-
-    const accs = clients.map(c => {
-      const monthly = calcClientMonthly(c, startMonth, _revBudgetYear);
-      budget.rows[`rev_${c.id}`] = [...monthly, 0];
-      return {
-        id:        `rev_${c.id}`,
-        name:      c.name,
-        type:      'input',
-        section:   'pl',
-        parentId:  catId,
-        indent:    2,
-        sign:      1,
-        bold:      false,
-        isRevenue: true,
-        tentative: c.confirmed === false,
-      };
+    // 表示用メタ
+    revAccounts.push({
+      id:        `rev_${c.id}`,
+      name:      c.name,
+      parentId:  cat,
+      indent:    2,
+      tentative: c.confirmed === false,
+      section:   'pl',
     });
-
-    insertions.push({ spliceAt, accs });
-  }
-
-  // 後ろから挿入（前の splice で位置がずれないよう降順）
-  insertions.sort((a, b) => b.spliceAt - a.spliceAt);
-  insertions.forEach(({ spliceAt, accs }) => {
-    budget.dynamicAccounts.splice(spliceAt, 0, ...accs);
   });
+
+  // カテゴリ行（sales_advisory等）にも合計を書き込む（calcPL で集計される）
+  Object.entries(catTotals).forEach(([catId, totals]) => {
+    budget.rows[catId] = [...totals, 0];
+  });
+
+  // グリッド表示用に revenueAccounts を保存（dynamicAccounts は触らない）
+  budget.revenueAccounts = revAccounts;
 
   saveBudget(budget);
   window.App.currentBudget = budget;

@@ -137,11 +137,34 @@ function toggleRowSelect(accId, e) {
 
 // ===== 表示対象科目フィルタ =====
 function getAccountsForMode(budget) {
-  const all = budget.dynamicAccounts || ACCOUNTS;
-  if (!budget.dynamicAccounts) return all;
-  if (_gridMode === 'pl') return all.filter(a => !a.section || a.section === 'pl');
-  if (_gridMode === 'bs') return all.filter(a => a.section?.startsWith('bs'));
-  return all;
+  // dynamicAccounts がある場合（試算表インポート済み）
+  if (budget.dynamicAccounts?.length) {
+    const all = budget.dynamicAccounts;
+    if (_gridMode === 'pl') return all.filter(a => !a.section || a.section === 'pl');
+    if (_gridMode === 'bs') return all.filter(a => a.section?.startsWith('bs'));
+    return all;
+  }
+
+  // 静的 ACCOUNTS に revenueAccounts を注入
+  const base = [...ACCOUNTS];
+  const revAccs = budget.revenueAccounts;
+  if (revAccs?.length) {
+    // 親IDごとにグループ化
+    const byParent = {};
+    revAccs.forEach(a => { (byParent[a.parentId] = byParent[a.parentId] || []).push(a); });
+    // 後ろから splice して位置ずれを防ぐ
+    Object.entries(byParent).reverse().forEach(([parentId, accs]) => {
+      let idx = base.findIndex(a => a.id === parentId);
+      if (idx < 0) return;
+      idx++; // 親の直後
+      // 既存の rev_ 子をスキップ
+      while (idx < base.length && base[idx].id?.startsWith('rev_')) idx++;
+      base.splice(idx, 0, ...accs.map(a => ({
+        ...a, type: 'rev_display', sign: 1, bold: false,
+      })));
+    });
+  }
+  return base;
 }
 
 // ===== グリッド描画 =====
@@ -238,7 +261,8 @@ function renderGridRows(budget, allVals, months) {
     // 折りたたみで非表示
     if (isHiddenByCollapse(acc, accounts)) return;
 
-    const isInput   = acc.type === 'input';
+    const isRevDisp = acc.type === 'rev_display';
+    const isInput   = acc.type === 'input' && !isRevDisp;
     const isCalc    = acc.type === 'calculated';
     const isHeader  = acc.type === 'header' || acc.type === 'parent';
     const isSection = acc.type === 'section';
@@ -268,7 +292,13 @@ function renderGridRows(budget, allVals, months) {
       : '<span class="collapse-spacer"></span>';
 
     let nameCell;
-    if (isInput) {
+    if (isRevDisp) {
+      const tentMark = acc.tentative ? '<span style="font-size:9px;background:#fcd34d;color:#78350f;border-radius:3px;padding:1px 4px;margin-left:4px;font-weight:700">未確定</span>' : '';
+      nameCell = `<td class="acc-col sticky-col acc-name" style="background:#f0f9ff">
+        <span class="collapse-spacer"></span><span class="indent">${indent}</span>
+        <span style="color:#2563eb;font-size:12px">${escHtml(acc.name)}</span>${tentMark}
+      </td>`;
+    } else if (isInput) {
       nameCell = `<td class="acc-col sticky-col acc-name" onclick="toggleRowSelect('${acc.id}',event)">
         ${collapseBtn}<span class="indent">${indent}</span>
         <span class="acc-label" ondblclick="editAccName(this,'${acc.id}')">${escHtml(acc.name)}</span>
@@ -290,19 +320,21 @@ function renderGridRows(budget, allVals, months) {
     const monthVals = vals.slice(0, 12);
     const adjVal = vals[12] || 0;
 
-    const monthCells = isInput
-      ? monthVals.map((v, colIdx) => `
-          <td class="val-cell${actualCols[colIdx]?' actual-col':''}" data-acc-id="${acc.id}" data-col="${colIdx}">
-            <input type="text"
-              class="cell-input${actualCols[colIdx]?' actual-input':''}"
-              value="${v === 0 ? '' : safeRound(v).toLocaleString()}"
-              data-acc-id="${acc.id}"
-              data-col="${colIdx}"
-              data-raw="${v}"
-              autocomplete="off"
-              inputmode="numeric">
-          </td>`).join('')
-      : monthVals.map((v, i) => nonInputCell(v, i)).join('');
+    const monthCells = isRevDisp
+      ? monthVals.map((v, i) => `<td class="val-cell calc-val" style="text-align:right;background:#f0f9ff;color:#2563eb;font-size:12px">${v ? safeRound(v).toLocaleString() : '–'}</td>`).join('')
+      : isInput
+        ? monthVals.map((v, colIdx) => `
+            <td class="val-cell${actualCols[colIdx]?' actual-col':''}" data-acc-id="${acc.id}" data-col="${colIdx}">
+              <input type="text"
+                class="cell-input${actualCols[colIdx]?' actual-input':''}"
+                value="${v === 0 ? '' : safeRound(v).toLocaleString()}"
+                data-acc-id="${acc.id}"
+                data-col="${colIdx}"
+                data-raw="${v}"
+                autocomplete="off"
+                inputmode="numeric">
+            </td>`).join('')
+        : monthVals.map((v, i) => nonInputCell(v, i)).join('');
 
     // Adjustment cell (col 12)
     let adjCell;
@@ -323,8 +355,9 @@ function renderGridRows(budget, allVals, months) {
       adjCell = nonInputCell(adjVal, 12);
     }
 
+    const totalStyle = isRevDisp ? 'style="text-align:right;background:#f0f9ff;color:#2563eb;font-size:12px"' : 'style="text-align:right"';
     tr.innerHTML = nameCell + monthCells + adjCell +
-      `<td class="total-col calc-val" style="text-align:right">${total === 0 ? (isInput?'':'–') : Math.round(total).toLocaleString()}</td>`;
+      `<td class="total-col calc-val" ${totalStyle}>${total === 0 ? (isInput||isRevDisp?'':'–') : Math.round(total).toLocaleString()}</td>`;
     tbody.appendChild(tr);
   });
 

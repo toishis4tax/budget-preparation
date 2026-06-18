@@ -19,7 +19,7 @@ function calcPL(rows) {
   }, new Array(12).fill(0));
   const sub = (a, b) => get(a).map((v, i) => v - (get(b)[i] || 0));
 
-  const sales         = sum('sales_ec', 'sales_store', 'sales_other');
+  const sales         = sum('sales_advisory','sales_compliance','sales_consulting','sales_ec','sales_store','sales_other');
   const cogs          = get('cogs_open').map((v,i) => v + (get('cogs_purchase')[i]||0) - (get('cogs_close')[i]||0));
   const gross_profit  = sales.map((v,i) => v - cogs[i]);
 
