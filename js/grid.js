@@ -435,7 +435,9 @@ function attachGridEvents() {
   tbody.addEventListener('contextmenu', e => {
     e.preventDefault();
     const input = e.target.closest('.cell-input');
-    showContextMenu(e.clientX, e.clientY, input);
+    const tr    = e.target.closest('tr[data-acc-id]');
+    const accId = input?.dataset.accId || tr?.dataset.accId || null;
+    showContextMenu(e.clientX, e.clientY, accId);
   });
 
   document.addEventListener('paste', handlePaste);
@@ -799,13 +801,18 @@ function addAccountBelow(mode, currentAccId) {
     custom:  true,
   };
 
-  const idx = currentAccId ? accounts.findIndex(a => a.id === currentAccId) : accounts.length - 1;
+  const idx = (currentAccId && currentAccId !== 'null')
+    ? accounts.findIndex(a => a.id === currentAccId)
+    : accounts.length - 1;
   accounts.splice(idx + 1, 0, newAcc);
 
   if (budget) {
     budget.rows[newAcc.id] = new Array(12).fill(0);
     saveBudget(budget);
-    renderGrid(document.getElementById('main_content'), budget);
+    const container = document.getElementById('main_content');
+    const scrollTop = container?.scrollTop || 0;
+    renderGrid(container, budget);
+    if (container) container.scrollTop = scrollTop;
   }
 }
 
@@ -943,14 +950,13 @@ function deleteSelectedRow() {
 }
 
 // ===== コンテキストメニュー =====
-function showContextMenu(x, y, input) {
+function showContextMenu(x, y, accId) {
   document.getElementById('ctx_menu')?.remove();
   const menu = document.createElement('div');
   menu.id = 'ctx_menu';
   menu.className = 'ctx-menu';
   menu.style.left = x + 'px';
   menu.style.top  = y + 'px';
-  const accId = input?.dataset.accId;
   menu.innerHTML = `
     <div class="ctx-item" onclick="addAccountBelow('sub','${accId}')">＋ 補助科目を下に追加</div>
     <div class="ctx-item" onclick="addAccountBelow('peer','${accId}')">＋ 新規科目を下に追加（同列）</div>
