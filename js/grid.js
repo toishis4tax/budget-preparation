@@ -3,6 +3,7 @@
 const safeRound = v => (isNaN(v) || !isFinite(v)) ? 0 : Math.round(v);
 
 let _copyBuffer    = null;
+let _isPasting     = false;
 let _selectedCell  = null;
 let _selectedRows  = new Set();   // 選択中の行 (accId)
 let _selAnchor     = null;        // Shift選択のアンカー行 (accId)
@@ -416,7 +417,7 @@ function attachGridEvents() {
     const input = e.target.closest('.cell-input');
     if (!input) return;
     input.parentElement.classList.remove('selected');
-    commitCell(input);
+    if (!_isPasting) commitCell(input);
   });
 
   tbody.addEventListener('keydown', e => {
@@ -624,12 +625,13 @@ function handlePaste(e) {
     });
   });
 
+  _isPasting = true;
   saveBudget(budget);
   const container = document.getElementById('main_content');
   const scrollTop = container?.scrollTop || 0;
   if (container) renderGrid(container, budget);
+  _isPasting = false;
   if (container) container.scrollTop = scrollTop;
-  // フォーカスを貼り付け開始セルに戻す
   requestAnimationFrame(() => focusCell(startAccId, startCol));
 }
 
