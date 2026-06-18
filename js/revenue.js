@@ -25,9 +25,6 @@ const REV_CATEGORIES = [
   { id: 'sales_advisory',   name: '顧問報酬' },
   { id: 'sales_compliance', name: 'コンプライアンス報酬' },
   { id: 'sales_consulting', name: 'コンサルティング報酬' },
-  { id: 'sales_ec',         name: 'EC売上' },
-  { id: 'sales_store',      name: '店舗売上' },
-  { id: 'sales_other',      name: 'その他売上' },
 ];
 
 function newClient() {

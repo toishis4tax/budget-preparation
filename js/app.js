@@ -60,12 +60,24 @@ function selectCompany(id) {
     return;
   }
   App.currentCompany = company;
+  updateNavForIndustry(company);
   const years = getYearsForCompany(id);
   const year  = years.includes(App.currentYear) ? App.currentYear : (years[0] || new Date().getFullYear());
   App.currentYear = year;
   renderYearSelect(years);
   loadBudget(id, year);
   showPage(App.currentPage);
+}
+
+function updateNavForIndustry(company) {
+  const navRev = document.getElementById('nav_revenue');
+  if (!navRev) return;
+  const isTaxAccountant = company?.industry === 'tax_accountant';
+  navRev.style.display = isTaxAccountant ? '' : 'none';
+  // 顧問先売上管理を表示中に業種変更された場合はホームへ
+  if (!isTaxAccountant && App.currentPage === 'revenue') {
+    showPage('home');
+  }
 }
 
 function renderYearSelect(years) {
@@ -98,6 +110,7 @@ function openCompanyModal(editId) {
   document.getElementById('modal_invoice').value           = company?.invoiceRegistered ? '1' : '0';
   document.getElementById('modal_kani').value               = company?.kanijukazei ? '1' : '0';
   document.getElementById('modal_kijun').value              = company?.kijunUriage || 0;
+  document.getElementById('modal_industry').value           = company?.industry || 'other';
   document.getElementById('modal_business_type').value      = company?.businessType || 5;
   document.getElementById('modal_prepaid1').value           = company?.prepaid1 || 0;
   document.getElementById('modal_prepaid2').value           = company?.prepaid2 || 0;
@@ -120,14 +133,17 @@ function saveCompanyForm() {
   const invoice       = document.getElementById('modal_invoice')?.value === '1';
   const kani          = document.getElementById('modal_kani')?.value === '1';
   const kijun         = parseFloat(document.getElementById('modal_kijun')?.value) || 0;
+  const industry      = document.getElementById('modal_industry')?.value || 'other';
   const businessType  = parseInt(document.getElementById('modal_business_type')?.value) || 5;
   const prepaid1      = parseFloat(document.getElementById('modal_prepaid1')?.value) || 0;
   const prepaid2      = parseFloat(document.getElementById('modal_prepaid2')?.value) || 0;
   const ctaxPrepaid   = parseFloat(document.getElementById('modal_ctax_prepaid')?.value) || 0;
   const company = { id: id || generateId(), name, capital, prefecture: pref, fiscalMonth: fiscal,
-    invoiceRegistered: invoice, kanijukazei: kani, kijunUriage: kijun, businessType, prepaid1, prepaid2, ctaxPrepaid };
+    invoiceRegistered: invoice, kanijukazei: kani, kijunUriage: kijun, industry, businessType, prepaid1, prepaid2, ctaxPrepaid };
   saveCompany(company);
   App.companies = getCompanies();
+  App.currentCompany = company;
+  updateNavForIndustry(company);
   renderCompanyList();
   selectCompany(company.id);
   closeCompanyModal();

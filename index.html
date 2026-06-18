@@ -33,7 +33,7 @@
   <div class="nav-item" data-page="budget">
     <span class="icon">📊</span>月次予算入力
   </div>
-  <div class="nav-item" data-page="revenue">
+  <div class="nav-item" id="nav_revenue" data-page="revenue" style="display:none">
     <span class="icon">🏢</span>顧問先売上管理
   </div>
   <div class="nav-item" data-page="import">
@@ -139,6 +139,17 @@
         <option>佐賀県</option><option>長崎県</option><option>熊本県</option>
         <option>大分県</option><option>宮崎県</option><option>鹿児島県</option>
         <option>沖縄県</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>業種</label>
+      <select id="modal_industry" class="form-input">
+        <option value="other">一般業種</option>
+        <option value="tax_accountant">税理士業</option>
+        <option value="medical">医療・福祉</option>
+        <option value="real_estate">不動産業</option>
+        <option value="construction">建設業</option>
+        <option value="retail">小売・EC</option>
       </select>
     </div>
     <div class="form-group">
