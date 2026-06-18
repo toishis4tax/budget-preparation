@@ -428,21 +428,30 @@ function applyRevenueToBudget() {
   if (!budget.rows) budget.rows = {};
   Object.keys(budget.rows).forEach(k => { if (k.startsWith('rev_')) delete budget.rows[k]; });
 
-  // 科目ツリーに sales 親がなければ作る
-  const hasSales = budget.dynamicAccounts.some(a => a.id === 'sales' || a.id === 'rev_parent');
+  // sales 科目の位置を探す（直後に挿入するため）
   let insertIdx = budget.dynamicAccounts.findIndex(a => a.id === 'sales');
+  // sales が見つからない場合は売上高に相当しそうな科目を探す
+  if (insertIdx < 0) {
+    insertIdx = budget.dynamicAccounts.findIndex(a =>
+      a.name?.includes('売上') && (a.type === 'calc' || a.type === 'header')
+    );
+  }
+  // それでも見つからなければ先頭に
   if (insertIdx < 0) insertIdx = 0;
 
-  // 各顧問先を補助科目として追加
-  _revClients.forEach((c, ci) => {
+  // 挿入位置を sales の次（既存の sales 子科目をスキップ）にする
+  let spliceAt = insertIdx + 1;
+  while (spliceAt < budget.dynamicAccounts.length &&
+         budget.dynamicAccounts[spliceAt].parentId === 'sales') {
+    spliceAt++;
+  }
+
+  // 各顧問先を補助科目として生成
+  const newAccs = [];
+  _revClients.filter(c => c.name).forEach((c, ci) => {
     const monthly = calcClientMonthly(c, startMonth, _revBudgetYear);
-    const total   = monthly.reduce((a,b)=>a+b,0);
-    if (total === 0) return;
-
     const accId = `rev_${c.id}`;
-
-    // 動的科目に追加（sales の子）
-    budget.dynamicAccounts.push({
+    newAccs.push({
       id:        accId,
       name:      c.name || `顧問先${ci+1}`,
       type:      'input',
@@ -452,12 +461,15 @@ function applyRevenueToBudget() {
       sign:      1,
       bold:      false,
       isRevenue: true,
-      tentative: c.confirmed === false, // 未確定フラグ
+      tentative: c.confirmed === false,
     });
 
     // 予算データに追加
     budget.rows[accId] = [...monthly, 0]; // 12ヶ月 + 調整列
   });
+
+  // sales の直後に一括挿入
+  budget.dynamicAccounts.splice(spliceAt, 0, ...newAccs);
 
   saveBudget(budget);
   window.App.currentBudget = budget;
