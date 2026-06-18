@@ -578,23 +578,6 @@ function renderPhase1Home(container, budget, company) {
     <div class="home-wrap">
       ${phaseHomeTopbar(company, curYear, '#3b82f6', '① 期中フェーズ')}
 
-      <!-- 予算進捗 -->
-      <div class="home-card">
-        <div class="home-card-title">📋 予算作成進捗</div>
-        <div class="progress-bar-wrap">
-          <div class="progress-bar-track">
-            <div class="progress-bar-fill" style="width:${pct}%"></div>
-          </div>
-          <span class="progress-pct">${pct}%</span>
-        </div>
-        <div class="progress-items">
-          ${progressItems.map(p => `
-            <span class="progress-item ${p.done?'done':'pending'}">
-              ${p.done?'✅':'⬜'} ${p.label}
-            </span>`).join('')}
-        </div>
-      </div>
-
       <!-- 業績サマリー（実績期間 | 予算期間 | 合計） -->
       <div class="home-card" style="grid-column:1/-1">
         <div class="home-card-title">📊 業績サマリー</div>
