@@ -96,6 +96,8 @@ function calcClientMonthly(client, startMonth, budgetYear) {
 // ===== レンダリング =====
 let _revClients = [];
 let _revBudgetYear = new Date().getFullYear();
+let _revFilter = { name: '', category: '', confirmed: 'all' };
+let _revDragSrcIdx = null;
 
 function renderRevenue(container) {
   const budget  = window.App?.currentBudget;
@@ -156,10 +158,32 @@ function renderRevenue(container) {
         <div style="height:140px"><canvas id="rev_chart"></canvas></div>
       </div>
 
+      <div class="card" style="padding:10px 14px;margin-bottom:8px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="text" class="form-input" style="width:180px;font-size:12px" id="rev_filter_name"
+            placeholder="🔍 顧問先名で検索" value=""
+            oninput="_revFilter.name=this.value;_revApplyFilter()">
+          <select class="form-input" style="width:150px;font-size:12px" id="rev_filter_cat"
+            onchange="_revFilter.category=this.value;_revApplyFilter()">
+            <option value="">全区分</option>
+            ${REV_CATEGORIES.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}
+          </select>
+          <select class="form-input" style="width:130px;font-size:12px" id="rev_filter_confirmed"
+            onchange="_revFilter.confirmed=this.value;_revApplyFilter()">
+            <option value="all">確定・未確定</option>
+            <option value="confirmed">確定のみ</option>
+            <option value="unconfirmed">未確定のみ</option>
+          </select>
+          <span style="font-size:11px;color:var(--text-muted)" id="rev_filter_count"></span>
+          <button class="btn-ghost btn-sm" onclick="_revClearFilter()" style="font-size:11px">✕ クリア</button>
+        </div>
+      </div>
+
       <div class="card-h" style="padding:0;overflow:hidden">
-        <div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 380px)">
+        <div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 420px)">
           <table class="result-table" style="min-width:1100px;table-layout:fixed">
             <colgroup>
+              <col style="width:28px"><!-- ドラッグ -->
               <col style="width:170px">
               <col style="width:120px"><!-- 区分 -->
               <col style="width:60px"> <!-- 確定 -->
@@ -176,6 +200,7 @@ function renderRevenue(container) {
             </colgroup>
             <thead style="position:sticky;top:0;z-index:10">
               <tr>
+                <th style="background:#e0f2fe;z-index:15;padding:4px 2px;text-align:center;font-size:11px;color:#94a3b8">☰</th>
                 <th style="position:sticky;left:0;background:#e0f2fe;z-index:15">顧問先名</th>
                 <th>区分</th>
                 <th>確定</th>
@@ -227,12 +252,30 @@ function renderRevTable(startMonth, months) {
   const grandTotal   = totalByMonth.reduce((a,b)=>a+b,0);
 
   if (!_revClients.length) {
-    tbody.innerHTML = `<tr><td colspan="${8+12+2}" class="no-data" style="padding:40px">「顧問先追加」で顧問先を登録してください</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${9+12+2}" class="no-data" style="padding:40px">「顧問先追加」で顧問先を登録してください</td></tr>`;
     tfoot.innerHTML = '';
     return;
   }
 
-  tbody.innerHTML = _revClients.map((c, ci) => {
+  // フィルタリング
+  const displayClients = _revClients
+    .map((c, ci) => ({ c, ci }))
+    .filter(({ c }) => {
+      if (_revFilter.name && !c.name.toLowerCase().includes(_revFilter.name.toLowerCase())) return false;
+      if (_revFilter.category && (c.category || 'sales_advisory') !== _revFilter.category) return false;
+      if (_revFilter.confirmed === 'confirmed' && c.confirmed === false) return false;
+      if (_revFilter.confirmed === 'unconfirmed' && c.confirmed !== false) return false;
+      return true;
+    });
+
+  // フィルター件数表示
+  const fcEl = document.getElementById('rev_filter_count');
+  if (fcEl) {
+    const isFiltered = _revFilter.name || _revFilter.category || _revFilter.confirmed !== 'all';
+    fcEl.textContent = isFiltered ? `${displayClients.length} / ${_revClients.length}社表示` : `${_revClients.length}社`;
+  }
+
+  tbody.innerHTML = displayClients.map(({ c, ci }) => {
     const monthly = calcClientMonthly(c, startMonth, _revBudgetYear);
     const total   = monthly.reduce((a,b)=>a+b,0);
     const cs = c.contractStart || {};
@@ -260,7 +303,14 @@ function renderRevTable(startMonth, months) {
       `<option value="${cat.id}"${(c.category||'sales_advisory')===cat.id?' selected':''}>${cat.name}</option>`
     ).join('');
 
-    return `<tr data-ci="${ci}" style="${rowBg}">
+    return `<tr data-ci="${ci}" draggable="true" style="${rowBg}"
+      ondragstart="_revDragSrcIdx=${ci};this.style.opacity='.4';event.dataTransfer.effectAllowed='move'"
+      ondragend="this.style.opacity='1'"
+      ondragover="event.preventDefault();this.style.background='#bae6fd'"
+      ondragleave="this.style.background=''"
+      ondrop="event.preventDefault();this.style.background='';_revDropClient(${ci})">
+      <td style="padding:4px 2px;text-align:center;cursor:grab;color:#94a3b8;user-select:none;font-size:14px"
+        title="ドラッグして並び替え">☰</td>
       <td style="padding:4px 6px;position:sticky;left:0;background:${isConfirmed?'#fff':'#fffbeb'};z-index:2">
         <div style="display:flex;align-items:center;gap:5px">
           <input class="form-input" style="flex:1;font-size:12px;padding:4px 6px"
@@ -353,11 +403,20 @@ function renderRevTable(startMonth, months) {
 
   tfoot.innerHTML = `
     <tr style="background:#f0fdf4;font-weight:700">
-      <td colspan="7" style="padding:8px 10px;position:sticky;left:0;background:#f0fdf4">合計（千円）</td>
+      <td colspan="8" style="padding:8px 10px;position:sticky;left:0;background:#f0fdf4">合計（千円）</td>
       ${totalByMonth.map(v=>`<td style="text-align:right;padding:6px 8px">${v?Math.round(v/1000).toLocaleString():'–'}</td>`).join('')}
       <td style="text-align:right;padding:6px 8px;color:var(--emerald-dark)">${Math.round(grandTotal/1000).toLocaleString()}</td>
       <td></td>
     </tr>`;
+
+  // 右クリックコンテキストメニュー
+  tbody.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    const tr = e.target.closest('tr[data-ci]');
+    if (!tr) return;
+    const ci = parseInt(tr.dataset.ci);
+    showRevContextMenu(e.clientX, e.clientY, ci);
+  });
 }
 
 // 区分ごとの色
@@ -410,6 +469,56 @@ function renderRevChart(months, totalByMonth, startMonth) {
       }
     }
   });
+}
+
+function _revApplyFilter() {
+  const budget = window.App?.currentBudget;
+  const startMonth = budget?.startMonth || 4;
+  const months = getMonthLabels(startMonth);
+  renderRevTable(startMonth, months);
+}
+
+function _revClearFilter() {
+  _revFilter = { name: '', category: '', confirmed: 'all' };
+  const fn = document.getElementById('rev_filter_name');
+  const fc = document.getElementById('rev_filter_cat');
+  const fconf = document.getElementById('rev_filter_confirmed');
+  if (fn) fn.value = '';
+  if (fc) fc.value = '';
+  if (fconf) fconf.value = 'all';
+  _revApplyFilter();
+}
+
+function _revDropClient(targetCi) {
+  if (_revDragSrcIdx === null || _revDragSrcIdx === targetCi) { _revDragSrcIdx = null; return; }
+  const src = _revClients.splice(_revDragSrcIdx, 1)[0];
+  const adjusted = _revDragSrcIdx < targetCi ? targetCi - 1 : targetCi;
+  _revClients.splice(adjusted, 0, src);
+  _revDragSrcIdx = null;
+  _revSave();
+  _revApplyFilter();
+}
+
+function showRevContextMenu(x, y, ci) {
+  document.getElementById('rev_ctx_menu')?.remove();
+  const menu = document.createElement('div');
+  menu.id = 'rev_ctx_menu';
+  menu.className = 'ctx-menu';
+  menu.style.cssText = `left:${x}px;top:${y}px`;
+  const name = escHtml(_revClients[ci]?.name || '(未入力)');
+  menu.innerHTML = `
+    <div class="ctx-item" onclick="_revAddClientAt(${ci})">＋ 上に顧問先追加</div>
+    <div class="ctx-item" onclick="_revAddClientAt(${ci + 1})">＋ 下に顧問先追加</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" style="color:#dc2626" onclick="removeRevenueClient(${ci})">🗑 削除（${name}）</div>
+  `;
+  document.body.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
+}
+
+function _revAddClientAt(idx) {
+  _revClients.splice(idx, 0, newClient());
+  _revRefresh();
 }
 
 function _revSave() {
