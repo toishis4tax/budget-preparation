@@ -497,7 +497,8 @@ function applyRevenueToBudget() {
     return found ? found.id : catId;
   }
 
-  // 個別行データを計算
+  // 区分ごとに月次合計を計算
+  const catTotals = {};  // resolvedCatId → [13要素配列]
   const revAccounts = [];
 
   _revClients.filter(c => c.name).forEach(c => {
@@ -505,8 +506,11 @@ function applyRevenueToBudget() {
     const catId  = resolveParentId(cat);
     const monthly = calcClientMonthly(c, startMonth, _revBudgetYear);
 
-    // 個別行の値を rows に書き込み
+    // 個別行の値を rows に書き込み（グリッド表示用）
     budget.rows[`rev_${c.id}`] = [...monthly, 0];
+
+    if (!catTotals[catId]) catTotals[catId] = new Array(13).fill(0);
+    monthly.forEach((v, i) => { catTotals[catId][i] += v; });
 
     revAccounts.push({
       id:        `rev_${c.id}`,
@@ -518,48 +522,16 @@ function applyRevenueToBudget() {
     });
   });
 
+  // カテゴリ行に合計を直接書き込む（二重計上を防ぐためシンプルに上書き）
+  // dynamicAccounts パスでも静的パスでも同じ処理
+  Object.entries(catTotals).forEach(([catId, totals]) => {
+    budget.rows[catId] = totals;
+  });
+
   budget.revenueAccounts = revAccounts;
 
-  if (budget.dynamicAccounts) {
-    // dynamicAccounts パス：親科目を parent タイプに変更して子集計させる
-    // カテゴリ行の既存値はクリア（rev_子科目の合計に任せる）
-    const usedParentIds = new Set(revAccounts.map(a => a.parentId));
-    usedParentIds.forEach(pid => {
-      const acc = budget.dynamicAccounts.find(a => a.id === pid);
-      if (acc) {
-        acc.type = 'parent'; // calcAllValuesDynamic が子を集計するタイプに変更
-        delete budget.rows[pid];  // 直接書いた値を消す（子の合計を使う）
-      }
-    });
-
-    // rev_ 行を親直後に注入
-    const byParent = {};
-    revAccounts.forEach(a => { (byParent[a.parentId] = byParent[a.parentId] || []).push(a); });
-    const insertions = [];
-    Object.entries(byParent).forEach(([parentId, accs]) => {
-      let idx = budget.dynamicAccounts.findIndex(a => a.id === parentId);
-      if (idx < 0) idx = budget.dynamicAccounts.findIndex(a => a.name?.includes('売上高'));
-      if (idx < 0) return;
-      let spliceAt = idx + 1;
-      while (spliceAt < budget.dynamicAccounts.length &&
-             budget.dynamicAccounts[spliceAt].parentId === parentId) spliceAt++;
-      insertions.push({ spliceAt, accs: accs.map(a => ({ ...a, type: 'rev_display', sign: 1, bold: false })) });
-    });
-    insertions.sort((a, b) => b.spliceAt - a.spliceAt);
-    insertions.forEach(({ spliceAt, accs }) => budget.dynamicAccounts.splice(spliceAt, 0, ...accs));
-
-  } else {
-    // 静的 ACCOUNTS パス：カテゴリ行に合計を直接書き込む
-    const catTotals = {};
-    revAccounts.forEach(a => {
-      const vals = budget.rows[a.id] || new Array(13).fill(0);
-      if (!catTotals[a.parentId]) catTotals[a.parentId] = new Array(13).fill(0);
-      vals.forEach((v, i) => { catTotals[a.parentId][i] += v; });
-    });
-    Object.entries(catTotals).forEach(([catId, totals]) => {
-      budget.rows[catId] = totals;
-    });
-  }
+  // 静的ACCOUNTSパス：grridでrev_行を補助科目として表示（dynamicAccountsは触らない）
+  // dynamicAccountsパス：カテゴリ行に値が入るだけ（個別行はrevenue管理ページで確認）
 
   saveBudget(budget);
   window.App.currentBudget = budget;
