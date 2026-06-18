@@ -287,9 +287,13 @@ function renderCashFlow(container, budget) {
 
   const company     = window.App?.currentCompany;
   const curYear     = window.App?.currentYear || new Date().getFullYear();
-  const allVals     = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
-  const monthLabels = getMonthLabels(budget.startMonth || 4);
   const actualCols  = getActualCols(budget);
+  // 実績月は actualRows、予算月は rows をブレンド
+  const _rows = budget.dynamicAccounts ? getMergedRows(budget) : null;
+  const allVals = budget.dynamicAccounts
+    ? calcAllValuesDynamic({ ...budget, rows: _rows })
+    : calcAllValues(budget.rows);
+  const monthLabels = getMonthLabels(budget.startMonth || 4);
 
   // 期首現預金: 前期末BS現預金科目から取得
   let autoCash = 0, cashSource = '手動入力';

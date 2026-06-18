@@ -429,10 +429,10 @@ function calcCtaxEstimate(budget, company) {
 
   const allVals    = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
   const rows       = budget.rows || {};
-  let filledMonths = 12;
-  if (budget.actualThrough != null) {
-    filledMonths = budget.actualThrough + 1;
-  } else {
+  const _ac = getActualCols(budget);
+  const _actMon = _ac.filter(Boolean).length;
+  let filledMonths = _actMon > 0 ? _actMon : 12;
+  if (filledMonths === 12) {
     const salesArr = allVals['sec_revenue'] || allVals['sales'] || [];
     const nonZero  = salesArr.filter(v => v !== 0).length;
     if (nonZero > 0 && nonZero < 12) filledMonths = nonZero;
