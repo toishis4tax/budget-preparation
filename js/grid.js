@@ -929,14 +929,33 @@ function clearRowSelection() {
   updateSelectionHint();
 }
 
-function deleteSelectedRow() {
-  const input = document.querySelector('#grid_tbody .cell-input:focus') || _selectedCell;
-  if (!input) { alert('削除する行のセルを選択してください'); return; }
-  const accId = input.dataset.accId;
+function deleteSelectedRow(targetAccId) {
   const budget = window.App?.currentBudget;
   const accounts = budget?.dynamicAccounts || ACCOUNTS;
+
+  let accId = targetAccId;
+  if (!accId) {
+    const input = document.querySelector('#grid_tbody .cell-input:focus') || _selectedCell;
+    if (!input) { alert('削除する行のセルを選択してください'); return; }
+    accId = input.dataset.accId;
+  }
+
   const acc = accounts.find(a => a.id === accId);
-  if (!acc?.custom) { alert('デフォルト科目は削除できません'); return; }
+  if (!acc) return;
+
+  // 実績値チェック（actualRowsに1つでも値があれば削除不可）
+  const actualVals = budget?.actualRows?.[accId] || [];
+  const hasActual = actualVals.some(v => v !== 0 && v != null);
+  if (hasActual) {
+    alert(`「${acc.name}」には実績値があるため削除できません`);
+    return;
+  }
+
+  if (!acc.custom && !budget?.dynamicAccounts) {
+    alert('デフォルト科目は削除できません');
+    return;
+  }
+
   if (!confirm(`「${acc.name}」を削除しますか?`)) return;
 
   const idx = accounts.findIndex(a => a.id === accId);
@@ -945,7 +964,10 @@ function deleteSelectedRow() {
   if (budget) {
     delete budget.rows[accId];
     saveBudget(budget);
-    renderGrid(document.getElementById('main_content'), budget);
+    const container = document.getElementById('main_content');
+    const scrollTop = container?.scrollTop || 0;
+    renderGrid(container, budget);
+    if (container) container.scrollTop = scrollTop;
   }
 }
 
@@ -961,7 +983,7 @@ function showContextMenu(x, y, accId) {
     <div class="ctx-item" onclick="addAccountBelow('sub','${accId}')">＋ 補助科目を下に追加</div>
     <div class="ctx-item" onclick="addAccountBelow('peer','${accId}')">＋ 新規科目を下に追加（同列）</div>
     <div class="ctx-sep"></div>
-    <div class="ctx-item" onclick="deleteSelectedRow()">行を削除</div>
+    <div class="ctx-item" onclick="deleteSelectedRow('${accId}')">行を削除</div>
     <div class="ctx-sep"></div>
     <div class="ctx-item" onclick="applyFillFromMenu('copy')">右にコピー（横引き）</div>
     <div class="ctx-item" onclick="applyFillFromMenu('fixed')">一定額で全月埋める</div>
