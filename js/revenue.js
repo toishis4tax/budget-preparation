@@ -278,7 +278,8 @@ function renderRevTable(startMonth, months) {
         <div style="display:flex;gap:3px">
           <input type="number" class="form-input" style="width:52px;font-size:11px;padding:3px 4px;text-align:right"
             value="${cs.year||''}" placeholder="年" min="2020" max="2040"
-            oninput="_revClients[${ci}].contractStart={..._revClients[${ci}].contractStart,year:+this.value};_revRefresh()">
+            oninput="_revClients[${ci}].contractStart={..._revClients[${ci}].contractStart,year:+this.value};_revSave()"
+            onblur="_revRefresh()">
           <select class="form-input" style="width:50px;font-size:11px;padding:3px 3px"
             onchange="_revClients[${ci}].contractStart={..._revClients[${ci}].contractStart,month:+this.value};_revRefresh()">
             ${MONTH_LABELS_JP.map((m,i)=>`<option value="${i+1}"${(cs.month||1)===i+1?' selected':''}>${m}</option>`).join('')}
@@ -288,7 +289,8 @@ function renderRevTable(startMonth, months) {
       <td style="padding:4px 5px">
         <input type="number" class="form-input" style="width:84px;font-size:12px;padding:4px 6px;text-align:right"
           value="${c.retainer||''}" placeholder="0" step="1000"
-          oninput="_revClients[${ci}].retainer=+this.value;_revRefresh()">
+          oninput="_revClients[${ci}].retainer=+this.value;_revSave()"
+          onblur="_revRefresh()">
       </td>
       <td style="padding:4px 5px;text-align:center">
         <select class="form-input" style="width:42px;font-size:11px;padding:2px 2px;margin-bottom:3px"
@@ -309,12 +311,14 @@ function renderRevTable(startMonth, months) {
       <td style="padding:4px 5px">
         <input type="number" class="form-input" style="width:84px;font-size:12px;padding:4px 6px;text-align:right"
           value="${c.settlementFee||''}" placeholder="0" step="10000"
-          oninput="_revClients[${ci}].settlementFee=+this.value;_revRefresh()">
+          oninput="_revClients[${ci}].settlementFee=+this.value;_revSave()"
+          onblur="_revRefresh()">
       </td>
       <td style="padding:4px 5px">
         <input type="number" class="form-input" style="width:72px;font-size:12px;padding:4px 6px;text-align:right"
           value="${c.yearEndAdj||''}" placeholder="0" step="10000"
-          oninput="_revClients[${ci}].yearEndAdj=+this.value;_revRefresh()">
+          oninput="_revClients[${ci}].yearEndAdj=+this.value;_revSave()"
+          onblur="_revRefresh()">
       </td>
       ${monthCells}
       <td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--emerald-dark);font-size:12px">
