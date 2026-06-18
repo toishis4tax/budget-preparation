@@ -201,20 +201,101 @@ function renderSimulation(container, budget) {
     container.innerHTML = '<div class="no-data">予算データがありません。まず月次予算を入力してください。</div>';
     return;
   }
-  const pl     = calcPL(budget.rows);
-  const bs     = calcBS(budget.rows);
-  const months = getMonthLabels(budget.startMonth || 4);
 
-  const plItems = [
-    { label: '売上高',               vals: pl.sales,         bold: false },
-    { label: '売上原価',             vals: pl.cogs,          bold: false },
-    { label: '売上総利益',           vals: pl.gross_profit,  bold: true  },
-    { label: '販売費及び一般管理費', vals: pl.sga,           bold: false },
-    { label: '営業利益',             vals: pl.op_profit,     bold: true  },
-    { label: '経常利益',             vals: pl.ord_profit,    bold: true  },
-    { label: '税引前当期純利益',     vals: pl.pretax_profit, bold: true  },
-    { label: '当期純利益',           vals: pl.net_profit,    bold: true  },
-  ];
+  const months     = getMonthLabels(budget.startMonth || 4);
+  const hasDynamic = !!(budget.dynamicAccounts?.length);
+  const allVals    = hasDynamic ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
+
+  // ===== PL =====
+  let plItems, chartSales, chartGross, chartOp;
+
+  if (hasDynamic) {
+    const g = id => allVals[id] || new Array(12).fill(0);
+    // 動的科目: sec_*/calc_* を使用
+    plItems = [
+      { label: '売上高',           vals: g('sec_revenue'), bold: false },
+      { label: '売上原価',         vals: g('sec_cogs'),    bold: false },
+      { label: '売上総利益',       vals: g('calc_gross'),  bold: true  },
+      { label: '販売費及び一般管理費', vals: g('sec_sga'), bold: false },
+      { label: '営業利益',         vals: g('calc_op'),     bold: true  },
+      { label: '営業外収益',       vals: g('sec_other_inc'),bold: false },
+      { label: '営業外費用',       vals: g('sec_other_exp'),bold: false },
+      { label: '経常利益',         vals: g('calc_ord'),    bold: true  },
+      { label: '税引前当期純利益', vals: g('calc_pretax'), bold: true  },
+      { label: '当期純利益',       vals: g('calc_net'),    bold: true  },
+    ].filter(item => item.vals.some(v => v !== 0) || item.bold);
+    chartSales = g('sec_revenue');
+    chartGross = g('calc_gross');
+    chartOp    = g('calc_op');
+  } else {
+    const pl = calcPL(budget.rows);
+    plItems = [
+      { label: '売上高',               vals: pl.sales,         bold: false },
+      { label: '売上原価',             vals: pl.cogs,          bold: false },
+      { label: '売上総利益',           vals: pl.gross_profit,  bold: true  },
+      { label: '販売費及び一般管理費', vals: pl.sga,           bold: false },
+      { label: '営業利益',             vals: pl.op_profit,     bold: true  },
+      { label: '経常利益',             vals: pl.ord_profit,    bold: true  },
+      { label: '税引前当期純利益',     vals: pl.pretax_profit, bold: true  },
+      { label: '当期純利益',           vals: pl.net_profit,    bold: true  },
+    ];
+    chartSales = pl.sales;
+    chartGross = pl.gross_profit;
+    chartOp    = pl.op_profit;
+  }
+
+  // ===== BS =====
+  let bsAssetsRows, bsLiabRows;
+  const fmtBs = v => Math.round(v || 0).toLocaleString('ja-JP') + '円';
+
+  if (hasDynamic) {
+    const last = id => (allVals[id] || new Array(12).fill(0))[11];
+    const curAsset  = last('sec_cur_asset');
+    const fixAsset  = last('sec_fix_asset');
+    const otherAsset= last('sec_other_asset');
+    const totalAsset= curAsset + fixAsset + otherAsset || last('sec_total_asset');
+    const curLiab   = last('sec_cur_liab');
+    const fixLiab   = last('sec_fix_liab');
+    const totalLiab = curLiab + fixLiab || last('sec_total_liab');
+    const equity    = last('sec_equity');
+
+    // 現預金を動的科目から探す
+    const cashAcc = budget.dynamicAccounts.find(a =>
+      a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section?.startsWith('bs')
+    );
+    const cash = cashAcc ? last(cashAcc.id) : 0;
+
+    bsAssetsRows = [
+      cash > 0 ? ['現金預金', cash, false] : null,
+      ['流動資産合計', curAsset,   true ],
+      ['固定資産合計', fixAsset,   false],
+      otherAsset ? ['その他資産', otherAsset, false] : null,
+      ['資産合計',     totalAsset, true ],
+    ].filter(Boolean);
+
+    bsLiabRows = [
+      ['流動負債合計',   curLiab,   false],
+      ['固定負債合計',   fixLiab,   false],
+      ['負債合計',       totalLiab, true ],
+      ['純資産合計',     equity,    false],
+      ['負債純資産合計', totalLiab + equity, true],
+    ];
+  } else {
+    const bs = calcBS(budget.rows);
+    bsAssetsRows = [
+      ['現金預金',       bs.current_assets[11], false],
+      ['流動資産合計',   bs.current_assets[11], true ],
+      ['固定資産合計',   bs.fixed_assets[11],   false],
+      ['資産合計',       bs.total_assets[11],   true ],
+    ];
+    bsLiabRows = [
+      ['流動負債合計',   bs.current_liab[11],   false],
+      ['固定負債合計',   bs.fixed_liab[11],     false],
+      ['負債合計',       bs.total_liab[11],     true ],
+      ['純資産合計',     bs.total_equity[11],   false],
+      ['負債純資産合計', bs.total_liab_eq[11],  true ],
+    ];
+  }
 
   const tableRows = items => items.map(item => {
     const total = item.vals.reduce((a, b) => a + b, 0);
@@ -225,11 +306,14 @@ function renderSimulation(container, budget) {
     </tr>`;
   }).join('');
 
+  const bsRow = ([l, v, b]) =>
+    `<tr class="${b ? 'bold-row' : ''}"><td>${l}</td><td class="num">${fmtBs(v)}</td></tr>`;
+
   container.innerHTML = `
     <div class="sim-panel">
       <div>
-        <h2 class="section-title">単年度シミュレーション</h2>
-        <p class="section-sub">月次予算から自動生成した PL・BS・グラフ</p>
+        <h2 class="section-title">単年度 PL / BS</h2>
+        <p class="section-sub">月次予算から自動生成した損益計算書・貸借対照表</p>
       </div>
 
       <div class="card-h">
@@ -255,36 +339,20 @@ function renderSimulation(container, budget) {
 
       <div class="sim-grid">
         <div class="card-h">
-          <h3>🏦 資産（期末）</h3>
+          <h3>🏦 貸借対照表 — 資産（期末）</h3>
           <table class="result-table">
-            <tbody>
-              ${[
-                ['現金預金',   bs.current_assets[11], false],
-                ['流動資産合計', bs.current_assets[11], true],
-                ['固定資産合計', bs.fixed_assets[11], false],
-                ['資産合計',   bs.total_assets[11], true],
-              ].map(([l, v, b]) => `<tr class="${b ? 'bold-row' : ''}"><td>${l}</td><td class="num">${fmt(v)}</td></tr>`).join('')}
-            </tbody>
+            <tbody>${bsAssetsRows.map(bsRow).join('')}</tbody>
           </table>
         </div>
         <div class="card-h">
-          <h3>📋 負債・純資産（期末）</h3>
+          <h3>📋 貸借対照表 — 負債・純資産（期末）</h3>
           <table class="result-table">
-            <tbody>
-              ${[
-                ['流動負債合計',   bs.current_liab[11], false],
-                ['固定負債合計',   bs.fixed_liab[11],   false],
-                ['負債合計',       bs.total_liab[11],   true ],
-                ['純資産合計',     bs.total_equity[11], false],
-                ['負債純資産合計', bs.total_liab_eq[11],true ],
-              ].map(([l, v, b]) => `<tr class="${b ? 'bold-row' : ''}"><td>${l}</td><td class="num">${fmt(v)}</td></tr>`).join('')}
-            </tbody>
+            <tbody>${bsLiabRows.map(bsRow).join('')}</tbody>
           </table>
         </div>
       </div>
     </div>`;
 
-  // Chart.js
   if (typeof Chart !== 'undefined') {
     const ctx = document.getElementById('sim_chart');
     if (ctx) new Chart(ctx, {
@@ -292,9 +360,9 @@ function renderSimulation(container, budget) {
       data: {
         labels: months,
         datasets: [
-          { label: '売上高', data: pl.sales.map(v => v / 1000), backgroundColor: 'rgba(29,111,184,.25)', borderColor: 'rgba(29,111,184,.6)', borderWidth: 1.5, yAxisID: 'y' },
-          { label: '売上総利益', data: pl.gross_profit.map(v => v / 1000), backgroundColor: 'rgba(31,157,116,.25)', borderColor: 'rgba(31,157,116,.6)', borderWidth: 1.5, yAxisID: 'y' },
-          { label: '営業利益', data: pl.op_profit.map(v => v / 1000), type: 'line', borderColor: '#f59e0b', borderWidth: 2, pointBackgroundColor: '#f59e0b', fill: false, yAxisID: 'y' },
+          { label: '売上高',   data: chartSales.map(v => v/1000), backgroundColor: 'rgba(59,130,246,.2)', borderColor: 'rgba(59,130,246,.7)', borderWidth: 1.5 },
+          { label: '売上総利益', data: chartGross.map(v => v/1000), backgroundColor: 'rgba(16,185,129,.2)', borderColor: 'rgba(16,185,129,.7)', borderWidth: 1.5 },
+          { label: '営業利益', data: chartOp.map(v => v/1000),    type: 'line', borderColor: '#f59e0b', borderWidth: 2, pointBackgroundColor: '#f59e0b', fill: false },
         ]
       },
       options: {
@@ -303,7 +371,7 @@ function renderSimulation(container, budget) {
           legend: { position: 'bottom' },
           title: { display: true, text: '月次PL推移（千円）', font: { size: 13, weight: '700' } }
         },
-        scales: { y: { beginAtZero: false, grid: { color: 'rgba(29,111,184,.07)' } } }
+        scales: { y: { beginAtZero: false, grid: { color: 'rgba(59,130,246,.06)' } } }
       }
     });
   }
