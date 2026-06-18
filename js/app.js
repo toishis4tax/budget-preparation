@@ -214,7 +214,7 @@ function renderSimulation(container, budget) {
   };
 
   // ===== PL =====
-  let plItems, chartSales, chartGross, chartOp;
+  let plItems, chartSales, chartSga, chartOp;
 
   if (hasDynamic) {
     const g = id => normalize(allVals[id] || new Array(12).fill(0));
@@ -231,7 +231,7 @@ function renderSimulation(container, budget) {
       { label: '当期純利益',           vals: g('calc_net'),     bold: true  },
     ].filter(item => item.vals.some(v => v !== 0) || item.bold);
     chartSales = g('sec_revenue');
-    chartGross = g('calc_gross');
+    chartSga   = g('sec_sga');
     chartOp    = g('calc_op');
   } else {
     const pl = calcPL(budget.rows);
@@ -246,7 +246,7 @@ function renderSimulation(container, budget) {
       { label: '当期純利益',           vals: normalize(pl.net_profit),    bold: true  },
     ];
     chartSales = normalize(pl.sales);
-    chartGross = normalize(pl.gross_profit);
+    chartSga   = normalize(pl.sga);
     chartOp    = normalize(pl.op_profit);
   }
 
@@ -367,7 +367,7 @@ function renderSimulation(container, budget) {
         labels: months,
         datasets: [
           { label: '売上高',   data: chartSales.map(v => v/1000), backgroundColor: 'rgba(59,130,246,.2)', borderColor: 'rgba(59,130,246,.7)', borderWidth: 1.5 },
-          { label: '売上総利益', data: chartGross.map(v => v/1000), backgroundColor: 'rgba(16,185,129,.2)', borderColor: 'rgba(16,185,129,.7)', borderWidth: 1.5 },
+          { label: '販管費',   data: chartSga.map(v => v/1000),   backgroundColor: 'rgba(239,68,68,.15)',  borderColor: 'rgba(239,68,68,.6)',   borderWidth: 1.5 },
           { label: '営業利益', data: chartOp.map(v => v/1000),    type: 'line', borderColor: '#f59e0b', borderWidth: 2, pointBackgroundColor: '#f59e0b', fill: false },
         ]
       },
