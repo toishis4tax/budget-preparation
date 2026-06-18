@@ -190,7 +190,6 @@ function renderGrid(container, budget) {
   let html = `
     <div class="grid-toolbar">
       <div class="toolbar-left">
-        <button class="btn btn-sm" onclick="addSubAccount()">＋補助科目追加</button>
         <button class="btn btn-sm" onclick="deleteSelectedRow()">行削除</button>
         <button class="btn btn-sm" onclick="clearRowSelection()" title="選択解除">✕ 選択解除</button>
         <span class="sep">|</span>
@@ -762,6 +761,54 @@ function addSubAccount() {
   }
 }
 
+// ===== 科目追加（右クリック） =====
+function addAccountBelow(mode, currentAccId) {
+  const budget = window.App?.currentBudget;
+  const accounts = budget?.dynamicAccounts || ACCOUNTS;
+  const currentAcc = currentAccId ? accounts.find(a => a.id === currentAccId) : null;
+
+  const label = mode === 'sub' ? '補助科目名を入力:' : '新規科目名を入力:';
+  const name = prompt(label);
+  if (!name) return;
+
+  let parentId, indent, section, sign;
+
+  if (mode === 'sub') {
+    // 補助科目：現在行の子として追加
+    parentId = currentAcc?.parentId ? currentAcc.parentId : currentAccId;
+    const parent = parentId ? accounts.find(a => a.id === parentId) : null;
+    indent   = parent ? parent.indent + 1 : (currentAcc?.indent ?? 1) + 1;
+    section  = currentAcc?.section || 'pl';
+    sign     = currentAcc?.sign ?? 1;
+  } else {
+    // 同列科目：現在行と同じ indent・parentId
+    parentId = currentAcc?.parentId || null;
+    indent   = currentAcc?.indent ?? 1;
+    section  = currentAcc?.section || 'pl';
+    sign     = currentAcc?.sign ?? 1;
+  }
+
+  const newAcc = {
+    id:      'custom_' + generateId(),
+    name,
+    type:    'input',
+    indent,
+    parentId,
+    section,
+    sign,
+    custom:  true,
+  };
+
+  const idx = currentAccId ? accounts.findIndex(a => a.id === currentAccId) : accounts.length - 1;
+  accounts.splice(idx + 1, 0, newAcc);
+
+  if (budget) {
+    budget.rows[newAcc.id] = new Array(12).fill(0);
+    saveBudget(budget);
+    renderGrid(document.getElementById('main_content'), budget);
+  }
+}
+
 // ===== 入力完了モーダル =====
 function showBudgetCompleteModal() {
   const budget = window.App?.currentBudget;
@@ -903,8 +950,11 @@ function showContextMenu(x, y, input) {
   menu.className = 'ctx-menu';
   menu.style.left = x + 'px';
   menu.style.top  = y + 'px';
+  const accId = input?.dataset.accId;
   menu.innerHTML = `
-    <div class="ctx-item" onclick="addSubAccount()">補助科目を追加</div>
+    <div class="ctx-item" onclick="addAccountBelow('sub','${accId}')">＋ 補助科目を下に追加</div>
+    <div class="ctx-item" onclick="addAccountBelow('peer','${accId}')">＋ 新規科目を下に追加（同列）</div>
+    <div class="ctx-sep"></div>
     <div class="ctx-item" onclick="deleteSelectedRow()">行を削除</div>
     <div class="ctx-sep"></div>
     <div class="ctx-item" onclick="applyFillFromMenu('copy')">右にコピー（横引き）</div>
