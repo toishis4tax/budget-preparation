@@ -64,14 +64,51 @@ function calcExecScenario(monthlySalary, bonusAnnual, age, pref, capital) {
 // ====== レンダリング ======
 
 let _execState = {
-  officers: [{ name: '代表取締役', monthly: 800000, bonus: 0, age: 50 }],
+  officers: [{ name: '代表取締役', monthly: 800000, bonuses: [{ month: 6, amount: 0 }, { month: 12, amount: 0 }], age: 50 }],
   pref: '東京都',
   targetProfit: 0,
 };
 
-let _execTab = 'zero'; // 'zero' | 'optimize'
+let _execTab = 'zero'; // 'zero' | 'optimize' | 'si'
+
+const EXEC_COMP_KEY = 'exec_comp_state_v2';
+
+function _execTotalBonus(officer) {
+  return (officer.bonuses || []).reduce((s, b) => s + (b.amount || 0), 0);
+}
+
+function _execLoad() {
+  const cid = window.App?.currentCompany?.id;
+  if (!cid) return;
+  try {
+    const raw = localStorage.getItem(EXEC_COMP_KEY);
+    const all = raw ? JSON.parse(raw) : {};
+    const saved = all[cid];
+    if (saved?.officers?.length) {
+      _execState.officers = saved.officers.map(o => ({
+        ...o,
+        // migrate old single-bonus field to bonuses array
+        bonuses: o.bonuses || (o.bonus
+          ? [{ month: 6, amount: Math.round((o.bonus || 0) / 2) }, { month: 12, amount: Math.round((o.bonus || 0) / 2) }]
+          : [{ month: 6, amount: 0 }, { month: 12, amount: 0 }]),
+      }));
+    }
+  } catch {}
+}
+
+function _execSave() {
+  const cid = window.App?.currentCompany?.id;
+  if (!cid) return;
+  try {
+    const raw = localStorage.getItem(EXEC_COMP_KEY);
+    const all = raw ? JSON.parse(raw) : {};
+    all[cid] = { officers: _execState.officers };
+    localStorage.setItem(EXEC_COMP_KEY, JSON.stringify(all));
+  } catch {}
+}
 
 function renderExecComp(container, budget) {
+  _execLoad();
   // 予算から税引前利益を取得
   const allVals = budget?.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget?.rows || {});
   const basePL  = budget ? calcPL(budget.rows) : null;
@@ -97,6 +134,7 @@ function renderExecComp(container, budget) {
       <div class="grid-mode-tabs" style="margin-bottom:18px">
         <button class="grid-mode-tab${_execTab==='zero'?' active':''}" onclick="switchExecTab('zero')">①今期　利益ゼロ化（賞与調整）</button>
         <button class="grid-mode-tab${_execTab==='optimize'?' active':''}" onclick="switchExecTab('optimize')">②翌期　トータル最適化（報酬設計）</button>
+        <button class="grid-mode-tab${_execTab==='si'?' active':''}" onclick="switchExecTab('si')">③ 法定福利費シミュレーター</button>
       </div>
 
       <!-- ①利益ゼロ化 -->
@@ -226,11 +264,43 @@ function renderExecComp(container, budget) {
       </div>
       </div><!-- /#exec_tab_optimize -->
 
+      <!-- ③ 法定福利費シミュレーター -->
+      <div id="exec_tab_si" style="display:${_execTab==='si'?'block':'none'}">
+        <div style="display:grid;grid-template-columns:320px 1fr;gap:18px">
+          <div class="card-h">
+            <h3>入力</h3>
+            <div class="form-group">
+              <label>月額報酬（円）</label>
+              <input type="number" id="si_salary" class="form-input" value="500000" step="10000" oninput="runSICalc()">
+            </div>
+            <div class="form-group">
+              <label>年齢</label>
+              <input type="number" id="si_age" class="form-input" value="50" min="15" max="80" oninput="runSICalc()">
+            </div>
+            <div class="form-group">
+              <label>協会けんぽ</label>
+              <select id="si_pref" class="form-input" onchange="runSICalc()">${prefOptions}</select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>賞与</label>
+              <div id="si_bonus_list"></div>
+              <button onclick="addSIBonus()" style="margin-top:6px;font-size:11px;background:var(--emerald-light);border:1px solid var(--teal);color:var(--emerald-dark);border-radius:4px;padding:2px 10px;cursor:pointer">＋ 賞与追加</button>
+            </div>
+          </div>
+          <div class="card-h" id="si_result">
+            <h3>法定福利費（会社負担）</h3>
+            <div class="no-data-small">左の値を入力してください</div>
+          </div>
+        </div>
+      </div>
+
     </div>`;
 
   renderOfficerList();
   updateExecCalc();
   calcZeroOut();
+  renderSIBonusList();
+  if (_execTab === 'si') runSICalc();
 }
 
 function renderOfficerList() {
@@ -243,21 +313,37 @@ function renderOfficerList() {
           value="${o.name}" oninput="_execState.officers[${i}].name=this.value;updateExecCalc()">
         ${i > 0 ? `<button class="btn-outline btn-xs btn-danger-outline" onclick="removeOfficer(${i})">削除</button>` : ''}
       </div>
-      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 80px;gap:8px">
+      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 80px;gap:8px;flex-wrap:wrap">
         <div class="form-group" style="margin:0">
           <label>月額報酬（円）</label>
           <input type="number" class="form-input" value="${o.monthly}" step="10000"
             oninput="_execState.officers[${i}].monthly=+this.value;renderSlider(${i});updateExecCalc()">
         </div>
         <div class="form-group" style="margin:0">
-          <label>役員賞与（年間・円）</label>
-          <input type="number" class="form-input" value="${o.bonus}" step="100000"
-            oninput="_execState.officers[${i}].bonus=+this.value;updateExecCalc()">
-        </div>
-        <div class="form-group" style="margin:0">
           <label>年齢</label>
           <input type="number" class="form-input" value="${o.age}" min="15" max="80"
             oninput="_execState.officers[${i}].age=+this.value;updateExecCalc()">
+        </div>
+        <div class="form-group" style="margin:0;grid-column:span 2">
+          <label>役員賞与</label>
+          <div id="officer_bonuses_${i}">
+            ${(o.bonuses||[]).map((b, bi) => `
+              <div style="display:flex;gap:5px;align-items:center;margin-bottom:4px">
+                <select class="form-input" style="width:60px;font-size:11px;padding:2px 3px"
+                  onchange="_execState.officers[${i}].bonuses[${bi}].month=+this.value;_execSave();updateExecCalc()">
+                  ${Array.from({length:12},(_,m)=>`<option value="${m+1}"${b.month===m+1?' selected':''}>${m+1}月</option>`).join('')}
+                </select>
+                <input type="number" class="form-input" style="width:120px;font-size:12px;text-align:right"
+                  value="${b.amount||''}" placeholder="0" step="100000"
+                  oninput="_execState.officers[${i}].bonuses[${bi}].amount=+this.value||0;_execSave();updateExecCalc()">
+                <span style="font-size:11px;color:var(--text-muted)">円</span>
+                <button onclick="removeOfficerBonus(${i},${bi})"
+                  style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer">✕</button>
+              </div>`).join('')}
+            <button onclick="addOfficerBonus(${i})"
+              style="font-size:11px;background:var(--emerald-light);border:1px solid var(--teal);color:var(--emerald-dark);border-radius:4px;padding:2px 8px;cursor:pointer;margin-top:2px">＋ 賞与追加</button>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px">年間合計 ${Math.round(_execTotalBonus(o)/10000).toLocaleString()}万円</div>
         </div>
       </div>
       <div class="slider-wrap" style="margin-top:8px">
@@ -279,13 +365,30 @@ function renderOfficerList() {
 }
 
 function addOfficer() {
-  _execState.officers.push({ name: `取締役${_execState.officers.length}`, monthly: 500000, bonus: 0, age: 45 });
+  _execState.officers.push({ name: `取締役${_execState.officers.length}`, monthly: 500000, bonuses: [{ month: 6, amount: 0 }, { month: 12, amount: 0 }], age: 45 });
   renderOfficerList();
   updateExecCalc();
+  _execSave();
 }
 
 function removeOfficer(i) {
   _execState.officers.splice(i, 1);
+  renderOfficerList();
+  updateExecCalc();
+  _execSave();
+}
+
+function addOfficerBonus(i) {
+  if (!_execState.officers[i].bonuses) _execState.officers[i].bonuses = [];
+  _execState.officers[i].bonuses.push({ month: 12, amount: 0 });
+  _execSave();
+  renderOfficerList();
+  updateExecCalc();
+}
+
+function removeOfficerBonus(i, bi) {
+  _execState.officers[i].bonuses.splice(bi, 1);
+  _execSave();
   renderOfficerList();
   updateExecCalc();
 }
@@ -299,7 +402,7 @@ function updateExecCalc() {
 
   // 各役員の計算
   const scenarios = officers.map(o =>
-    calcExecScenario(o.monthly, o.bonus, o.age, pref, capital)
+    calcExecScenario(o.monthly, _execTotalBonus(o), o.age, pref, capital)
   );
 
   // 会社全体コスト
@@ -321,6 +424,7 @@ function updateExecCalc() {
   if (applyPanel) applyPanel.style.display = 'block';
 
   _execState._last = { scenarios, pretax, adjustedPretax, taxResult, totalCompanyCost, totalCompanySI };
+  _execSave();
 }
 
 function renderExecSliderResult(scenarios, pretax, adjustedPretax, taxResult, totalCost, totalSI) {
@@ -384,7 +488,7 @@ function renderExecCompareTable(officer, pref, capital, pretax) {
 
   const steps = [0, 300000, 500000, 800000, 1000000, 1200000, 1500000, 1800000, 2000000];
   const rows = steps.map(m => {
-    const s = calcExecScenario(m, officer.bonus || 0, officer.age || 50, pref, capital);
+    const s = calcExecScenario(m, _execTotalBonus(officer), officer.age || 50, pref, capital);
     const highlight = officer.monthly === m;
     return `<tr class="${highlight ? 'highlight' : ''}">
       <td>${fmt(m)}/月${highlight ? '<span class="optimal-badge">現在</span>' : ''}</td>
@@ -420,7 +524,7 @@ function renderExecCompareTable(officer, pref, capital, pretax) {
     </div>
     <div class="wf-note">
       ※ 所得税は給与所得控除・基礎控除(48万円)適用後の概算値（復興特別所得税2.1%含む）<br>
-      ※ 住民税は所得の約10%の概算値 ／ 役員賞与：${fmt(officer.bonus || 0)}/年（設定値）
+      ※ 住民税は所得の約10%の概算値 ／ 役員賞与：${fmt(_execTotalBonus(officer))}/年（設定値）
     </div>`;
 }
 
@@ -462,12 +566,107 @@ function switchExecTab(tab) {
   _execTab = tab;
   document.getElementById('exec_tab_zero')?.style.setProperty('display', tab === 'zero' ? 'block' : 'none');
   document.getElementById('exec_tab_optimize')?.style.setProperty('display', tab === 'optimize' ? 'block' : 'none');
+  document.getElementById('exec_tab_si')?.style.setProperty('display', tab === 'si' ? 'block' : 'none');
   document.querySelectorAll('.grid-mode-tab').forEach(btn => {
     btn.classList.toggle('active',
       (btn.textContent.includes('ゼロ化') && tab === 'zero') ||
-      (btn.textContent.includes('最適化') && tab === 'optimize')
+      (btn.textContent.includes('最適化') && tab === 'optimize') || (btn.textContent.includes('法定福利費') && tab === 'si')
     );
   });
+}
+
+let _siBonuses = [{ month: 6, amount: 0 }, { month: 12, amount: 0 }];
+
+function addSIBonus() {
+  _siBonuses.push({ month: 12, amount: 0 });
+  renderSIBonusList();
+  runSICalc();
+}
+
+function removeSIBonus(bi) {
+  _siBonuses.splice(bi, 1);
+  renderSIBonusList();
+  runSICalc();
+}
+
+function renderSIBonusList() {
+  const el = document.getElementById('si_bonus_list');
+  if (!el) return;
+  el.innerHTML = _siBonuses.map((b, bi) => `
+    <div style="display:flex;gap:5px;align-items:center;margin-bottom:4px">
+      <select class="form-input" style="width:60px;font-size:11px;padding:2px 3px"
+        onchange="_siBonuses[${bi}].month=+this.value;runSICalc()">
+        ${Array.from({length:12},(_,m)=>`<option value="${m+1}"${b.month===m+1?' selected':''}>${m+1}月</option>`).join('')}
+      </select>
+      <input type="number" class="form-input" style="width:130px;font-size:12px;text-align:right"
+        value="${b.amount||''}" placeholder="0" step="100000"
+        oninput="_siBonuses[${bi}].amount=+this.value||0;runSICalc()">
+      <span style="font-size:11px;color:var(--text-muted)">円</span>
+      <button onclick="removeSIBonus(${bi})"
+        style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer">✕</button>
+    </div>`).join('');
+}
+
+function runSICalc() {
+  const salary = parseFloat(document.getElementById('si_salary')?.value || 0);
+  const age    = parseInt(document.getElementById('si_age')?.value || 50);
+  const pref   = document.getElementById('si_pref')?.value || '東京都';
+  const el     = document.getElementById('si_result');
+  if (!el) return;
+
+  renderSIBonusList();
+
+  const rates    = (typeof KENPO_RATES !== 'undefined' ? KENPO_RATES : {})[pref] || { health: 0.0982, care: 0.0182 };
+  const careFlag = age >= 40 && age < 65;
+  const stdP     = Math.min(salary, PENSION_MAX_STD);
+  const stdH     = Math.min(salary, HEALTH_MAX_STD);
+
+  const healthC  = Math.floor(stdH * rates.health / 2);
+  const careC    = careFlag ? Math.floor(stdH * rates.care / 2) : 0;
+  const pensionC = Math.floor(stdP * KOSEI_RATE / 2);
+  const kodomoC  = Math.floor(stdP * KODOMO_RATE);
+  const monthlySI = healthC + careC + pensionC + kodomoC;
+
+  // 賞与月別
+  const bonusRows = _siBonuses.map((b, bi) => {
+    if (!b.amount) return '';
+    const sbH  = Math.min(b.amount, HEALTH_MAX_STD);
+    const sbP  = Math.min(b.amount, PENSION_MAX_STD);
+    const bHC  = Math.floor(sbH * rates.health / 2);
+    const bCC  = careFlag ? Math.floor(sbH * rates.care / 2) : 0;
+    const bPC  = Math.floor(sbP * KOSEI_RATE / 2);
+    const bKC  = Math.floor(sbP * KODOMO_RATE);
+    const total = bHC + bCC + bPC + bKC;
+    return `<tr style="background:#fffbeb">
+      <td>賞与${bi+1}（${b.month}月・${Math.round(b.amount/10000).toLocaleString()}万円）</td>
+      <td class="num" style="color:#d97706;font-weight:700">${Math.round(total).toLocaleString()}</td>
+    </tr>`;
+  }).filter(Boolean).join('');
+
+  const annualBonus = _siBonuses.reduce((s,b)=>s+(b.amount||0),0);
+  const annualSI = monthlySI * 12 + _siBonuses.reduce((s, b) => {
+    const sbH = Math.min(b.amount||0, HEALTH_MAX_STD);
+    const sbP = Math.min(b.amount||0, PENSION_MAX_STD);
+    return s + Math.floor(sbH*rates.health/2) + (careFlag?Math.floor(sbH*rates.care/2):0)
+             + Math.floor(sbP*KOSEI_RATE/2) + Math.floor(sbP*KODOMO_RATE);
+  }, 0);
+
+  el.innerHTML = `
+    <h3>法定福利費（会社負担）</h3>
+    <table class="result-table" style="margin-bottom:12px">
+      <thead><tr><th>項目</th><th style="text-align:right">金額（円）</th></tr></thead>
+      <tbody>
+        <tr><td>健康保険（${(rates.health*100).toFixed(3)}%・折半）</td><td class="num">${Math.round(healthC).toLocaleString()}/月</td></tr>
+        ${careFlag ? `<tr><td>介護保険（${(rates.care*100).toFixed(3)}%・折半）</td><td class="num">${Math.round(careC).toLocaleString()}/月</td></tr>` : ''}
+        <tr><td>厚生年金（${(KOSEI_RATE*100).toFixed(3)}%・折半）</td><td class="num">${Math.round(pensionC).toLocaleString()}/月</td></tr>
+        <tr><td>子ども・子育て拠出金（${(KODOMO_RATE*100).toFixed(3)}%）</td><td class="num">${Math.round(kodomoC).toLocaleString()}/月</td></tr>
+        <tr class="total-row"><td><strong>月額法定福利費</strong></td><td class="num"><strong>${Math.round(monthlySI).toLocaleString()}</strong></td></tr>
+        <tr class="total-row"><td><strong>月額 × 12ヶ月</strong></td><td class="num"><strong>${Math.round(monthlySI*12).toLocaleString()}</strong></td></tr>
+        ${bonusRows}
+        <tr class="total-row" style="background:#e0f2fe"><td><strong>年間合計</strong></td><td class="num" style="color:var(--emerald-dark);font-weight:800;font-size:15px">${Math.round(annualSI).toLocaleString()}</td></tr>
+      </tbody>
+    </table>
+    ${!careFlag ? `<div style="font-size:11px;color:var(--text-muted)">※ 年齢${age}歳 → 介護保険対象外（40〜64歳が対象）</div>` : ''}`;
 }
 
 // ===== ①利益ゼロ化計算（2名対応） =====
