@@ -157,7 +157,7 @@ function renderRevenue(container) {
       </div>
 
       <div class="card-h" style="padding:0;overflow:hidden">
-        <div style="overflow-x:auto">
+        <div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 380px)">
           <table class="result-table" style="min-width:1100px;table-layout:fixed">
             <colgroup>
               <col style="width:170px">
@@ -174,9 +174,9 @@ function renderRevenue(container) {
               <col style="width:78px"><!-- 合計 -->
               <col style="width:56px"><!-- 操作 -->
             </colgroup>
-            <thead>
+            <thead style="position:sticky;top:0;z-index:10">
               <tr>
-                <th style="position:sticky;left:0;background:#f0fdf4;z-index:5">顧問先名</th>
+                <th style="position:sticky;left:0;background:#e0f2fe;z-index:15">顧問先名</th>
                 <th>区分</th>
                 <th>確定</th>
                 <th>契約開始</th>
