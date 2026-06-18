@@ -280,90 +280,256 @@ function runFiveYearSim() {
 
 // キャッシュフロー予測
 function renderCashFlow(container, budget) {
+  if (!budget) {
+    container.innerHTML = '<div class="no-data">予算データがありません。</div>';
+    return;
+  }
+
+  const company   = window.App?.currentCompany;
+  const allVals   = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
+  const monthLabels = getMonthLabels(budget.startMonth || 4);
+  const at        = budget.actualThrough ?? -1;
+
+  // 期首現預金: BSの現預金科目から取得
+  let autoCash = 0, cashSource = '手動入力';
+  if (budget.dynamicAccounts) {
+    const cashAcc = budget.dynamicAccounts.find(a =>
+      a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section?.startsWith('bs')
+    );
+    if (cashAcc) {
+      const cashArr = allVals[cashAcc.id] || [];
+      // 実績確定月があればその残高、なければ最初の値
+      autoCash = at >= 0 ? (cashArr[at] || 0) : (cashArr[0] || 0);
+      cashSource = at >= 0 ? `${monthLabels[at]}末 BS残高（自動取得）` : 'BS残高（自動取得）';
+    }
+  }
+
+  // 減価償却費: SGA内の減価償却科目から合算
+  const deprArr = (() => {
+    if (budget.dynamicAccounts) {
+      const deprAccs = budget.dynamicAccounts.filter(a =>
+        a.name.replace(/\s/g,'').match(/減価償却/) && a.type === 'input'
+      );
+      return Array.from({length:12}, (_,i) =>
+        deprAccs.reduce((s,a) => s + ((allVals[a.id]||[])[i]||0), 0)
+      );
+    }
+    return budget.rows.sga_depr || new Array(12).fill(0);
+  })();
+
+  // 税額概算（法人税＋消費税）
+  const taxEst    = calcCtaxEstimate ? calcCtaxEstimate(budget, company) : null;
+  const corpTax   = (() => {
+    const pretaxArr = allVals['calc_pretax'] || (calcPL ? calcPL(budget.rows).pretax_profit : new Array(12).fill(0));
+    const pretax = pretaxArr.reduce((a,v)=>a+v,0);
+    if (pretax <= 0) return 0;
+    const t = calcAllTax ? calcAllTax(pretax, company?.capital||10000000) : null;
+    return t ? t.total : 0;
+  })();
+  const ctaxAmt   = (taxEst && !taxEst.exempt && !taxEst.noData) ? (taxEst.ctax || 0) : 0;
+  const prepaid1  = company?.prepaid1  || 0;
+  const prepaid2  = company?.prepaid2  || 0;
+  const ctaxPrepaid = company?.ctaxPrepaid || 0;
+
+  // 予定納税・中間納付の支払月（デフォルト：第1回=8月=index4、第2回=11月=index7、消費税=8月=index4）
+  const fiscalStart = budget.startMonth || 4; // 4月
+  const monthOffset = m => ((m - fiscalStart + 12) % 12); // 月→配列index変換
+
   container.innerHTML = `
     <div class="sim-panel">
       <h2 class="section-title">キャッシュフロー予測</h2>
+      <p class="section-sub">営業CF（利益＋減価償却）＋ 財務CF（借入返済・新規借入）＋ 税金支払</p>
+
       <div class="sim-grid">
-        <div class="sim-inputs card">
-          <h3>追加入力</h3>
-          <div class="form-group"><label>月次借入返済額（円）</label>
-            <input type="number" id="cf_loan_repay" value="0" step="10000" class="form-input"></div>
-          <div class="form-group"><label>設備投資（年間・円）</label>
-            <input type="number" id="cf_invest" value="0" step="100000" class="form-input"></div>
-          <div class="form-group"><label>新規借入（年間・円）</label>
-            <input type="number" id="cf_new_loan" value="0" step="100000" class="form-input"></div>
-          <div class="form-group"><label>期首現預金残高（円）</label>
-            <input type="number" id="cf_open_cash" value="5000000" step="100000" class="form-input"></div>
-          <button class="btn btn-primary" onclick="runCashFlow()">予測実行</button>
+        <div class="card-h">
+          <h3>⚙️ 設定</h3>
+
+          <div class="tax-block-label">開始残高</div>
+          <div class="form-group">
+            <label>期首現預金残高（円）<span class="ctax-auto-badge">${cashSource}</span></label>
+            <input type="number" id="cf_open_cash" value="${autoCash}" step="100000" class="form-input" oninput="runCashFlow()">
+          </div>
+
+          <div class="tax-block-label" style="margin-top:12px">財務CF</div>
+          <div class="form-group">
+            <label>月次借入返済額（円/月）</label>
+            <input type="number" id="cf_loan_repay" value="0" step="10000" class="form-input" oninput="runCashFlow()">
+          </div>
+          <div class="form-group">
+            <label>新規借入（年間・円）</label>
+            <input type="number" id="cf_new_loan" value="0" step="100000" class="form-input" oninput="runCashFlow()">
+          </div>
+          <div class="form-group">
+            <label>設備投資（年間・円）</label>
+            <input type="number" id="cf_invest" value="0" step="100000" class="form-input" oninput="runCashFlow()">
+          </div>
+
+          <div class="tax-block-label" style="margin-top:12px">税金支払</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="form-group" style="margin:0">
+              <label>法人税 予定納税①（円）</label>
+              <input type="number" id="cf_tax1_amt" value="${prepaid1}" step="10000" class="form-input" oninput="runCashFlow()">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>支払月</label>
+              <select id="cf_tax1_month" class="form-input" onchange="runCashFlow()">
+                ${monthLabels.map((m,i)=>`<option value="${i}" ${i===4?'selected':''}>${m}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>法人税 予定納税②（円）</label>
+              <input type="number" id="cf_tax2_amt" value="${prepaid2}" step="10000" class="form-input" oninput="runCashFlow()">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>支払月</label>
+              <select id="cf_tax2_month" class="form-input" onchange="runCashFlow()">
+                ${monthLabels.map((m,i)=>`<option value="${i}" ${i===7?'selected':''}>${m}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>消費税 中間納付（円）</label>
+              <input type="number" id="cf_ctax_amt" value="${ctaxPrepaid}" step="10000" class="form-input" oninput="runCashFlow()">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>支払月</label>
+              <select id="cf_ctax_month" class="form-input" onchange="runCashFlow()">
+                ${monthLabels.map((m,i)=>`<option value="${i}" ${i===4?'selected':''}>${m}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:10px;font-size:10px;color:var(--text-muted)">
+            ※確定申告分（法人税${Math.round(Math.max(0,corpTax-(prepaid1+prepaid2))/1000).toLocaleString()}千円・消費税${Math.round(Math.max(0,ctaxAmt-ctaxPrepaid)/1000).toLocaleString()}千円）は翌期のため含みません
+          </div>
         </div>
-        <div id="cf_result" class="sim-results card">
-          <h3>CF予測</h3><p class="hint">計算ボタンを押してください</p>
+
+        <div class="card-h">
+          <h3>📊 月末現預金残高</h3>
+          <canvas id="cf_chart" height="160"></canvas>
         </div>
       </div>
-      <div class="card" style="margin-top:1rem"><canvas id="cf_chart" height="100"></canvas></div>
+
+      <div class="card-h" style="margin-top:0" id="cf_table_wrap">
+        <h3>📋 月次キャッシュフロー明細</h3>
+        <div id="cf_result"></div>
+      </div>
     </div>`;
+
+  // 減価償却を state に保存してrunCashFlowで使う
+  window._cfState = { allVals, deprArr, monthLabels, at, budget };
+  runCashFlow();
 }
 
 function runCashFlow() {
   const budget = window.App?.currentBudget;
-  if (!budget) return;
+  const state  = window._cfState;
+  if (!budget || !state) return;
 
-  const loanRepay  = parseFloat(document.getElementById('cf_loan_repay')?.value || 0);
-  const invest     = parseFloat(document.getElementById('cf_invest')?.value     || 0) / 12;
-  const newLoan    = parseFloat(document.getElementById('cf_new_loan')?.value   || 0) / 12;
-  let cash         = parseFloat(document.getElementById('cf_open_cash')?.value  || 0);
+  const { allVals, deprArr, monthLabels, at } = state;
 
-  const pl = calcPL(budget.rows);
-  const depr = budget.rows.sga_depr || new Array(12).fill(0);
+  const openCash  = parseFloat(document.getElementById('cf_open_cash')?.value  || 0);
+  const loanRepay = parseFloat(document.getElementById('cf_loan_repay')?.value || 0);
+  const newLoan   = parseFloat(document.getElementById('cf_new_loan')?.value   || 0) / 12;
+  const invest    = parseFloat(document.getElementById('cf_invest')?.value     || 0) / 12;
+  const tax1Amt   = parseFloat(document.getElementById('cf_tax1_amt')?.value   || 0);
+  const tax1Month = parseInt(document.getElementById('cf_tax1_month')?.value   ?? 4);
+  const tax2Amt   = parseFloat(document.getElementById('cf_tax2_amt')?.value   || 0);
+  const tax2Month = parseInt(document.getElementById('cf_tax2_month')?.value   ?? 7);
+  const ctaxAmt   = parseFloat(document.getElementById('cf_ctax_amt')?.value   || 0);
+  const ctaxMonth = parseInt(document.getElementById('cf_ctax_month')?.value   ?? 4);
 
-  const months = [];
+  // 営業利益・減価償却
+  const hasDynamic = !!(budget.dynamicAccounts?.length);
+  const netArr = hasDynamic
+    ? (allVals['calc_net'] || new Array(12).fill(0))
+    : calcPL(budget.rows).net_profit;
+
+  let cash = openCash;
+  const rows = [];
+
   for (let m = 0; m < 12; m++) {
-    const opCF   = pl.net_profit[m] + depr[m];
-    const invCF  = -invest;
-    const finCF  = -loanRepay + newLoan;
-    const netCF  = opCF + invCF + finCF;
+    const isActual  = m <= at;
+    const opCF      = (netArr[m] || 0) + (deprArr[m] || 0);
+    const finCF     = newLoan - loanRepay - invest;
+    const taxCF     = -(m === tax1Month ? tax1Amt : 0)
+                      -(m === tax2Month ? tax2Amt : 0)
+                      -(m === ctaxMonth ? ctaxAmt : 0);
+    const netCF     = opCF + finCF + taxCF;
+    const openM     = cash;
     cash += netCF;
-    months.push({ m: m+1, opCF, invCF, finCF, netCF, cash, shortage: cash < 0 });
+    rows.push({ m, label: monthLabels[m], openM, opCF, finCF, taxCF, netCF, closeM: cash,
+                shortage: cash < 0, isActual });
   }
 
+  // テーブル
   const el = document.getElementById('cf_result');
-  if (!el) return;
-  el.innerHTML = `
-    <h3>月次CF推移</h3>
-    <div class="table-scroll">
-    <table class="result-table">
-      <thead><tr><th>月</th><th>営業CF</th><th>投資CF</th><th>財務CF</th><th>月末現預金</th></tr></thead>
-      <tbody>
-        ${months.map(r=>`
-          <tr class="${r.shortage?'shortage-row':''}">
-            <td>${r.m}月</td>
-            <td class="num">${fmtK(r.opCF)}</td>
-            <td class="num">${fmtK(r.invCF)}</td>
-            <td class="num">${fmtK(r.finCF)}</td>
-            <td class="num ${r.shortage?'shortage-val':''}">${fmtK(r.cash)}${r.shortage?' ⚠':''}</td>
-          </tr>`).join('')}
-      </tbody>
-    </table>
-    </div>
-    <div class="wf-note">単位：千円　⚠ 資金ショートリスク</div>`;
+  if (el) {
+    el.innerHTML = `
+      <div class="table-scroll">
+      <table class="result-table">
+        <thead>
+          <tr>
+            <th>月</th><th>区分</th><th>期首残高</th>
+            <th>営業CF<br><span style="font-weight:400;font-size:10px">利益＋償却</span></th>
+            <th>財務CF<br><span style="font-weight:400;font-size:10px">借入±返済±投資</span></th>
+            <th>税金CF</th>
+            <th style="font-weight:700">月末残高</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr class="${r.shortage?'shortage-row':''} ${r.isActual?'actual-cf-row':''}">
+              <td>${r.label}</td>
+              <td style="font-size:10px;color:var(--text-muted)">${r.isActual?'実績':'予算'}</td>
+              <td class="num">${Math.round(r.openM/1000).toLocaleString()}</td>
+              <td class="num" style="color:${r.opCF>=0?'#059669':'#dc2626'}">${Math.round(r.opCF/1000).toLocaleString()}</td>
+              <td class="num" style="color:${r.finCF>=0?'#0284c7':'#dc2626'}">${Math.round(r.finCF/1000).toLocaleString()}</td>
+              <td class="num" style="color:${r.taxCF<0?'#dc2626':'inherit'}">${r.taxCF!==0?Math.round(r.taxCF/1000).toLocaleString():'–'}</td>
+              <td class="num" style="font-weight:700;color:${r.shortage?'#dc2626':r.closeM<1000000?'#d97706':'#059669'}">
+                ${Math.round(r.closeM/1000).toLocaleString()}${r.shortage?' ⚠':''}
+              </td>
+            </tr>`).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="font-weight:700;background:var(--emerald-pale)">
+            <td colspan="2">通期合計</td>
+            <td></td>
+            <td class="num">${Math.round(rows.reduce((a,r)=>a+r.opCF,0)/1000).toLocaleString()}</td>
+            <td class="num">${Math.round(rows.reduce((a,r)=>a+r.finCF,0)/1000).toLocaleString()}</td>
+            <td class="num">${Math.round(rows.reduce((a,r)=>a+r.taxCF,0)/1000).toLocaleString()}</td>
+            <td class="num">${Math.round(rows[11].closeM/1000).toLocaleString()}</td>
+          </tr>
+        </tfoot>
+      </table>
+      </div>
+      <div class="wf-note">単位：千円　⚠ 資金ショートリスク　🟡 100万円未満</div>`;
+  }
 
+  // チャート
   if (typeof Chart !== 'undefined') {
     const ctx = document.getElementById('cf_chart');
-    if (ctx?._chartInstance) ctx._chartInstance.destroy();
-    if (ctx) ctx._chartInstance = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: months.map(r=>`${r.m}月`),
-        datasets: [
-          { label:'月末現預金（千円）', data: months.map(r=>r.cash/1000),
-            borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true }
-        ]
-      },
-      options: {
-        responsive: true,
-        plugins: { title:{ display:true, text:'月末現預金残高推移' } },
-        scales: { y:{ beginAtZero:false } }
-      }
-    });
+    if (ctx) {
+      if (ctx._chartInst) ctx._chartInst.destroy();
+      ctx._chartInst = new Chart(ctx, {
+        data: {
+          labels: rows.map(r => r.label),
+          datasets: [
+            { type:'bar', label:'営業CF', data: rows.map(r=>r.opCF/1000),  backgroundColor:'rgba(16,185,129,.5)', stack:'cf' },
+            { type:'bar', label:'財務CF', data: rows.map(r=>r.finCF/1000), backgroundColor:'rgba(59,130,246,.5)', stack:'cf' },
+            { type:'bar', label:'税金CF', data: rows.map(r=>r.taxCF/1000), backgroundColor:'rgba(239,68,68,.5)',  stack:'cf' },
+            { type:'line',label:'月末現預金', data: rows.map(r=>r.closeM/1000),
+              borderColor:'#0f172a', borderWidth:2, pointBackgroundColor: rows.map(r=>r.shortage?'#dc2626':'#0f172a'),
+              fill:false, yAxisID:'y2', tension:.3 },
+          ]
+        },
+        options: {
+          responsive:true,
+          plugins:{ legend:{ position:'bottom' }, title:{ display:true, text:'月次CF内訳と現預金残高（千円）' } },
+          scales:{
+            y:  { stacked:true, grid:{ color:'rgba(0,0,0,.04)' } },
+            y2: { position:'right', grid:{ display:false }, title:{ display:true, text:'残高（千円）' } }
+          }
+        }
+      });
+    }
   }
 }

@@ -430,6 +430,7 @@ body {
 /* ===== CF ===== */
 .shortage-row { background: #fff1f2 !important; }
 .shortage-val { color: var(--rose); font-weight: 700; }
+.actual-cf-row { opacity: .75; font-style: italic; }
 
 /* ===== 健康診断 ===== */
 .health-overview { display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
@@ -526,6 +527,57 @@ input[type=range]::-webkit-slider-thumb {
 .home-card-title { font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: .04em; margin-bottom: 14px; text-transform: uppercase; }
 .home-summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 .home-card-wide { grid-column: 1 / -1; }
+
+/* ===== フェーズハブ ===== */
+.phase-hub { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.phase-card { background: var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow-sm); border: 2px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 14px; transition: box-shadow .15s; }
+.phase-card:hover { box-shadow: var(--shadow); }
+.phase-blue  { border-top: 4px solid #3b82f6; }
+.phase-amber { border-top: 4px solid #f59e0b; }
+.phase-green { border-top: 4px solid #10b981; }
+
+.phase-card-head { display: flex; flex-direction: column; gap: 6px; }
+.phase-card-head-row { display: flex; align-items: center; gap: 8px; }
+.phase-num { font-size: 15px; font-weight: 900; color: var(--text-muted); line-height: 1; flex-shrink: 0; }
+.phase-title-wrap { flex: 1; min-width: 0; }
+.phase-title { font-size: 18px; font-weight: 800; color: var(--text); white-space: nowrap; }
+.phase-desc  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.phase-badge { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; align-self: flex-start; }
+.phase-badge.ready   { background: #bbf7d0; color: #065f46; }
+.phase-badge.pending { background: #fef3c7; color: #92400e; }
+
+.phase-tools { display: flex; flex-direction: column; gap: 4px; }
+.phase-tool { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--bg); border-radius: var(--radius-sm); cursor: pointer; transition: background .12s; }
+.phase-tool:hover { background: var(--emerald-light); }
+.phase-tool-label { flex: 1; font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.phase-tool-sub   { font-size: 10px; color: var(--text-muted); }
+.phase-tool-arrow { font-size: 16px; color: var(--text-muted); line-height: 1; }
+
+.phase-kpi-mini { display: flex; gap: 8px; padding: 10px 12px; background: var(--border-muted); border-radius: var(--radius-sm); }
+.phase-kpi-item { flex: 1; text-align: center; }
+.phase-kpi-label { display: block; font-size: 10px; color: var(--text-muted); font-weight: 600; margin-bottom: 3px; }
+.phase-kpi-val { font-size: 14px; font-weight: 800; color: var(--text); }
+.phase-kpi-val.pos { color: #059669; }
+.phase-kpi-val.neg { color: #dc2626; }
+
+.phase-output-btn { width: 100%; padding: 10px; background: var(--text); color: #fff; border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity .12s; }
+.phase-output-btn:hover { opacity: .8; }
+.phase-blue  .phase-output-btn { background: #3b82f6; }
+.phase-amber .phase-output-btn { background: #f59e0b; }
+.phase-green .phase-output-btn { background: #10b981; }
+
+/* 業績サマリー折りたたみ */
+.home-details { background: var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow-xs); border: 1px solid var(--border); overflow: hidden; }
+.home-details-summary { padding: 14px 20px; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+.home-details-summary::-webkit-details-marker { display: none; }
+.home-details[open] .home-details-summary { border-bottom: 1px solid var(--border); }
+
+/* 成果物モーダル */
+.output-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--radius-sm); cursor: pointer; transition: background .12s; border: 1px solid var(--border); margin-bottom: 8px; }
+.output-item:hover { background: var(--emerald-pale); }
+.output-icon  { font-size: 20px; flex-shrink: 0; }
+.output-label { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); }
+.output-badge { font-size: 10px; padding: 2px 8px; background: var(--border-muted); color: var(--text-muted); border-radius: 99px; font-weight: 600; }
 
 /* 3期比較テーブル */
 .yr3-table { width: 100%; border-collapse: collapse; font-size: 13px; }
