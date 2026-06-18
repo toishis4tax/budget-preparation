@@ -285,22 +285,36 @@ function renderCashFlow(container, budget) {
     return;
   }
 
-  const company   = window.App?.currentCompany;
-  const allVals   = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
+  const company     = window.App?.currentCompany;
+  const curYear     = window.App?.currentYear || new Date().getFullYear();
+  const allVals     = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
   const monthLabels = getMonthLabels(budget.startMonth || 4);
-  const at        = budget.actualThrough ?? -1;
+  const actualCols  = getActualCols(budget);
 
-  // 期首現預金: BSの現預金科目から取得
+  // 期首現預金: 前期末BS現預金科目から取得
   let autoCash = 0, cashSource = '手動入力';
-  if (budget.dynamicAccounts) {
+  const budgetPrev1 = (typeof getBudget === 'function') ? getBudget(company?.id, curYear - 1) : null;
+  if (budgetPrev1 && budgetPrev1.dynamicAccounts) {
+    const prevAllVals = calcAllValuesDynamic(budgetPrev1);
+    const cashAcc = budgetPrev1.dynamicAccounts.find(a =>
+      a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section?.startsWith('bs')
+    );
+    if (cashAcc) {
+      const cashArr = prevAllVals[cashAcc.id] || [];
+      for (let i = 11; i >= 0; i--) {
+        if (cashArr[i] != null && cashArr[i] !== 0) { autoCash = cashArr[i]; break; }
+      }
+      cashSource = `前期末 BS残高（自動取得）`;
+    }
+  } else if (budget.dynamicAccounts) {
+    // フォールバック: 当期BSの期首値（第1月）
     const cashAcc = budget.dynamicAccounts.find(a =>
       a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section?.startsWith('bs')
     );
     if (cashAcc) {
       const cashArr = allVals[cashAcc.id] || [];
-      // 実績確定月があればその残高、なければ最初の値
-      autoCash = at >= 0 ? (cashArr[at] || 0) : (cashArr[0] || 0);
-      cashSource = at >= 0 ? `${monthLabels[at]}末 BS残高（自動取得）` : 'BS残高（自動取得）';
+      autoCash = cashArr[0] || 0;
+      cashSource = 'BS残高（自動取得）';
     }
   }
 
@@ -364,7 +378,20 @@ function renderCashFlow(container, budget) {
             <input type="number" id="cf_invest" value="0" step="100000" class="form-input" oninput="runCashFlow()">
           </div>
 
-          <div class="tax-block-label" style="margin-top:12px">税金支払</div>
+          <div class="tax-block-label" style="margin-top:12px">前期申告納税（期首第2月に支出）</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="form-group" style="margin:0">
+              <label>前期法人税等 確定申告（円）</label>
+              <input type="number" id="cf_prev_corp" value="0" step="10000" class="form-input" oninput="runCashFlow()">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>前期消費税等 確定申告（円）</label>
+              <input type="number" id="cf_prev_ctax" value="0" step="10000" class="form-input" oninput="runCashFlow()">
+            </div>
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:3px">→ ${monthLabels[1]}（第2月）に計上</div>
+
+          <div class="tax-block-label" style="margin-top:12px">当期中間納付</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <div class="form-group" style="margin:0">
               <label>法人税 中間申告（年1回・円）</label>
@@ -392,7 +419,7 @@ function renderCashFlow(container, budget) {
           </div>
           <div id="cf_ctax_months_wrap" style="margin-top:6px;font-size:11px;color:#2563eb;padding:4px 0"></div>
           <div style="margin-top:10px;font-size:10px;color:var(--text-muted)">
-            ※確定申告分（法人税${Math.round(Math.max(0,corpTax-prepaid1)/1000).toLocaleString()}千円）は翌期のため含みません
+            ※当期確定申告分（法人税${Math.round(Math.max(0,corpTax-prepaid1)/1000).toLocaleString()}千円）は翌期のため含みません
           </div>
         </div>
 
@@ -413,15 +440,17 @@ function renderCashFlow(container, budget) {
   const _cfSaved = (() => { try { return JSON.parse(localStorage.getItem(_cfKey)); } catch { return null; } })();
   const prev = _cfSaved || window._cfState || {};
   window._cfState = {
-    allVals, deprArr, monthLabels, at, budget,
-    openCash:   prev.openCash  ?? autoCash,
-    loanRepay:  prev.loanRepay ?? 0,
-    newLoan:    prev.newLoan   ?? 0,
-    invest:     prev.invest    ?? 0,
-    tax1Amt:    prev.tax1Amt   ?? prepaid1,
-    tax1Month:  prev.tax1Month ?? 4,
-    ctaxTimes:  prev.ctaxTimes ?? 0,
-    ctaxAmt:    prev.ctaxAmt   ?? ctaxPrepaid,
+    allVals, deprArr, monthLabels, actualCols, budget,
+    openCash:   prev.openCash   ?? autoCash,
+    loanRepay:  prev.loanRepay  ?? 0,
+    newLoan:    prev.newLoan    ?? 0,
+    invest:     prev.invest     ?? 0,
+    prevCorp:   prev.prevCorp   ?? 0,
+    prevCtax:   prev.prevCtax   ?? 0,
+    tax1Amt:    prev.tax1Amt    ?? prepaid1,
+    tax1Month:  prev.tax1Month  ?? 4,
+    ctaxTimes:  prev.ctaxTimes  ?? 0,
+    ctaxAmt:    prev.ctaxAmt    ?? ctaxPrepaid,
     _cfKey,
   };
   // 保存済み入力値をDOMに復元
@@ -431,6 +460,8 @@ function renderCashFlow(container, budget) {
   setV('cf_loan_repay', s.loanRepay);
   setV('cf_new_loan',   s.newLoan);
   setV('cf_invest',     s.invest);
+  setV('cf_prev_corp',  s.prevCorp);
+  setV('cf_prev_ctax',  s.prevCtax);
   setV('cf_tax1_amt',   s.tax1Amt);
   setV('cf_tax1_month', s.tax1Month);
   setV('cf_ctax_times', s.ctaxTimes);
@@ -476,12 +507,14 @@ function runCashFlow() {
   const state  = window._cfState;
   if (!budget || !state) return;
 
-  const { allVals, deprArr, monthLabels, at } = state;
+  const { allVals, deprArr, monthLabels, actualCols } = state;
 
   const openCash  = parseFloat(document.getElementById('cf_open_cash')?.value  || 0);
   const loanRepay = parseFloat(document.getElementById('cf_loan_repay')?.value || 0);
   const newLoan   = parseFloat(document.getElementById('cf_new_loan')?.value   || 0) / 12;
   const invest    = parseFloat(document.getElementById('cf_invest')?.value     || 0) / 12;
+  const prevCorp  = parseFloat(document.getElementById('cf_prev_corp')?.value  || 0);
+  const prevCtax  = parseFloat(document.getElementById('cf_prev_ctax')?.value  || 0);
   const tax1Amt   = parseFloat(document.getElementById('cf_tax1_amt')?.value   || 0);
   const tax1Month = parseInt(document.getElementById('cf_tax1_month')?.value   ?? 4);
   const ctaxAmt    = parseFloat(document.getElementById('cf_ctax_amt')?.value  || 0);
@@ -490,13 +523,13 @@ function runCashFlow() {
   // 入力値を保存（window + localStorage）
   Object.assign(state, {
     openCash, loanRepay, newLoan: newLoan*12, invest: invest*12,
-    tax1Amt, tax1Month, ctaxTimes, ctaxAmt,
+    prevCorp, prevCtax, tax1Amt, tax1Month, ctaxTimes, ctaxAmt,
   });
   if (state._cfKey) {
     try {
       localStorage.setItem(state._cfKey, JSON.stringify({
         openCash, loanRepay, newLoan: newLoan*12, invest: invest*12,
-        tax1Amt, tax1Month, ctaxTimes, ctaxAmt,
+        prevCorp, prevCtax, tax1Amt, tax1Month, ctaxTimes, ctaxAmt,
       }));
     } catch {}
   }
@@ -511,11 +544,15 @@ function runCashFlow() {
   let cash = openCash;
   const rows = [];
 
+  // 前期申告納税: 第2月（index 1）
+  const prevTaxTotal = prevCorp + prevCtax;
+
   for (let m = 0; m < 12; m++) {
-    const isActual  = m <= at;
+    const isActual  = actualCols ? actualCols[m] : false;
     const opCF      = (netArr[m] || 0) + (deprArr[m] || 0);
     const finCF     = newLoan - loanRepay - invest;
-    const taxCF     = -(m === tax1Month ? tax1Amt : 0)
+    const taxCF     = -(m === 1 ? prevTaxTotal : 0)
+                      -(m === tax1Month ? tax1Amt : 0)
                       -(ctaxMonths.includes(m) ? ctaxAmt : 0);
     const netCF     = opCF + finCF + taxCF;
     const openM     = cash;
