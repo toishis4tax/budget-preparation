@@ -44,71 +44,39 @@ function renderKichuOutput(type, container) {
 function getKichuPL(budget) {
   if (!budget) return null;
 
-  // actualCols（新形式）を優先。なければ actualThrough（旧形式）から変換
-  const actualCols = getActualCols(budget);
-  const hasActual = actualCols.some(Boolean);
-  // actualThrough = 最後のtrue index（後方互換用）
-  let actualThrough = -1;
-  for (let i = 11; i >= 0; i--) { if (actualCols[i]) { actualThrough = i; break; } }
-
-  // 実績側: dynamicAccounts があれば使う
-  let actualAv = null;
-  if (budget.dynamicAccounts && hasActual) {
-    actualAv = calcAllValuesDynamic(budget);
+  if (budget.dynamicAccounts?.length) {
+    // getMergedRows で実績月はactualRows、予算月はrowsを正しくブレンド
+    const mergedRows = getMergedRows(budget);
+    const av = calcAllValuesDynamic({ ...budget, rows: mergedRows });
+    const g = function(id) { return av[id] || new Array(13).fill(0); };
+    return {
+      sales:  g('sec_revenue'),
+      gross:  g('calc_gross'),
+      sga:    g('sec_sga'),
+      op:     g('calc_op'),
+      ord:    g('calc_ord'),
+      pretax: g('calc_pretax'),
+      net:    g('calc_net'),
+    };
   }
 
-  // 予算側: 静的rows から calcPL
-  let budgetPl = null;
   if (budget.rows && Object.keys(budget.rows).length > 0) {
-    try { budgetPl = calcPL(budget.rows); } catch(e) {}
+    try {
+      const pl = calcPL(budget.rows);
+      const n = function(arr) { return Array.from({length:12}, function(_,i){ return arr ? (arr[i]||0) : 0; }); };
+      return {
+        sales:  n(pl.sales),
+        gross:  n(pl.gross_profit),
+        sga:    n(pl.sga),
+        op:     n(pl.op_profit),
+        ord:    n(pl.ord_profit),
+        pretax: n(pl.pretax_profit),
+        net:    n(pl.net_profit),
+      };
+    } catch(e) {}
   }
 
-  // 実績のみ・予算のみのフォールバック
-  if (!actualAv && !budgetPl) return null;
-  if (!actualAv) {
-    // 実績なし → 予算のみ (動的科目があれば calcAllValuesDynamic を使う)
-    if (budget.dynamicAccounts?.length) {
-      const dv = calcAllValuesDynamic(budget);
-      // index 12 = 調整欄を含む 13要素配列のまま返す
-      const g13 = function(id) { return dv[id] || new Array(13).fill(0); };
-      return { sales: g13('sec_revenue'), gross: g13('calc_gross'), sga: g13('sec_sga'),
-               op: g13('calc_op'), ord: g13('calc_ord'), pretax: g13('calc_pretax'), net: g13('calc_net') };
-    }
-    const n = function(arr) { return Array.from({length:12}, function(_,i){ return arr ? (arr[i] || 0) : 0; }); };
-    return { sales: n(budgetPl.sales), gross: n(budgetPl.gross_profit), sga: n(budgetPl.sga),
-             op: n(budgetPl.op_profit), ord: n(budgetPl.ord_profit),
-             pretax: n(budgetPl.pretax_profit), net: n(budgetPl.net_profit) };
-  }
-  if (!budgetPl && actualThrough >= 11) {
-    // 全月実績 → dynamicのみ（index 12 含む）
-    const g = function(id) { return actualAv[id] || new Array(13).fill(0); };
-    return { sales: g('sec_revenue'), gross: g('calc_gross'), sga: g('sec_sga'),
-             op: g('calc_op'), ord: g('calc_ord'), pretax: g('calc_pretax'), net: g('calc_net') };
-  }
-
-  // ブレンド: actualCols[i]=true → 実績, false → 予算
-  // index 12 (調整欄) は actualAv から取得（budgetのcorp_tax調整など）
-  const blend = function(actualId, budgetArr) {
-    const arr = Array.from({length:12}, function(_,i) {
-      if (actualCols[i] && actualAv) {
-        return actualAv[actualId] ? (actualAv[actualId][i] || 0) : 0;
-      }
-      return budgetArr ? (budgetArr[i] || 0) : 0;
-    });
-    // 調整欄（index 12）を追加: actualAv（calcAllValuesDynamic）から取得
-    arr.push(actualAv?.[actualId]?.[12] || 0);
-    return arr;
-  };
-
-  return {
-    sales:  blend('sec_revenue',   budgetPl ? budgetPl.sales         : null),
-    gross:  blend('calc_gross',    budgetPl ? budgetPl.gross_profit  : null),
-    sga:    blend('sec_sga',       budgetPl ? budgetPl.sga           : null),
-    op:     blend('calc_op',       budgetPl ? budgetPl.op_profit     : null),
-    ord:    blend('calc_ord',      budgetPl ? budgetPl.ord_profit    : null),
-    pretax: blend('calc_pretax',   budgetPl ? budgetPl.pretax_profit : null),
-    net:    blend('calc_net',      budgetPl ? budgetPl.net_profit    : null),
-  };
+  return null;
 }
 
 // 純予算PL（比較用・予算入力値のみ）

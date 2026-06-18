@@ -752,11 +752,20 @@ function renderImport(container) {
           財務大将の「月次推移表」→「CSV出力」でエクスポートしたファイルを選択してください。BS（貸借対照表）とPL（損益計算書）の両方をインポートできます。
         </div>
 
-        <div class="form-group" style="max-width:200px">
-          <label>期首月（決算年度の開始月）</label>
-          <select id="import_start_month" class="form-input">
-            ${MONTH_NAMES.map((m,i)=>`<option value="${i+1}"${i===3?' selected':''}>${m}始まり</option>`).join('')}
-          </select>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <div class="form-group" style="margin:0">
+            <label>期首月（決算年度の開始月）</label>
+            <select id="import_start_month" class="form-input">
+              ${MONTH_NAMES.map((m,i)=>`<option value="${i+1}"${i===3?' selected':''}>${m}始まり</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>実績確定は何月まで<br><span style="font-size:10px;font-weight:400;color:var(--text-muted)">（それ以降の月の予算データを保持します）</span></label>
+            <select id="import_actual_through" class="form-input">
+              <option value="-1">実績なし（全月を予算として取込）</option>
+              ${MONTH_NAMES.map((m,i)=>`<option value="${i}">${m}まで</option>`).join('')}
+            </select>
+          </div>
         </div>
 
         <!-- アップロードゾーン -->
@@ -1006,60 +1015,59 @@ function executeImport() {
   const company = window.App?.currentCompany;
   if (!company) { alert('会社を選択してください'); return; }
 
-  const year = parseInt(document.getElementById('import_target_year')?.value || new Date().getFullYear());
+  const year      = parseInt(document.getElementById('import_target_year')?.value || new Date().getFullYear());
+  const startMonth = result.startMonth || 4;
+
+  // 実績確定月（暦月インデックス 0-11、-1=なし）
+  const throughCalIdx = parseInt(document.getElementById('import_actual_through')?.value ?? -1);
+  // 会計年度インデックスに変換（4月始まりなら4月=0, 5月=1, ...）
+  const throughFiscalIdx = throughCalIdx < 0 ? -1
+    : ((throughCalIdx - (startMonth - 1) + 12) % 12);
 
   let budget = getBudget(company.id, year);
   if (!budget) budget = createDefaultBudget(company.id, year);
+  if (!budget.rows)       budget.rows = {};
+  if (!budget.actualRows) budget.actualRows = {};
 
-  const actualCols = getActualCols(budget);
-  const hasAnyActual = actualCols.some(Boolean);
-
-  if (hasAnyActual) {
-    if (!budget.actualRows) budget.actualRows = {};
-    Object.entries(result.rows).forEach(([id, vals]) => {
-      if (!budget.actualRows[id]) budget.actualRows[id] = new Array(13).fill(0);
-      if (!budget.rows[id]) budget.rows[id] = new Array(13).fill(0);
-      vals.forEach((v, i) => {
-        if (i < 12 && actualCols[i]) budget.actualRows[id][i] = v;
-        else if (v !== 0) budget.rows[id][i] = v;
-      });
-    });
-  } else {
-    Object.assign(budget.rows, result.rows);
+  // actualCols を設定（実績確定月まで true）
+  if (throughFiscalIdx >= 0) {
+    budget.actualCols = Array.from({length: 12}, function(_, i) { return i <= throughFiscalIdx; });
+    budget.actualThrough = throughFiscalIdx;
   }
+  // throughFiscalIdx == -1 のとき: 全月予算として取込（actualCols・actualThrough はそのまま）
 
-  budget.startMonth = result.startMonth;
+  // 科目データをマージ
+  Object.entries(result.rows).forEach(function([id, vals]) {
+    if (!Array.isArray(vals)) return;
+    if (throughFiscalIdx >= 0) {
+      // 実績月 → actualRows に上書き、budget.rows は更新しない（既存予算を保持）
+      if (!budget.actualRows[id]) budget.actualRows[id] = new Array(13).fill(0);
+      vals.forEach(function(v, i) {
+        if (i < 12 && i <= throughFiscalIdx) budget.actualRows[id][i] = v;
+      });
+    } else {
+      // 実績なし → 全月を budget.rows に上書き（初回インポートや予算取込）
+      if (!budget.rows[id]) budget.rows[id] = new Array(13).fill(0);
+      vals.forEach(function(v, i) {
+        if (i < 12) budget.rows[id][i] = v;
+      });
+    }
+  });
+
+  budget.startMonth = startMonth;
 
   // 動的科目リストをマージ保存
   if (result.dynamicAccounts && result.dynamicAccounts.length > 0) {
-    const isPL = result.dynamicAccounts.some(a => a.section === 'pl');
-    const isBS = result.dynamicAccounts.some(a => a.section?.startsWith('bs'));
+    const isPL = result.dynamicAccounts.some(function(a) { return a.section === 'pl'; });
+    const isBS = result.dynamicAccounts.some(function(a) { return a.section?.startsWith('bs'); });
     if (!budget.dynamicAccounts) {
       budget.dynamicAccounts = result.dynamicAccounts;
     } else {
-      if (isPL) budget.dynamicAccounts = budget.dynamicAccounts.filter(a => a.section !== 'pl');
-      if (isBS) budget.dynamicAccounts = budget.dynamicAccounts.filter(a => !a.section?.startsWith('bs'));
+      if (isPL) budget.dynamicAccounts = budget.dynamicAccounts.filter(function(a) { return a.section !== 'pl'; });
+      if (isBS) budget.dynamicAccounts = budget.dynamicAccounts.filter(function(a) { return !a.section?.startsWith('bs'); });
       budget.dynamicAccounts = [...budget.dynamicAccounts, ...result.dynamicAccounts];
     }
     budget.dynamicAccountsFromImport = true;
-  }
-
-  // インポートした月数を自動検出してactualThroughを設定
-  const importedRows = result.rows || {};
-  const rowArrays = Object.values(importedRows).filter(arr => Array.isArray(arr));
-  if (rowArrays.length > 0) {
-    // 各月で少なくとも1つのアカウントに非ゼロ値があるか確認
-    let lastFilledMonth = -1;
-    for (let m = 0; m < 12; m++) {
-      const hasData = rowArrays.some(arr => arr[m] !== 0);
-      if (hasData) lastFilledMonth = m;
-    }
-    if (lastFilledMonth >= 0) {
-      // 既存のactualThroughより大きい場合のみ更新（後退させない）
-      if (budget.actualThrough == null || lastFilledMonth > budget.actualThrough) {
-        budget.actualThrough = lastFilledMonth;
-      }
-    }
   }
 
   saveBudget(budget);
@@ -1077,11 +1085,15 @@ function executeImport() {
     format: _importState.detectedFormat || '月次推移表',
     source: _importState.source,
     year,
-    startMonth: result.startMonth,
+    startMonth,
     mappedCount: mapped,
     unmappedCount: result.unmapped.length,
     importedAt: Date.now(),
   });
+
+  const actLabel = throughFiscalIdx >= 0
+    ? MONTH_NAMES[throughCalIdx] + 'まで実績確定（' + (throughFiscalIdx + 1) + 'か月）'
+    : '全月予算として取込';
 
   const el = document.getElementById('import_preview');
   if (el) {
@@ -1089,7 +1101,7 @@ function executeImport() {
       <div class="card" style="background:#f0fdf4;border-color:#6ee7b7;margin-bottom:12px;padding:14px 18px">
         <strong style="color:#065f46">✅ インポート完了</strong>
         <span style="font-size:12px;color:#065f46;margin-left:10px">
-          ${year}年度に ${mapped}科目 をインポートしました。
+          ${year}年度 ${mapped}科目 をインポートしました。${actLabel}
         </span>
         <button class="btn-outline" style="margin-left:16px;font-size:12px"
           onclick="window.App.currentYear=${year};loadBudget('${company.id}',${year});showPage('budget')">
