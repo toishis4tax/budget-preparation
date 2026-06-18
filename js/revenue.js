@@ -193,6 +193,7 @@ function renderRevenue(container) {
               <col style="width:78px"> <!-- 年末調整 -->
               ${months.map(()=>'<col style="width:68px">').join('')}
               <col style="width:78px"><!-- 合計 -->
+              <col style="width:140px"><!-- メモ -->
               <col style="width:56px"><!-- 操作 -->
             </colgroup>
             <thead style="position:sticky;top:0;z-index:10">
@@ -210,6 +211,7 @@ function renderRevenue(container) {
                 <th>年末調整</th>
                 ${months.map(m=>`<th>${m}</th>`).join('')}
                 <th>合計</th>
+                <th>メモ</th>
                 <th></th>
               </tr>
             </thead>
@@ -391,6 +393,11 @@ function renderRevTable(startMonth, months) {
       <td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--emerald-dark);font-size:12px">
         ${Math.round(total/1000).toLocaleString()}
       </td>
+      <td style="padding:4px 5px">
+        <input type="text" class="remarks-input" style="width:100%;font-size:11px"
+          value="${escHtml(c.memo||'')}" placeholder="メモ"
+          onchange="updateClientMemo('${c.id}', this.value)">
+      </td>
       <td style="padding:3px;text-align:center;white-space:nowrap">
         <button class="btn-xs btn-ghost" onclick="openConsulting(${ci})" title="コンサル入力" style="display:block;margin:0 auto 4px">💼</button>
         <button onclick="removeRevenueClient(${ci})" title="削除" style="display:block;margin:0 auto;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap">🗑 削除</button>
@@ -403,6 +410,7 @@ function renderRevTable(startMonth, months) {
       <td colspan="8" style="padding:8px 10px;position:sticky;left:0;background:#f0fdf4">合計（千円）</td>
       ${totalByMonth.map(v=>`<td style="text-align:right;padding:6px 8px">${v?Math.round(v/1000).toLocaleString():'–'}</td>`).join('')}
       <td style="text-align:right;padding:6px 8px;color:var(--emerald-dark)">${Math.round(grandTotal/1000).toLocaleString()}</td>
+      <td></td>
       <td></td>
     </tr>`;
 
@@ -876,6 +884,7 @@ function importRevenueExcel(file) {
 
       if (!imported.length) { alert('インポートできる顧問先が見つかりませんでした'); return; }
 
+
       if (_revClients.length) {
         const choice = confirm(
           `既存の顧問先が${_revClients.length}社あります。\n\n` +
@@ -898,4 +907,19 @@ function importRevenueExcel(file) {
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+// ===== 顧問先メモ更新 =====
+function updateClientMemo(clientId, value) {
+  const companyId = App.currentCompany?.id;
+  const year = App.currentYear;
+  if (!companyId) return;
+  const clients = loadRevenueClients(companyId, year);
+  const client = clients.find(c => c.id === clientId);
+  if (!client) return;
+  client.memo = value;
+  saveRevenueClients(companyId, year, clients);
+  // also update in-memory
+  const inMem = _revClients.find(c => c.id === clientId);
+  if (inMem) inMem.memo = value;
 }

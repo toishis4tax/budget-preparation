@@ -1,6 +1,7 @@
-// ホーム画面（フェーズハブ）
+// ホーム画面（フェーズハブ＋各フェーズダッシュボード）
 
 function renderHome(container) {
+  const phase   = window.App?.currentPhase || 0;
   const budget  = window.App?.currentBudget;
   const company = window.App?.currentCompany;
 
@@ -14,6 +15,11 @@ function renderHome(container) {
       </div>`;
     return;
   }
+
+  // フェーズ別ダッシュボードに振り分け
+  if (phase === 1) return renderPhase1Home(container, budget, company);
+  if (phase === 2) return renderPhase2Home(container, budget, company);
+  if (phase === 3) return renderPhase3Home(container, budget, company);
 
   const capital   = company.capital || 10000000;
   const curYear   = window.App?.currentYear || new Date().getFullYear();
@@ -106,10 +112,14 @@ function renderHome(container) {
     </div>`;
 
   // ===== 成果物モーダル =====
-  const outputBtn = (phase, phaseNum) => `
-    <button class="phase-output-btn" onclick="setPhase(${phaseNum});showOutputModal('${phase}')">
-      📄 成果物を出力
-    </button>`;
+  const outputBtn = (phase, phaseNum) => {
+    if (phase === 'kichu') {
+      return `<button class="phase-output-btn" onclick="setPhase(${phaseNum});showKichuOutput('forecast')">📄 成果物を出力</button>`;
+    }
+    return `<button class="phase-output-btn" onclick="setPhase(${phaseNum});showOutputModal('${phase}')">📄 成果物を出力</button>`;
+  };
+
+  const INDUSTRY_LABELS = { tax_accountant:'税理士・会計事務所', real_estate:'不動産業', retail:'小売業', service:'サービス業', construction:'建設業', manufacturing:'製造業', other:'その他' };
 
   container.innerHTML = `
     <div class="home-wrap">
@@ -120,6 +130,27 @@ function renderHome(container) {
         <div class="home-meta">
           <span class="home-meta-item">📅 ${curYear}年度</span>
           <span class="home-meta-item">🕒 ${updatedStr}</span>
+        </div>
+      </div>
+
+      <!-- ===== 会社情報カード ===== -->
+      <div class="home-card">
+        <div class="home-card-title">🏢 会社情報</div>
+        <div class="company-info-chips">
+          <div class="info-chip"><span class="info-chip-label">業種</span><span class="info-chip-val">${INDUSTRY_LABELS[company.industry] || 'その他'}</span></div>
+          <div class="info-chip"><span class="info-chip-label">資本金</span><span class="info-chip-val">${fmtHome(capital)}</span></div>
+          <div class="info-chip"><span class="info-chip-label">決算月</span><span class="info-chip-val">${company.fiscalMonth || 3}月</span></div>
+          <div class="info-chip"><span class="info-chip-label">インボイス</span><span class="info-chip-val" style="color:${company.invoiceRegistered?'#059669':'#64748b'}">${company.invoiceRegistered?'登録済':'未登録'}</span></div>
+          <div class="info-chip"><span class="info-chip-label">消費税</span><span class="info-chip-val">${company.kanijukazei?'簡易課税':'本則課税'}</span></div>
+          <div class="info-chip"><span class="info-chip-label">都道府県</span><span class="info-chip-val">${company.prefecture || '東京都'}</span></div>
+        </div>
+        <div style="margin-top:12px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px">📝 メモ・コメント</div>
+          <textarea id="company_memo_area" class="company-memo-area" placeholder="顧問先に関するメモ、特記事項、担当者情報など..."
+            onblur="(function(){ var c=App.currentCompany; if(!c)return; c.memo=document.getElementById('company_memo_area').value; saveCompany(c); })()"
+          >${escHtml(company.memo || '')}</textarea>
+        </div>
+        <div style="margin-top:8px;text-align:right">
           <button class="btn btn-sm" onclick="openCompanyModal('${company.id}')">会社情報を編集</button>
         </div>
       </div>
@@ -446,4 +477,387 @@ function fmtHome(v) {
   if (abs >= 10000000)  return sign + Math.round(abs / 10000).toLocaleString() + '万円';
   if (abs >= 1000)      return sign + Math.round(abs / 1000).toLocaleString() + '千円';
   return sign + Math.round(abs).toLocaleString() + '円';
+}
+
+// ===== 共通: フェーズホームのトップバー =====
+function phaseHomeTopbar(company, curYear, accentColor, phaseLabel) {
+  return `
+    <div class="phase-home-topbar" style="border-left:4px solid ${accentColor}">
+      <div>
+        <div class="home-company-name">${escHtml(company.name)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${curYear}年度　${phaseLabel}</div>
+      </div>
+      <div class="home-meta">
+        <button class="btn btn-sm" onclick="openCompanyModal('${company.id}')">会社情報を編集</button>
+        <button class="btn btn-sm btn-outline" onclick="App.currentPhase=0;showPage('home')">⊞ フェーズ選択</button>
+      </div>
+    </div>`;
+}
+
+// ===== ① 期中ホーム =====
+function renderPhase1Home(container, budget, company) {
+  const curYear = window.App?.currentYear || new Date().getFullYear();
+  const capital = company.capital || 10000000;
+
+  const progressItems = calcBudgetProgress(budget);
+  const doneCount = progressItems.filter(p => p.done).length;
+  const pct = progressItems.length ? Math.round(doneCount / progressItems.length * 100) : 0;
+
+  const actualThrough = budget?.actualThrough ?? -1;
+  const hasDynamic    = !!budget?.dynamicAccounts?.length;
+  const hasActual     = actualThrough >= 0;
+
+  // 動的科目がある場合は calcAllValuesDynamic（実績＋残り予算のブレンド）
+  // 静的のみの場合は getMergedRows → calcAllValues
+  const allVals = budget
+    ? (hasDynamic ? calcAllValuesDynamic(budget) : calcAllValues(getMergedRows(budget)))
+    : {};
+
+  const kpiRows = [
+    { label:'売上高',     dynId:'sec_revenue', staticId:'sales',       isProfit:false },
+    { label:'売上総利益', dynId:'calc_gross',  staticId:'gross_profit', isProfit:true  },
+    { label:'営業利益',   dynId:'calc_op',     staticId:'op_profit',    isProfit:true  },
+    { label:'経常利益',   dynId:'calc_ord',    staticId:'ord_profit',   isProfit:true  },
+    { label:'当期純利益', dynId:'calc_net',    staticId:'net_profit',   isProfit:true  },
+  ];
+
+  // CF現預金
+  const cashAcc = budget?.dynamicAccounts?.find(a =>
+    a.section?.startsWith('bs') && a.name.replace(/\s/g,'').match(/現金|預金|現預金/)
+  );
+  const cashEnd = cashAcc ? (allVals[cashAcc.id] || [])[Math.min(actualThrough, 11)] || 0 : 0;
+
+  const fmtKpi = (v, isProfit) => {
+    if (!v && v !== 0) return '<span class="yr3-nodata">—</span>';
+    const c = isProfit ? (v >= 0 ? '#059669' : '#dc2626') : 'inherit';
+    return `<span style="color:${c}">${fmtHome(v)}</span>`;
+  };
+
+  container.innerHTML = `
+    <div class="home-wrap">
+      ${phaseHomeTopbar(company, curYear, '#3b82f6', '① 期中フェーズ')}
+
+      <!-- 予算進捗 -->
+      <div class="home-card">
+        <div class="home-card-title">📋 予算作成進捗</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" style="width:${pct}%"></div>
+          </div>
+          <span class="progress-pct">${pct}%</span>
+        </div>
+        <div class="progress-items">
+          ${progressItems.map(p => `
+            <span class="progress-item ${p.done?'done':'pending'}">
+              ${p.done?'✅':'⬜'} ${p.label}
+            </span>`).join('')}
+        </div>
+      </div>
+
+      <!-- KPIサマリー -->
+      <div class="home-card">
+        <div class="home-card-title">📈 業績KPI${hasActual ? `（実績: ${actualThrough+1}か月確定）` : '（予算）'}</div>
+        <table class="yr3-table">
+          <thead>
+            <tr>
+              <th class="yr3-label-col">科目</th>
+              <th class="yr3-num-col">${hasDynamic ? '着地予測（年間）' : '年間予算'}</th>
+              ${hasActual ? `
+                <th class="yr3-num-col yr3-cur">実績累計<br><span class="yr3-badge">${actualThrough+1}か月</span></th>
+                <th class="yr3-num-col yr3-diff">進捗率</th>
+              ` : ''}
+            </tr>
+          </thead>
+          <tbody>
+            ${kpiRows.map(row => {
+              const id  = hasDynamic ? row.dynId : row.staticId;
+              const arr = (allVals[id] || new Array(12).fill(0)).slice(0, 12);
+              const annual = arr.reduce((a, v) => a + v, 0);
+              const actual = hasActual ? arr.slice(0, actualThrough + 1).reduce((a, v) => a + v, 0) : null;
+              // 進捗率: 実績累計 ÷ 年間（残り月も含めた着地）で時間補正
+              const rate = (actual !== null && annual && actualThrough < 11)
+                ? Math.round(actual / annual * (12 / (actualThrough + 1)) * 100)
+                : (actual !== null && annual) ? Math.round(actual / annual * 100) : null;
+
+              return `<tr>
+                <td class="yr3-label">${row.label}</td>
+                <td class="yr3-num">${fmtKpi(annual, row.isProfit)}</td>
+                ${hasActual ? `
+                  <td class="yr3-num yr3-cur">${fmtKpi(actual, row.isProfit)}</td>
+                  <td class="yr3-num yr3-diff">${rate !== null ? `<span style="color:${rate>=100?'#059669':rate>=80?'#f59e0b':'#dc2626'}">${rate}%</span>` : '—'}</td>
+                ` : ''}
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        ${hasActual && hasDynamic ? `<div style="font-size:10px;color:var(--text-muted);margin-top:4px">着地予測＝実績(${actualThrough+1}か月)＋残り予算　　進捗率＝実績累計÷着地予測×年換算</div>` : ''}
+      </div>
+
+      <!-- CF残高 -->
+      ${cashAcc ? `
+      <div class="home-card">
+        <div class="home-card-title">💰 現預金残高</div>
+        <div style="font-size:28px;font-weight:800;color:${cashEnd>=0?'#0369a1':'#dc2626'};padding:8px 0">${fmtHome(cashEnd)}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${actualThrough >= 0 ? `${actualThrough+1}か月末時点` : '最終月'} • 詳細は CF予測へ</div>
+        <div style="margin-top:10px">
+          <button class="btn btn-sm btn-outline" onclick="showPage('cashflow')">CF予測を見る →</button>
+        </div>
+      </div>` : ''}
+
+      <!-- クイックアクション -->
+      <div class="home-card">
+        <div class="home-card-title">🚀 クイックアクション</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="btn-solid" onclick="showPage('import')">📤 推移表アップロード</button>
+          <button class="btn-outline" onclick="showPage('budget')">📝 月次予算入力</button>
+          <button class="btn-outline" onclick="showPage('cashflow')">💰 CF予測</button>
+          <button class="btn-outline" onclick="setPhase(2);showPage('home')">② 決算フェーズへ →</button>
+        </div>
+      </div>
+
+      <!-- 成果物 -->
+      <div class="home-card">
+        <div class="home-card-title">📄 成果物を出力</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('monthly')">月次業績報告書</button>
+          <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('cashflow')">資金繰り予測表</button>
+          <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('forecast')">着地予測・税金概算</button>
+          <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('execcomp')">役員報酬提案書</button>
+          <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('socialins')">社会保険試算</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ===== ② 決算ホーム =====
+function renderPhase2Home(container, budget, company) {
+  const curYear = window.App?.currentYear || new Date().getFullYear();
+  const capital = company.capital || 10000000;
+
+  const allVals   = budget ? (budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows)) : {};
+  const sum12     = id => (allVals[id] || []).reduce((a, v) => a + v, 0);
+  const pretax    = sum12(budget?.dynamicAccounts ? 'calc_pretax' : 'pretax_profit');
+
+  let taxBreak = null, taxTotal = 0;
+  if (pretax > 0) { taxBreak = calcAllTax(pretax, capital); taxTotal = taxBreak.total; }
+  const prepaid1 = company.prepaid1 || 0;
+  const prepaid2 = company.prepaid2 || 0;
+  const taxBalance = taxTotal - (prepaid1 + prepaid2);
+
+  const ctaxEst = calcCtaxEstimate(budget, company);
+  const ctaxAmt = ctaxEst && !ctaxEst.exempt && !ctaxEst.noData ? ctaxEst.ctax : null;
+  const ctaxBalance = ctaxAmt !== null ? ctaxAmt - (ctaxEst.ctaxPrepaid || 0) : null;
+
+  // 調整列入力状況
+  const hasAdj = budget ? Object.values(budget.rows || {}).some(arr => arr[12] && arr[12] !== 0) : false;
+
+  const taxRow = (label, val, isBold, isNeg) => `
+    <div class="tax-kpi-row${isBold?' tax-kpi-total':''}">
+      <span>${label}</span>
+      <span class="${isNeg?'tax-pay':''}">${val}</span>
+    </div>`;
+
+  container.innerHTML = `
+    <div class="home-wrap">
+      ${phaseHomeTopbar(company, curYear, '#f59e0b', '② 決算フェーズ')}
+
+      <!-- 税額概算 -->
+      <div class="home-summary-grid">
+        <div class="home-card">
+          <div class="home-card-title">🧮 法人税等 概算</div>
+          ${taxBreak ? `
+            ${taxRow('税引前利益', fmtHome(pretax), false, false)}
+            ${taxRow('法人税', fmtHome(taxBreak.corp), false, false)}
+            ${taxRow('住民税・事業税', fmtHome(taxBreak.inhabitant + taxBreak.business + taxBreak.special), false, false)}
+            ${taxRow('法人税等 合計', fmtHome(taxTotal), true, false)}
+            ${taxRow('予定納税控除', `▲${fmtHome(prepaid1+prepaid2)}`, false, false)}
+            ${taxRow(taxBalance>=0?'納付見込':'還付見込', fmtHome(Math.abs(taxBalance)), true, taxBalance>=0)}
+          ` : '<div class="no-data-small">予算データがありません</div>'}
+          <div style="margin-top:10px">
+            <button class="btn btn-sm btn-outline" onclick="showPage('tax')">詳細計算 →</button>
+          </div>
+        </div>
+
+        <div class="home-card">
+          <div class="home-card-title">🧾 消費税 概算</div>
+          ${ctaxEst?.exempt ? '<div class="no-data-small">免税事業者</div>' :
+            ctaxAmt !== null ? `
+            ${taxRow('計算方法', ctaxEst.method==='kani'?`簡易(第${ctaxEst.businessType}種)`:'本則課税', false, false)}
+            ${taxRow('消費税 合計', fmtHome(ctaxAmt), true, false)}
+            ${taxRow('中間納付控除', `▲${fmtHome(ctaxEst.ctaxPrepaid||0)}`, false, false)}
+            ${taxRow(ctaxBalance>=0?'納付見込':'還付見込', fmtHome(Math.abs(ctaxBalance)), true, ctaxBalance>=0)}
+          ` : '<div class="no-data-small">データ不足（インポート推奨）</div>'}
+          <div style="margin-top:10px">
+            <button class="btn btn-sm btn-outline" onclick="showPage('ctax')">消費税関連 →</button>
+          </div>
+        </div>
+
+        <div class="home-card">
+          <div class="home-card-title">✏️ 決算調整</div>
+          <div class="ctax-judge" style="color:${hasAdj?'#059669':'#f59e0b'};margin-bottom:12px">
+            ${hasAdj ? '調整入力あり' : '調整未入力'}
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">役員賞与・税引後利益の調整は月次予算入力の「調整」列で行います</div>
+          <button class="btn btn-sm btn-outline" onclick="showPage('execcomp')">👔 役員報酬・賞与 →</button>
+          <button class="btn btn-sm btn-outline" style="margin-top:6px" onclick="showPage('budget')">✏️ 調整入力 →</button>
+        </div>
+      </div>
+
+      <!-- クイックアクション -->
+      <div class="home-card">
+        <div class="home-card-title">🚀 クイックアクション</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="btn-solid" style="background:#f59e0b" onclick="showPage('import')">📤 決算前推移表を取込む</button>
+          <button class="btn-outline" onclick="showPage('execcomp')">👔 役員報酬・賞与を最適化</button>
+          <button class="btn-outline" onclick="setPhase(3);showPage('home')">③ 申告フェーズへ →</button>
+        </div>
+      </div>
+
+      <!-- 成果物 -->
+      <div class="home-card">
+        <div class="home-card-title">📄 成果物を出力</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('forecast')">着地予測・税金概算</button>
+          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('execcomp')">役員報酬提案書</button>
+          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('socialins')">社会保険試算</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ===== ③ 申告・報告ホーム =====
+function renderPhase3Home(container, budget, company) {
+  const curYear = window.App?.currentYear || new Date().getFullYear();
+  const capital = company.capital || 10000000;
+
+  // 3期分データ
+  const budgetPrev1 = getBudget(company.id, curYear - 1);
+  const budgetPrev2 = getBudget(company.id, curYear - 2);
+
+  const extractMetrics = b => {
+    if (!b) return null;
+    const av = b.dynamicAccounts ? calcAllValuesDynamic(b) : calcAllValues(b.rows);
+    const s  = id => (av[id] || []).reduce((a, v) => a + v, 0);
+    if (b.dynamicAccounts) return { sales: s('sec_revenue'), op: s('calc_op'), net: s('calc_net') };
+    const pl = calcPL(b.rows);
+    return { sales: pl.sales.reduce((a,v)=>a+v,0), op: pl.op_profit.reduce((a,v)=>a+v,0), net: pl.net_profit.reduce((a,v)=>a+v,0) };
+  };
+  const mCur  = extractMetrics(budget);
+  const mPrev1 = extractMetrics(budgetPrev1);
+  const mPrev2 = extractMetrics(budgetPrev2);
+
+  const diff = (cur, prev) => prev ? Math.round((cur - prev) / Math.abs(prev) * 100) : null;
+  const diffBadge = (cur, prev) => {
+    const d = diff(cur, prev);
+    if (d === null) return '<span class="yr3-nodata">—</span>';
+    return `<span style="color:${d>=0?'#059669':'#dc2626'}">${d>=0?'+':''}${d}%</span>`;
+  };
+
+  // 財務健康スコア（簡易）
+  let healthHtml = '<div class="no-data-small">BSデータがありません（インポートで取込み可）</div>';
+  if (budget) {
+    try {
+      const metrics = calcHealthMetrics(budget.rows || {}, capital);
+      const grades  = ['A','B','C','D','E'];
+      const gColor  = { A:'#059669',B:'#0284c7',C:'#d97706',D:'#dc2626',E:'#7f1d1d' };
+      const keys    = ['equity_ratio','current_ratio','op_margin','loan_month_ratio'];
+      const labels  = ['自己資本比率','流動比率','経常利益率','借入月商倍率'];
+      const units   = ['%','%','%','ヶ月'];
+      const dps     = [1,0,1,1];
+      healthHtml = `<div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${keys.map((k,i) => {
+          const g = gradeMetric(k, metrics[k]);
+          return `<div style="flex:1;min-width:100px;background:var(--bg);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);font-weight:600;margin-bottom:4px">${labels[i]}</div>
+            <div style="font-size:16px;font-weight:800;color:${gColor[g]}">${metrics[k].toFixed(dps[i])}${units[i]}</div>
+            <div style="font-size:11px;color:${gColor[g]};font-weight:700">${g}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    } catch(e) {}
+  }
+
+  // 成果物準備チェック
+  const checks = [
+    { label: '当期データ', done: !!budget },
+    { label: '前期データ', done: !!budgetPrev1 },
+    { label: '前々期データ', done: !!budgetPrev2 },
+  ];
+  const readyCount = checks.filter(c => c.done).length;
+
+  container.innerHTML = `
+    <div class="home-wrap">
+      ${phaseHomeTopbar(company, curYear, '#10b981', '③ 申告・報告フェーズ')}
+
+      <!-- 3期比較ハイライト -->
+      <div class="home-card home-card-wide">
+        <div class="home-card-title">📊 3期比較ハイライト</div>
+        <table class="yr3-table">
+          <thead>
+            <tr>
+              <th class="yr3-label-col">科目</th>
+              <th class="yr3-num-col">${curYear-2}年度</th>
+              <th class="yr3-num-col">${curYear-1}年度</th>
+              <th class="yr3-num-col yr3-cur">${curYear}年度<span class="yr3-badge" style="margin-left:4px">予算</span></th>
+              <th class="yr3-num-col yr3-diff">前期比</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${[
+              { label:'売上高',     key:'sales', profit:false },
+              { label:'営業利益',   key:'op',    profit:true  },
+              { label:'当期純利益', key:'net',   profit:true  },
+            ].map(row => {
+              const v2 = mPrev2?.[row.key] ?? null;
+              const v1 = mPrev1?.[row.key] ?? null;
+              const v0 = mCur?.[row.key] ?? null;
+              const fmtC = (v, p) => v===null ? '<span class="yr3-nodata">—</span>'
+                : `<span style="color:${p?(v>=0?'#059669':'#dc2626'):'inherit'}">${fmtHome(v)}</span>`;
+              return `<tr>
+                <td class="yr3-label">${row.label}</td>
+                <td class="yr3-num">${fmtC(v2, row.profit)}</td>
+                <td class="yr3-num">${fmtC(v1, row.profit)}</td>
+                <td class="yr3-num yr3-cur">${fmtC(v0, row.profit)}</td>
+                <td class="yr3-num yr3-diff">${diffBadge(v0, v1)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        <div style="margin-top:10px;text-align:right">
+          <button class="btn btn-sm btn-outline" onclick="showPage('simulation')">詳細比較 →</button>
+        </div>
+      </div>
+
+      <!-- 財務健康診断 -->
+      <div class="home-card">
+        <div class="home-card-title">🩺 財務健康スコア</div>
+        ${healthHtml}
+        <div style="margin-top:10px;text-align:right">
+          <button class="btn btn-sm btn-outline" onclick="showPage('health')">詳細診断 →</button>
+        </div>
+      </div>
+
+      <!-- 成果物準備状況 -->
+      <div class="home-card">
+        <div class="home-card-title">📋 成果物準備状況 (${readyCount}/3)</div>
+        <div class="progress-items" style="margin-bottom:14px">
+          ${checks.map(c => `<span class="progress-item ${c.done?'done':'pending'}">${c.done?'✅':'⬜'} ${c.label}</span>`).join('')}
+        </div>
+        ${readyCount < 3 ? `<div style="font-size:12px;color:#f59e0b;margin-bottom:12px">⚠️ 不足データは「推移表アップロード（確定値）」から取込んでください</div>` : ''}
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#10b981" onclick="showOutputModal('申告')">決算報告書パック</button>
+          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#10b981" onclick="showOutputModal('申告')">5か年計画書</button>
+        </div>
+      </div>
+
+      <!-- クイックアクション -->
+      <div class="home-card">
+        <div class="home-card-title">🚀 クイックアクション</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="btn-solid" style="background:#10b981" onclick="showPage('import')">📤 確定値を取込む</button>
+          <button class="btn-outline" onclick="showPage('simulation')">📊 3期比較PL/BS</button>
+          <button class="btn-outline" onclick="showPage('fiveyear')">📅 5か年計画</button>
+        </div>
+      </div>
+    </div>`;
 }

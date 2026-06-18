@@ -534,6 +534,7 @@ input[type=range]::-webkit-slider-thumb {
 .home-wrap { padding: 20px 24px; max-width: 1100px; display: flex; flex-direction: column; gap: 16px; }
 .home-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; text-align: center; }
 .home-topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow-xs); border: 1px solid var(--border); }
+.phase-home-topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow-xs); border: 1px solid var(--border); padding-left: 16px; }
 .home-company-name { font-size: 18px; font-weight: 800; color: var(--text); }
 .home-meta { display: flex; align-items: center; gap: 16px; }
 .home-meta-item { font-size: 12px; color: var(--text-muted); }
@@ -686,3 +687,94 @@ input[type=range]::-webkit-slider-thumb {
   .sidebar { display: none; }
   .sim-grid { grid-template-columns: 1fr; }
 }
+
+/* ===== 税金一覧表 ===== */
+.taxsum-wrap { padding: 20px 24px; max-width: 960px; display: flex; flex-direction: column; gap: 12px; }
+.taxsum-title { font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 2px; }
+.taxsum-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 2px; }
+.taxsum-info-bar { display: flex; gap: 20px; font-size: 12px; color: var(--text-muted); background: var(--bg); border-radius: 8px; padding: 8px 14px; }
+.taxsum-section { background: var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow-sm); border: 1px solid var(--border); overflow: hidden; }
+.taxsum-section-title { font-size: 13px; font-weight: 700; padding: 10px 16px; background: var(--bg); border-bottom: 1px solid var(--border); color: var(--text); }
+.taxsum-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.taxsum-table th { background: var(--bg); padding: 8px 12px; text-align: center; font-weight: 600; color: var(--text-muted); border-bottom: 2px solid var(--border); font-size: 11px; }
+.taxsum-table th.taxsum-label-col { text-align: left; min-width: 180px; }
+.taxsum-table td { padding: 6px 12px; border-bottom: 1px solid var(--border-muted); vertical-align: middle; }
+.taxsum-table td.taxsum-label { color: var(--text); font-size: 12px; }
+.taxsum-table td.taxsum-num { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+.taxsum-table td.taxsum-pay { text-align: right; font-weight: 700; color: #dc2626; }
+.taxsum-table td.taxsum-refund { text-align: right; font-weight: 700; color: #059669; }
+.taxsum-table tr.taxsum-total td { font-weight: 700; background: rgba(59,130,246,.05); border-top: 2px solid var(--border); }
+.taxsum-table tr.taxsum-sep td { background: var(--bg); color: var(--text-muted); font-size: 11px; font-weight: 700; padding: 5px 12px; letter-spacing: .02em; }
+.taxsum-table tr.taxsum-indent td.taxsum-label { padding-left: 24px; color: var(--text-muted); }
+.taxsum-input { width: 100%; border: 1.5px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; text-align: right; font-family: inherit; background: var(--bg-card); color: var(--text); min-width: 110px; }
+.taxsum-input:focus { outline: none; border-color: var(--emerald-mid); background: var(--emerald-pale); }
+.taxsum-note { font-size: 11px; color: var(--text-muted); padding: 8px 16px; background: var(--bg); border-top: 1px solid var(--border-muted); }
+.taxsum-warn { background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius); padding: 10px 16px; font-size: 12px; color: #c2410c; }
+.taxsum-summary { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 20px; }
+.taxsum-summary-cell { padding: 12px 16px; border-right: 1px solid var(--border); background: var(--bg-card); }
+.taxsum-summary-cell:last-child { border-right: none; }
+.taxsum-summary-label { font-size: 10px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+.taxsum-summary-val { font-size: 15px; font-weight: 800; }
+.taxsum-deadline { font-size: 11px; color: var(--text-muted); text-align: right; margin-top: 4px; }
+.taxsum-schedule { font-size: 10px; color: #2563eb; line-height: 1.4; display: block; }
+.taxsum-table td.taxsum-num .taxsum-schedule { font-weight: 400; }
+
+/* ===== 経営分析表 ===== */
+.bizanalysis-wrap { padding: 20px 24px; max-width: 1000px; display: flex; flex-direction: column; gap: 16px; }
+.bizanalysis-section { background: var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow-sm); border: 1px solid var(--border); overflow: hidden; }
+.bizanalysis-section-title { font-size: 13px; font-weight: 700; padding: 10px 16px; background: var(--bg); border-bottom: 1px solid var(--border); color: var(--text); display: flex; align-items: center; gap: 8px; }
+.biz-diff-pos { color: #059669; }
+.biz-diff-neg { color: #dc2626; }
+.biz-nodata { color: var(--text-muted); font-size: 11px; }
+
+/* ===== Feature 1: 会社情報カード ===== */
+.company-info-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.info-chip { display: flex; flex-direction: column; gap: 2px; background: var(--bg); border-radius: 8px; padding: 8px 12px; min-width: 100px; }
+.info-chip-label { font-size: 10px; color: var(--text-muted); font-weight: 600; }
+.info-chip-val { font-size: 13px; font-weight: 700; color: var(--text); }
+.company-memo-area { width: 100%; min-height: 72px; border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--text); background: var(--bg-card); font-family: inherit; resize: vertical; line-height: 1.5; }
+.company-memo-area:focus { outline: none; border-color: var(--emerald-mid); }
+
+/* ===== Feature 2: 摘要列 ===== */
+.remarks-col { min-width: 140px; }
+.remarks-input { width: 100%; border: none; background: transparent; font-size: 11px; color: var(--text-muted); padding: 2px 4px; border-radius: 4px; font-family: inherit; }
+.remarks-input:focus { outline: none; background: var(--bg); color: var(--text); }
+.remarks-input::placeholder { color: var(--text-light); }
+
+/* ===== 期中成果物モーダル ===== */
+.kichu-output-toolbar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 2px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; box-shadow: var(--shadow-sm); }
+@media print {
+  .kichu-output-toolbar { display: none; }
+  #kichu_output_modal { position: static; }
+  .kichu-output-body { padding: 0; }
+}
+.kichu-doc-title { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+.kichu-doc-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 20px; border-bottom: 2px solid var(--text); padding-bottom: 8px; }
+.kichu-section { margin-bottom: 28px; }
+.kichu-section-title { font-size: 14px; font-weight: 700; color: var(--text); border-left: 4px solid #3b82f6; padding-left: 10px; margin-bottom: 12px; }
+.kichu-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 16px; }
+.kichu-table th { background: #1e3a5f; color: #fff; padding: 6px 8px; text-align: center; font-size: 10px; }
+.kichu-table th.kichu-label-th { text-align: left; min-width: 100px; }
+.kichu-table td { padding: 5px 8px; border: 1px solid #ddd; text-align: right; font-variant-numeric: tabular-nums; }
+.kichu-table td.kichu-label { text-align: left; font-weight: 500; white-space: nowrap; }
+.kichu-table td.kichu-bold { font-weight: 700; background: #f0f7ff; }
+.kichu-table td.kichu-actual { background: #e8f4f8; }
+.kichu-table td.kichu-forecast { color: #64748b; }
+.kichu-table td.kichu-neg { color: #dc2626; }
+.kichu-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.kichu-summary-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; text-align: center; }
+.kichu-summary-label { font-size: 10px; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; }
+.kichu-summary-val { font-size: 18px; font-weight: 800; color: var(--text); }
+.kichu-summary-val.positive { color: #059669; }
+.kichu-summary-val.negative { color: #dc2626; }
+.kichu-tax-highlight { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff; border-radius: 12px; padding: 20px 24px; text-align: center; margin: 16px 0; }
+.kichu-tax-highlight-label { font-size: 13px; opacity: .8; margin-bottom: 6px; }
+.kichu-tax-highlight-val { font-size: 32px; font-weight: 800; }
+.kichu-scenario-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.kichu-scenario-card { border: 2px solid var(--border); border-radius: 10px; padding: 16px; }
+.kichu-scenario-card.recommended { border-color: #3b82f6; background: #eff6ff; }
+.kichu-scenario-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+.kichu-scenario-row { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; border-bottom: 1px solid var(--border-muted,#e2e8f0); color: var(--text-muted); }
+.kichu-scenario-row.total { font-weight: 700; color: var(--text); font-size: 12px; border-top: 2px solid var(--border,#e2e8f0); border-bottom: none; padding-top: 6px; }
+.kichu-advice-area { width: 100%; min-height: 100px; border: 1.5px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 12px; font-family: inherit; color: var(--text); resize: vertical; }
+.kichu-advice-area:focus { outline: none; border-color: #3b82f6; }

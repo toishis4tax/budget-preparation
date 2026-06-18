@@ -228,6 +228,7 @@ function renderGrid(container, budget) {
             }).join('')}
             <th class="month-col adj-col" data-col="12">調整</th>
             <th class="total-col">合計</th>
+            <th class="remarks-col">摘要</th>
           </tr>
         </thead>
         <tbody id="grid_tbody"></tbody>
@@ -253,7 +254,7 @@ function renderGridRows(budget, allVals, months) {
     if (acc.type === 'separator') {
       const tr = document.createElement('tr');
       tr.className = 'sep-row';
-      tr.innerHTML = `<td colspan="15" class="sep-cell"></td>`;
+      tr.innerHTML = `<td colspan="16" class="sep-cell"></td>`;
       tbody.appendChild(tr);
       return;
     }
@@ -361,8 +362,14 @@ function renderGridRows(budget, allVals, months) {
     }
 
     const totalStyle = isRevDisp ? 'style="text-align:right;background:#f0f9ff;color:#2563eb;font-size:12px"' : 'style="text-align:right"';
+    const accId = acc.id;
+    if (!budget.remarks) budget.remarks = {};
+    const remarksCell = isInput
+      ? `<td class="remarks-col"><input type="text" class="remarks-input" value="${escHtml(budget.remarks[accId] || '')}" placeholder="摘要" data-acc-id="${accId}" onchange="updateRemark('${accId}', this.value)"></td>`
+      : `<td class="remarks-col"></td>`;
     tr.innerHTML = nameCell + monthCells + adjCell +
-      `<td class="total-col calc-val" ${totalStyle}>${total === 0 ? (isInput||isRevDisp?'':'–') : Math.round(total).toLocaleString()}</td>`;
+      `<td class="total-col calc-val" ${totalStyle}>${total === 0 ? (isInput||isRevDisp?'':'–') : Math.round(total).toLocaleString()}</td>` +
+      remarksCell;
     tbody.appendChild(tr);
   });
 
@@ -826,15 +833,27 @@ function showBudgetCompleteModal() {
   const budget = window.App?.currentBudget;
   if (!budget) return;
 
-  const merged = getMergedRows(budget);
-  const pl = calcPL(merged);
   const fmtK = v => Math.round((isNaN(v)||!isFinite(v)?0:v) / 1000).toLocaleString();
   const pct  = (a, b) => b ? (a / b * 100).toFixed(1) + '%' : '–';
 
-  const sales     = pl.sales?.reduce((s,v)=>s+v,0) || 0;
-  const gross     = pl.gross_profit?.reduce((s,v)=>s+v,0) || 0;
-  const op        = pl.op_profit?.reduce((s,v)=>s+v,0) || 0;
-  const net       = pl.net_profit?.reduce((s,v)=>s+v,0) || 0;
+  let sales, gross, op, net;
+  if (budget.dynamicAccounts?.length) {
+    // 動的科目: calcAllValuesDynamic を使う
+    const av = calcAllValuesDynamic(budget);
+    const s12 = id => (av[id] || []).slice(0, 12).reduce((a, v) => a + v, 0);
+    sales = s12('sec_revenue');
+    gross = s12('calc_gross');
+    op    = s12('calc_op');
+    net   = s12('calc_net');
+  } else {
+    const merged = getMergedRows(budget);
+    const pl = calcPL(merged);
+    const s12 = arr => (arr || []).reduce((a, v) => a + v, 0);
+    sales = s12(pl.sales);
+    gross = s12(pl.gross_profit);
+    op    = s12(pl.op_profit);
+    net   = s12(pl.net_profit);
+  }
 
   const kpiColor = v => v >= 0 ? '#065f46' : '#dc2626';
 
@@ -1000,6 +1019,15 @@ function showContextMenu(x, y, accId) {
 function applyFillFromMenu(type) {
   document.getElementById('fill_type').value = type;
   applyFill();
+}
+
+// ===== 摘要更新 =====
+function updateRemark(accId, value) {
+  const budget = window.App?.currentBudget;
+  if (!budget) return;
+  if (!budget.remarks) budget.remarks = {};
+  budget.remarks[accId] = value;
+  saveBudget(budget);
 }
 
 // escHtml は app.js で定義

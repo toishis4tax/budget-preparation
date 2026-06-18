@@ -171,7 +171,7 @@ function togglePhase(phase) {
     const label = document.querySelector(`#phase-section-${p} .sidebar-phase-label`);
     if (!nav) return;
     if (p === phase && !isActive) {
-      nav.style.display = '';
+      nav.style.display = 'block';
       if (icon) icon.textContent = '▾';
       label?.classList.add('active-phase');
     } else {
@@ -191,7 +191,7 @@ function setPhase(phase) {
     const label = document.querySelector(`#phase-section-${p} .sidebar-phase-label`);
     if (!nav) return;
     if (p === phase) {
-      nav.style.display = '';
+      nav.style.display = 'block';
       if (icon) icon.textContent = '▾';
       label?.classList.add('active-phase');
     } else {
@@ -205,8 +205,8 @@ function setPhase(phase) {
 function setupNav() {
   document.querySelectorAll('[data-page]').forEach(el => {
     el.addEventListener('click', () => {
-      const phase = parseInt(el.dataset.phase);
-      if (phase && phase !== App.currentPhase) setPhase(phase);
+      const phase = el.dataset.phase !== undefined ? parseInt(el.dataset.phase) : App.currentPhase;
+      if (phase !== App.currentPhase) setPhase(phase);
       showPage(el.dataset.page);
     });
   });
@@ -236,6 +236,8 @@ function showPage(page) {
     case 'tax':        renderTaxSimulator(container);                     break;
     case 'ctax':       renderCtaxJudge(container);                        break;
     case 'health':     renderHealthDiag(container, budget);               break;
+    case 'taxsummary': renderTaxSummary(container);                       break;
+    case 'bizanalysis': renderBizAnalysis(container);                     break;
     default:           container.innerHTML = '<div class="no-data">ページが見つかりません</div>';
   }
 }
