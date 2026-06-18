@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "budget-app",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "3500", "--directory", "C:\\Users\\toish\\OneDrive\\デスクトップ\\Claude\\budget-preparation"],
-      "port": 3500
+      "name": "budget-preparation",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "3002", "."],
+      "port": 3002
     }
   ]
 }

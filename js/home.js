@@ -98,16 +98,16 @@ function renderHome(container) {
        : `<span class="phase-badge pending">${label}</span>`;
 
   // ===== フェーズカード用ツールリンク =====
-  const toolLink = (page, label, sub='') => `
-    <div class="phase-tool" onclick="showPage('${page}')">
+  const toolLink = (page, phase, label, sub='') => `
+    <div class="phase-tool" onclick="setPhase(${phase});showPage('${page}')">
       <span class="phase-tool-label">${label}</span>
       ${sub ? `<span class="phase-tool-sub">${sub}</span>` : ''}
       <span class="phase-tool-arrow">›</span>
     </div>`;
 
   // ===== 成果物モーダル =====
-  const outputBtn = (phase) => `
-    <button class="phase-output-btn" onclick="showOutputModal('${phase}')">
+  const outputBtn = (phase, phaseNum) => `
+    <button class="phase-output-btn" onclick="setPhase(${phaseNum});showOutputModal('${phase}')">
       📄 成果物を出力
     </button>`;
 
@@ -141,10 +141,10 @@ function renderHome(container) {
           </div>
 
           <div class="phase-tools">
-            ${toolLink('import',  '📤 推移表アップロード', hasImport ? 'データあり' : '未インポート')}
-            ${toolLink('grid',    '📝 月次予算入力',       hasData ? `${pct}%完了` : '未入力')}
-            ${toolLink('revenue', '💹 売上予算設定')}
-            ${toolLink('cf',      '💰 CF予測')}
+            ${toolLink('import',   1, '📤 推移表アップロード', hasImport ? 'データあり' : '未インポート')}
+            ${toolLink('budget',   1, '📝 月次予算入力',       hasData ? `${pct}%完了` : '未入力')}
+            ${toolLink('revenue',  1, '💹 売上予算設定')}
+            ${toolLink('cashflow', 1, '💰 CF予測')}
           </div>
 
           <div class="phase-kpi-mini">
@@ -158,7 +158,7 @@ function renderHome(container) {
             </div>
           </div>
 
-          ${outputBtn('kichu')}
+          ${outputBtn('kichu', 1)}
         </div>
 
         <!-- ② 決算 -->
@@ -175,9 +175,9 @@ function renderHome(container) {
           </div>
 
           <div class="phase-tools">
-            ${toolLink('tax',       '🧮 税額概算',           hasTax ? `法人税 ${Math.round(taxTotal/10000)}万円` : '要データ')}
-            ${toolLink('ctax',      '🧾 消費税関連',          ctaxJudge)}
-            ${toolLink('exec-comp', '👤 役員報酬・賞与最適化')}
+            ${toolLink('tax',      2, '🧮 税額概算',           hasTax ? `法人税 ${Math.round(taxTotal/10000)}万円` : '要データ')}
+            ${toolLink('ctax',     2, '🧾 消費税関連',          ctaxJudge)}
+            ${toolLink('execcomp', 2, '👤 役員報酬・賞与最適化')}
           </div>
 
           <div class="phase-kpi-mini">
@@ -191,7 +191,7 @@ function renderHome(container) {
             </div>
           </div>
 
-          ${outputBtn('kessan')}
+          ${outputBtn('kessan', 2)}
         </div>
 
         <!-- ③ 申告・報告 -->
@@ -208,10 +208,10 @@ function renderHome(container) {
           </div>
 
           <div class="phase-tools">
-            ${toolLink('sim',    '📊 3期比較PL',       hasPrev ? `${curYear-2}〜${curYear}年度` : '過去データ必要')}
-            ${toolLink('health', '🩺 財務健康診断')}
-            ${toolLink('sim',    '📐 損益分岐点')}
-            ${toolLink('sim',    '🔮 5か年シミュレーション')}
+            ${toolLink('simulation', 3, '📊 3期比較PL',           hasPrev ? `${curYear-2}〜${curYear}年度` : '過去データ必要')}
+            ${toolLink('health',     3, '🩺 財務健康診断')}
+            ${toolLink('simulation', 3, '📐 損益分岐点')}
+            ${toolLink('fiveyear',   3, '🔮 5か年シミュレーション')}
           </div>
 
           <div class="phase-kpi-mini">
@@ -235,7 +235,7 @@ function renderHome(container) {
             </div>
           </div>
 
-          ${outputBtn('申告')}
+          ${outputBtn('申告', 3)}
         </div>
 
       </div>

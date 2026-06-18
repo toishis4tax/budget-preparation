@@ -25,52 +25,90 @@
   </div>
   </div>
 
+  <!-- フェーズ共通: ホーム -->
   <div class="nav-item" data-page="home">
     <span class="icon">🏠</span>ホーム
   </div>
 
-  <div class="sidebar-section">データ入力</div>
-  <div class="nav-item" data-page="budget">
-    <span class="icon">📊</span>月次予算入力
-  </div>
-  <div class="nav-item" id="nav_revenue" data-page="revenue" style="display:none">
-    <span class="icon">🏢</span>顧問先売上管理
-  </div>
-  <div class="nav-item" data-page="import">
-    <span class="icon">📂</span>試算表インポート
+  <!-- ① 期中 -->
+  <div class="sidebar-phase" id="phase-section-1">
+    <div class="sidebar-phase-label phase1" onclick="togglePhase(1)">
+      <span class="phase-dot dot-1"></span>
+      <span>① 期中</span>
+      <span class="phase-toggle-icon" id="phase-toggle-1">▾</span>
+    </div>
+    <div class="phase-nav-items" id="phase-nav-1">
+      <div class="nav-item nav-sub-item" data-page="import" data-phase="1">
+        <span class="icon">📤</span>推移表アップロード
+        <span class="nav-ctx" id="nav-ctx-import-1">月次</span>
+      </div>
+      <div class="nav-item nav-sub-item" data-page="budget" data-phase="1">
+        <span class="icon">📝</span>月次予算入力
+      </div>
+      <div class="nav-item nav-sub-item" id="nav_revenue" data-page="revenue" data-phase="1" style="display:none">
+        <span class="icon">🏢</span>顧問先売上管理
+      </div>
+      <div class="nav-item nav-sub-item" data-page="cashflow" data-phase="1">
+        <span class="icon">💰</span>CF予測
+      </div>
+    </div>
   </div>
 
-  <div class="sidebar-section">シミュレーション</div>
-  <div class="nav-item" data-page="simulation">
-    <span class="icon">📈</span>単年度 PL/BS
-  </div>
-  <div class="nav-item" data-page="nextyear">
-    <span class="icon">🔮</span>翌年度予測
-  </div>
-  <div class="nav-item" data-page="fiveyear">
-    <span class="icon">📅</span>5か年計画
-  </div>
-  <div class="nav-item" data-page="cashflow">
-    <span class="icon">💰</span>CF予測
+  <!-- ② 決算 -->
+  <div class="sidebar-phase" id="phase-section-2">
+    <div class="sidebar-phase-label phase2" onclick="togglePhase(2)">
+      <span class="phase-dot dot-2"></span>
+      <span>② 決算</span>
+      <span class="phase-toggle-icon" id="phase-toggle-2">▾</span>
+    </div>
+    <div class="phase-nav-items" id="phase-nav-2">
+      <div class="nav-item nav-sub-item" data-page="import" data-phase="2">
+        <span class="icon">📤</span>推移表アップロード
+        <span class="nav-ctx">決算前</span>
+      </div>
+      <div class="nav-item nav-sub-item" data-page="tax" data-phase="2">
+        <span class="icon">🧮</span>税額概算
+      </div>
+      <div class="nav-item nav-sub-item" data-page="ctax" data-phase="2">
+        <span class="icon">🧾</span>消費税関連
+      </div>
+      <div class="nav-item nav-sub-item" data-page="execcomp" data-phase="2">
+        <span class="icon">👔</span>役員報酬・賞与
+      </div>
+      <div class="nav-item nav-sub-item" data-page="budget" data-phase="2">
+        <span class="icon">✏️</span>調整入力
+      </div>
+    </div>
   </div>
 
-  <div class="sidebar-section">役員・税務</div>
-  <div class="nav-item" data-page="execcomp">
-    <span class="icon">👔</span>役員報酬最適化
+  <!-- ③ 申告・報告 -->
+  <div class="sidebar-phase" id="phase-section-3">
+    <div class="sidebar-phase-label phase3" onclick="togglePhase(3)">
+      <span class="phase-dot dot-3"></span>
+      <span>③ 申告・報告</span>
+      <span class="phase-toggle-icon" id="phase-toggle-3">▾</span>
+    </div>
+    <div class="phase-nav-items" id="phase-nav-3">
+      <div class="nav-item nav-sub-item" data-page="import" data-phase="3">
+        <span class="icon">📤</span>推移表アップロード
+        <span class="nav-ctx">確定値</span>
+      </div>
+      <div class="nav-item nav-sub-item" data-page="simulation" data-phase="3">
+        <span class="icon">📊</span>3期比較 PL/BS
+      </div>
+      <div class="nav-item nav-sub-item" data-page="health" data-phase="3">
+        <span class="icon">🩺</span>財務健康診断
+      </div>
+      <div class="nav-item nav-sub-item" data-page="fiveyear" data-phase="3">
+        <span class="icon">📅</span>5か年計画
+      </div>
+    </div>
   </div>
+
+  <!-- 共通ツール -->
+  <div class="sidebar-section" style="margin-top:8px">共通</div>
   <div class="nav-item" data-page="welfare">
-    <span class="icon">🏥</span>法定福利費計算
-  </div>
-  <div class="nav-item" data-page="tax">
-    <span class="icon">🧾</span>法人税シミュレーション
-  </div>
-  <div class="nav-item" data-page="ctax">
-    <span class="icon">📋</span>消費税関連
-  </div>
-
-  <div class="sidebar-section">分析</div>
-  <div class="nav-item" data-page="health">
-    <span class="icon">🩺</span>財務健康診断
+    <span class="icon">🏥</span>社会保険試算
   </div>
 </aside>
 

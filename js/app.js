@@ -6,6 +6,7 @@ window.App = {
   currentYear: new Date().getFullYear(),
   currentBudget: null,
   currentPage: 'home',
+  currentPhase: 1,
 };
 
 // 共通フォーマット関数（全モジュールから参照）
@@ -33,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function loadApp() {
   App.companies = getCompanies();
   renderCompanyList();
+  setPhase(1);
   if (App.companies.length > 0) {
     selectCompany(App.companies[0].id);
   } else {
@@ -161,16 +163,59 @@ function deleteCurrentCompany() {
 }
 
 // ===== ページ管理 =====
+function togglePhase(phase) {
+  const isActive = App.currentPhase === phase;
+  [1, 2, 3].forEach(p => {
+    const nav = document.getElementById(`phase-nav-${p}`);
+    const icon = document.getElementById(`phase-toggle-${p}`);
+    const label = document.querySelector(`#phase-section-${p} .sidebar-phase-label`);
+    if (!nav) return;
+    if (p === phase && !isActive) {
+      nav.style.display = '';
+      if (icon) icon.textContent = '▾';
+      label?.classList.add('active-phase');
+    } else {
+      nav.style.display = 'none';
+      if (icon) icon.textContent = '▸';
+      label?.classList.remove('active-phase');
+    }
+  });
+  if (!isActive) App.currentPhase = phase;
+}
+
+function setPhase(phase) {
+  App.currentPhase = phase;
+  [1, 2, 3].forEach(p => {
+    const nav = document.getElementById(`phase-nav-${p}`);
+    const icon = document.getElementById(`phase-toggle-${p}`);
+    const label = document.querySelector(`#phase-section-${p} .sidebar-phase-label`);
+    if (!nav) return;
+    if (p === phase) {
+      nav.style.display = '';
+      if (icon) icon.textContent = '▾';
+      label?.classList.add('active-phase');
+    } else {
+      nav.style.display = 'none';
+      if (icon) icon.textContent = '▸';
+      label?.classList.remove('active-phase');
+    }
+  });
+}
+
 function setupNav() {
   document.querySelectorAll('[data-page]').forEach(el => {
-    el.addEventListener('click', () => showPage(el.dataset.page));
+    el.addEventListener('click', () => {
+      const phase = parseInt(el.dataset.phase);
+      if (phase && phase !== App.currentPhase) setPhase(phase);
+      showPage(el.dataset.page);
+    });
   });
 }
 
 function showPage(page) {
   App.currentPage = page;
   document.querySelectorAll('[data-page]').forEach(el =>
-    el.classList.toggle('active', el.dataset.page === page)
+    el.classList.toggle('active', el.dataset.page === page && (!el.dataset.phase || parseInt(el.dataset.phase) === App.currentPhase))
   );
 
   const container = document.getElementById('main_content');
