@@ -1,19 +1,19 @@
-/* ========================================
+﻿/* ========================================
    Budget Simulator — Finance Pro UI
    Dark Navy Sidebar + Emerald Accent
 ======================================== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --emerald:      #3b82f6;
-  --emerald-dark: #1d4ed8;
-  --emerald-mid:  #2563eb;
-  --emerald-light:#dbeafe;
-  --emerald-pale: #eff6ff;
-  --teal:         #60a5fa;
-  --navy:         #0d1f2d;
-  --navy-light:   #162534;
-  --navy-lighter: #1e3448;
+  --emerald:      #0ea5c9;  /* ocean turquoise */
+  --emerald-dark: #0369a1;  /* deep ocean */
+  --emerald-mid:  #0284c7;  /* ocean blue */
+  --emerald-light:#e0f2fe;  /* sky light */
+  --emerald-pale: #f0f9ff;  /* sky pale */
+  --teal:         #38bdf8;  /* bright sky */
+  --navy:         #0b2c3d;  /* deep ocean */
+  --navy-light:   #0f3a50;  /* ocean dark */
+  --navy-lighter: #154d6a;  /* ocean mid */
   --blue:         #3b82f6;
   --amber:        #f59e0b;
   --rose:         #e11d48;
@@ -21,15 +21,15 @@
   --text-sub:     #1e293b;
   --text-muted:   #64748b;
   --text-light:   #94a3b8;
-  --bg:           #f0f4f8;
+  --bg:           #e8f4f8;  /* ocean mist */
   --bg-card:      #ffffff;
   --border:       #e2e8f0;
   --border-muted: #f1f5f9;
-  --shadow-xs: 0 1px 2px rgba(13,31,45,.05);
-  --shadow-sm: 0 1px 4px rgba(13,31,45,.07), 0 1px 2px rgba(13,31,45,.04);
-  --shadow:    0 4px 12px rgba(13,31,45,.09), 0 1px 3px rgba(13,31,45,.05);
-  --shadow-md: 0 8px 24px rgba(13,31,45,.12), 0 2px 6px rgba(13,31,45,.06);
-  --shadow-lg: 0 20px 48px rgba(13,31,45,.18), 0 4px 12px rgba(13,31,45,.08);
+  --shadow-xs: 0 1px 2px rgba(11,44,61,.05);
+  --shadow-sm: 0 1px 4px rgba(11,44,61,.07), 0 1px 2px rgba(11,44,61,.04);
+  --shadow:    0 4px 12px rgba(11,44,61,.09), 0 1px 3px rgba(11,44,61,.05);
+  --shadow-md: 0 8px 24px rgba(11,44,61,.12), 0 2px 6px rgba(11,44,61,.06);
+  --shadow-lg: 0 20px 48px rgba(11,44,61,.18), 0 4px 12px rgba(11,44,61,.08);
   --radius:    12px;
   --radius-sm: 8px;
   --sidebar-w: 220px;
@@ -52,7 +52,7 @@ body {
 .sidebar {
   width: var(--sidebar-w);
   min-width: var(--sidebar-w);
-  background: var(--navy);
+  background: linear-gradient(170deg, #0b2c3d 0%, #0d3e57 55%, #0f4a6a 100%);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -60,8 +60,11 @@ body {
 }
 
 .sidebar-logo {
-  padding: 20px 16px 18px;
-  border-bottom: 1px solid rgba(255,255,255,.07);
+  margin: 10px 10px 0;
+  padding: 13px 14px;
+  background: rgba(255,255,255,.08);
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.12);
 }
 .logo-icon {
   width: 36px; height: 36px;
@@ -69,7 +72,7 @@ body {
   border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
   font-size: 17px; margin-bottom: 10px;
-  box-shadow: 0 4px 12px rgba(16,185,129,.35);
+  box-shadow: 0 4px 12px rgba(14,165,201,.35);
 }
 .logo-main {
   font-size: 13px; font-weight: 800; letter-spacing: -.01em; color: #fff;
@@ -97,7 +100,7 @@ body {
 .nav-item.active {
   background: linear-gradient(135deg, var(--emerald-mid) 0%, var(--teal) 100%);
   color: #fff;
-  box-shadow: 0 3px 10px rgba(16,185,129,.35);
+  box-shadow: 0 3px 10px rgba(14,165,201,.35);
   font-weight: 600;
 }
 .nav-item .icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
@@ -127,7 +130,7 @@ body {
   cursor: pointer; min-width: 160px;
   transition: border-color .15s, box-shadow .15s;
 }
-.header-select:focus { outline: none; border-color: var(--emerald-mid); box-shadow: 0 0 0 3px rgba(16,185,129,.12); }
+.header-select:focus { outline: none; border-color: var(--emerald-mid); box-shadow: 0 0 0 3px rgba(14,165,201,.12); }
 .header-spacer { flex: 1; }
 .header-label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
 
@@ -138,10 +141,10 @@ body {
   background: linear-gradient(135deg, var(--emerald-mid), var(--teal));
   color: #fff; border: none; border-radius: var(--radius-sm);
   font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit;
-  box-shadow: 0 2px 8px rgba(16,185,129,.28);
+  box-shadow: 0 2px 8px rgba(14,165,201,.28);
   transition: box-shadow .15s, transform .12s, opacity .12s;
 }
-.btn-solid:hover { box-shadow: 0 4px 14px rgba(16,185,129,.42); transform: translateY(-1px); }
+.btn-solid:hover { box-shadow: 0 4px 14px rgba(14,165,201,.42); transform: translateY(-1px); }
 .btn-solid:active { transform: translateY(0); opacity: .92; }
 
 .btn-outline {
@@ -162,7 +165,7 @@ body {
   border-radius: var(--radius-sm); font-size: 12px; font-weight: 500;
   cursor: pointer; font-family: inherit; transition: all .15s;
 }
-.btn-ghost:hover { background: var(--bg); color: var(--text); border-color: #a7f3d0; }
+.btn-ghost:hover { background: var(--bg); color: var(--text); border-color: #7dd3fc; }
 .btn-danger { color: var(--rose); border-color: #fecdd3; }
 .btn-danger:hover { background: #fff1f2; border-color: var(--rose); }
 
@@ -173,7 +176,7 @@ body {
   border-radius: var(--radius-sm); font-size: 12px; font-weight: 500;
   cursor: pointer; font-family: inherit; transition: all .15s;
 }
-.btn:hover { border-color: #6ee7b7; background: var(--emerald-pale); color: var(--emerald-dark); }
+.btn:hover { border-color: #7dd3fc; background: var(--emerald-pale); color: var(--emerald-dark); }
 .btn-sm  { padding: 4px 10px !important; font-size: 11.5px !important; }
 .btn-xs  { padding: 3px 8px !important; font-size: 11px !important; border-radius: 6px !important; }
 
@@ -203,7 +206,7 @@ body {
 /* グラジエントタイトル */
 .section-title {
   font-size: 20px; font-weight: 800; letter-spacing: -.02em;
-  background: linear-gradient(135deg, var(--navy), var(--emerald-mid));
+  background: linear-gradient(135deg, #0b2c3d, #0ea5c9);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   margin-bottom: 4px;
 }
@@ -258,22 +261,22 @@ body {
 }
 .budget-grid { border-collapse: collapse; width: max-content; min-width: 100%; }
 .budget-grid thead th {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
   padding: 7px 9px; font-size: 11.5px; font-weight: 700;
   text-align: center; white-space: nowrap;
   position: sticky; top: 0; z-index: 20; color: var(--emerald-dark);
 }
 .budget-grid .acc-col  { width: 220px; min-width: 220px; text-align: left; }
 .budget-grid .month-col{ width: 86px; min-width: 72px; }
-.budget-grid .total-col{ width: 96px; min-width: 80px; background: #d1fae5; color: var(--emerald-dark); }
+.budget-grid .total-col{ width: 96px; min-width: 80px; background: #bae6fd; color: var(--emerald-dark); }
 .sticky-col {
   position: sticky; left: 0; z-index: 10;
-  background: #fff; border-right: 2px solid #bbf7d0 !important;
+  background: #fff; border-right: 2px solid #bae6fd !important;
 }
-.budget-grid thead th.sticky-col { z-index: 30; background: #f0fdf4; }
+.budget-grid thead th.sticky-col { z-index: 30; background: #e0f2fe; }
 .budget-grid tbody tr { border-bottom: 1px solid #f0fdf4; }
-.budget-grid tbody tr:hover { background: #f0fdf4; }
+.budget-grid tbody tr:hover { background: #e0f2fe; }
 .budget-grid td { border: 1px solid #f0fdf4; padding: 0; font-size: 12px; }
 
 .acc-name { padding: 5px 11px; }
@@ -284,10 +287,10 @@ body {
   padding: 2px 7px; font-size: 12px; outline: none; background: var(--emerald-pale);
 }
 .val-cell { text-align: right; }
-.calc-val { color: var(--emerald-dark); padding: 5px 9px; background: #f0fdf4; font-size: 12px; font-weight: 600; }
+.calc-val { color: var(--emerald-dark); padding: 5px 9px; background: #e0f2fe; font-size: 12px; font-weight: 600; }
 .sep-row td { height: 6px; background: var(--bg); border: none; }
 .sep-cell   { border: none !important; }
-.calc-row  td.sticky-col { background: #f0fdf4; font-weight: 700; color: var(--emerald-dark); }
+.calc-row  td.sticky-col { background: #e0f2fe; font-weight: 700; color: var(--emerald-dark); }
 .header-row td.sticky-col { background: #f9fafb; font-weight: 700; color: var(--emerald-dark); }
 .header-row { background: #f9fafb; }
 .section-row td { background: #e5e7eb !important; font-weight: 800; color: #374151; font-size: 12px; letter-spacing: .03em; border-top: 2px solid #9ca3af; }
@@ -341,7 +344,7 @@ body {
   padding: 5px 8px; text-align: right;
   font-family: inherit; font-size: 12px; background: transparent; color: var(--text);
 }
-.cell-input:focus { background: #ecfdf5; border-radius: 4px; }
+.cell-input:focus { background: #e0f2fe; border-radius: 4px; }
 .total-col { padding: 5px 11px; font-weight: 700; color: var(--emerald-dark); }
 
 /* ===== フォーム ===== */
@@ -353,18 +356,18 @@ body {
   color: var(--text); background: var(--bg-card);
   transition: border-color .15s, box-shadow .15s;
 }
-.form-input:focus { outline: none; border-color: var(--emerald-mid); box-shadow: 0 0 0 3px rgba(16,185,129,.1); }
+.form-input:focus { outline: none; border-color: var(--emerald-mid); box-shadow: 0 0 0 3px rgba(14,165,201,.1); }
 
 /* ===== テーブル ===== */
 .result-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .result-table th, .result-table td {
   border: 1px solid var(--border-muted); padding: 7px 10px; text-align: left;
 }
-.result-table th { background: #f0fdf4; font-weight: 700; color: var(--emerald-dark); border-color: #bbf7d0; }
+.result-table th { background: #e0f2fe; font-weight: 700; color: var(--emerald-dark); border-color: #bae6fd; }
 .result-table tr:nth-child(even) { background: var(--bg); }
 .result-table tr:hover { background: var(--emerald-pale); }
 .result-table .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
-.result-table .total-row td { background: var(--emerald-light); font-weight: 800; border-top: 2px solid #6ee7b7; }
+.result-table .total-row td { background: var(--emerald-light); font-weight: 800; border-top: 2px solid #7dd3fc; }
 .bold-row td { font-weight: 800; background: var(--emerald-light); }
 .table-scroll { overflow-x: auto; border-radius: 10px; }
 
@@ -375,7 +378,7 @@ body {
 /* ===== 増減率テーブル ===== */
 .rate-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px; }
 .rate-table td, .rate-table th { padding: 6px 9px; border: 1px solid var(--border-muted); }
-.rate-table th { background: #f0fdf4; color: var(--emerald-dark); text-align: center; font-weight: 700; }
+.rate-table th { background: #e0f2fe; color: var(--emerald-dark); text-align: center; font-weight: 700; }
 .rate-input    { width: 72px; border: 1.5px solid var(--border); border-radius: 6px; padding: 4px 7px; text-align: right; font-size: 12px; }
 .rate-input:focus { outline: none; border-color: var(--emerald-mid); }
 .rate-input-sm { width: 60px; border: 1.5px solid var(--border); border-radius: 5px; padding: 2px 5px; text-align: right; font-size: 11px; }
@@ -390,15 +393,15 @@ body {
 
 /* ===== タグ ===== */
 .tag { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-.tag-indigo { background: var(--emerald-light); color: var(--emerald-dark); }
-.tag-green  { background: #d1fae5; color: #065f46; }
+.tag-indigo { background: #e0f2fe; color: #0369a1; }
+.tag-green  { background: #bae6fd; color: #0c4a6e; }
 .tag-orange { background: #fef3c7; color: #92400e; }
 .tag-red    { background: #ffe4e6; color: #9f1239; }
-.tag-violet { background: #ccfbf1; color: #134e4a; }
+.tag-violet { background: #cffafe; color: #0c4a6e; }
 
 /* ===== 消費税 ===== */
 .ctax-badge { font-size: 17px; font-weight: 800; padding: 16px 20px; border-radius: 12px; margin-bottom: 14px; text-align: center; box-shadow: var(--shadow-sm); }
-.badge-green  { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #065f46; }
+.badge-green  { background: linear-gradient(135deg, #bae6fd, #7dd3fc); color: #0c4a6e; }
 .badge-blue   { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1e40af; }
 .badge-orange { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
 .ctax-notes   { list-style: disc; padding-left: 20px; font-size: 12px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.9; }
@@ -421,7 +424,7 @@ body {
   transition: opacity .12s;
 }
 .act-badge:hover { opacity: .75; }
-.act-actual { background: #d1fae5; color: #065f46; }
+.act-actual { background: #bae6fd; color: #0c4a6e; }
 .act-budget { background: #dbeafe; color: #1e40af; }
 
 /* ===== CF ===== */
@@ -432,7 +435,7 @@ body {
 .health-overview { display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
 .overall-grade   { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 100px; }
 .grade-label { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
-.grade-big   { font-size: 80px; font-weight: 900; line-height: 1; background: linear-gradient(135deg, var(--navy), var(--emerald-mid)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.grade-big   { font-size: 80px; font-weight: 900; line-height: 1; background: linear-gradient(135deg, #0b2c3d, #0ea5c9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 .radar-wrap  { flex: 1; max-width: 300px; }
 .grade-badge { display: inline-flex; width: 28px; height: 28px; border-radius: 50%; color: #fff; font-weight: 800; align-items: center; justify-content: center; font-size: 13px; }
 .health-table .comment { color: var(--text-muted); font-size: 11px; line-height: 1.5; }
@@ -442,7 +445,7 @@ body {
 
 /* ===== Upload ===== */
 .upload-zone {
-  border: 2px dashed #6ee7b7; border-radius: var(--radius);
+  border: 2px dashed #7dd3fc; border-radius: var(--radius);
   background: var(--emerald-pale); padding: 52px 32px; text-align: center; cursor: pointer;
   transition: border-color .2s, background .2s, transform .15s, box-shadow .2s;
 }
@@ -482,7 +485,7 @@ input[type=range]::-webkit-slider-thumb {
   border: 2.5px solid var(--emerald-mid); box-shadow: 0 2px 6px rgba(16,185,129,.32);
 }
 .comp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.comp-table th { background: #f0fdf4; color: var(--emerald-dark); font-weight: 700; padding: 7px 10px; border: 1px solid #bbf7d0; }
+.comp-table th { background: #e0f2fe; color: var(--emerald-dark); font-weight: 700; padding: 7px 10px; border: 1px solid #bae6fd; }
 .comp-table td { padding: 6px 10px; border: 1px solid var(--border-muted); }
 .comp-table tr.highlight td { background: var(--emerald-light); font-weight: 700; }
 .comp-table .num { text-align: right; }
@@ -495,7 +498,7 @@ input[type=range]::-webkit-slider-thumb {
 .ctx-sep { border-bottom: 1px solid var(--border-muted); margin: 4px 0; }
 
 /* ===== モーダル ===== */
-.modal { display: none; position: fixed; inset: 0; background: rgba(13,31,45,.5); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; }
+.modal { display: none; position: fixed; inset: 0; background: rgba(11,44,61,.5); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; }
 .modal.open { display: flex; }
 .modal-box {
   background: var(--bg-card); border-radius: var(--radius);
@@ -546,7 +549,7 @@ input[type=range]::-webkit-slider-thumb {
 .progress-pct { font-size: 13px; font-weight: 700; color: var(--emerald); min-width: 36px; }
 .progress-items { display: flex; flex-wrap: wrap; gap: 8px; }
 .progress-item { font-size: 12px; padding: 3px 10px; border-radius: 99px; }
-.progress-item.done    { background: #d1fae5; color: #065f46; }
+.progress-item.done    { background: #bae6fd; color: #0c4a6e; }
 .progress-item.pending { background: var(--border-muted); color: var(--text-muted); }
 
 /* 業績KPI */
@@ -567,7 +570,7 @@ input[type=range]::-webkit-slider-thumb {
 .ctax-items { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .ctax-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
 .ctax-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
-.ctax-badge.yes { background: #d1fae5; color: #065f46; }
+.ctax-badge.yes { background: #bae6fd; color: #0c4a6e; }
 .ctax-badge.no  { background: #fee2e2; color: #991b1b; }
 .ctax-judge { font-size: 14px; font-weight: 700; padding: 10px 12px; background: var(--bg); border-radius: var(--radius-sm); text-align: center; margin-top: 4px; }
 .ctax-auto-badge { display: inline-block; margin-left: 6px; font-size: 9px; font-weight: 600; color: #0284c7; background: #dbeafe; padding: 1px 6px; border-radius: 99px; vertical-align: middle; }
@@ -595,7 +598,7 @@ input[type=range]::-webkit-slider-thumb {
 /* ===== スクロールバー ===== */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #6ee7b7; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: #7dd3fc; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #34d399; }
 
 /* ===== 調整列 ===== */
