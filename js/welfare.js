@@ -318,6 +318,30 @@ function _wfRenderEmployees() {
   }).join('');
 }
 
+function _wfCalcBreakdown(pref, startMonth) {
+  // 月次を3種類に分解して返す（予算月順）
+  const regularSI  = Array(12).fill(0); // 通常月の法定福利費
+  const bonusSI    = Array(12).fill(0); // 賞与月の法定福利費追加分
+  const bonusSalary = Array(12).fill(0); // 賞与支給額
+
+  _wfEmployees.forEach(emp => {
+    const baseSI     = calcSocialInsurance(emp.salary || 0, 0, emp.age || 35, pref).monthly;
+    const calMonthly = calcEmpMonthly(emp, pref); // index 0=1月
+
+    for (let i = 0; i < 12; i++) {
+      const calIdx = (startMonth - 1 + i) % 12;
+      regularSI[i] += baseSI;
+      bonusSI[i]   += Math.max(0, calMonthly[calIdx] - baseSI);
+    }
+    (emp.bonuses || []).forEach(b => {
+      const bi = ((b.month - 1) - (startMonth - 1) + 12) % 12;
+      bonusSalary[bi] += b.amount || 0;
+    });
+  });
+
+  return { regularSI, bonusSI, bonusSalary };
+}
+
 function _wfRenderTable() {
   const theadRow = document.getElementById('wf_thead_row');
   const tbody    = document.getElementById('wf_tbody');
@@ -326,7 +350,7 @@ function _wfRenderTable() {
 
   const pref       = document.getElementById('wf_pref')?.value || window.App?.currentCompany?.prefecture || '東京都';
   const startMonth = window.App?.currentBudget?.startMonth || 4;
-  const months     = getMonthLabels(startMonth); // ['4月',...,'3月']
+  const months     = getMonthLabels(startMonth);
 
   theadRow.innerHTML = `
     <th style="position:sticky;left:0;background:#e0f2fe;z-index:5">従業員</th>
@@ -334,50 +358,82 @@ function _wfRenderTable() {
     ${months.map(m => `<th style="text-align:right">${m}</th>`).join('')}
     <th style="text-align:right">年間合計</th>`;
 
-  // 従業員ごとに月次法定福利費を計算（予算月順）
   const empData = _wfEmployees.map(emp => {
-    const calMonthly   = calcEmpMonthly(emp, pref);           // index0=1月
+    const calMonthly    = calcEmpMonthly(emp, pref);
     const budgetMonthly = calTobudgetOrder(calMonthly, startMonth);
     const annualTotal   = budgetMonthly.reduce((s, v) => s + v, 0);
-    const annualBonus   = (emp.bonuses || []).reduce((s, b) => s + (b.amount || 0), 0);
-    const si            = calcSocialInsurance(emp.salary || 0, annualBonus, emp.age || 35, pref);
-    return { emp, budgetMonthly, annualTotal, monthlySI: si.monthly };
+    const baseSI        = calcSocialInsurance(emp.salary || 0, 0, emp.age || 35, pref).monthly;
+    return { emp, budgetMonthly, annualTotal, baseSI };
   });
 
-  const bonusMonths = new Set(); // budget-month indices that have any bonus
+  // 賞与が発生する予算月インデックス
+  const bonusMonths = new Set();
   _wfEmployees.forEach(emp => {
     (emp.bonuses || []).forEach(b => {
-      const idx = ((b.month - 1) - (startMonth - 1) + 12) % 12;
-      bonusMonths.add(idx);
+      bonusMonths.add(((b.month - 1) - (startMonth - 1) + 12) % 12);
     });
   });
 
-  tbody.innerHTML = empData.map(({ emp, budgetMonthly, annualTotal, monthlySI }) => `
+  tbody.innerHTML = empData.map(({ emp, budgetMonthly, annualTotal, baseSI }) => `
     <tr>
       <td style="position:sticky;left:0;background:#fff;font-weight:600;font-size:12px">${escHtml(emp.name||'(未入力)')}</td>
-      <td style="text-align:right;font-size:11px;color:var(--text-muted)">${fmt(monthlySI)}</td>
+      <td style="text-align:right;font-size:11px;color:var(--text-muted)">${fmt(baseSI)}</td>
       ${budgetMonthly.map((v, mi) => {
-        const isBonusMonth = bonusMonths.has(mi) && v > monthlySI;
-        return `<td style="text-align:right;font-size:12px;${isBonusMonth?'background:#fffbeb;font-weight:700;color:#d97706':''}">
-          ${isBonusMonth ? `<div>${fmt(v)}</div><div style="font-size:9px">▲賞与</div>` : fmt(v)}
+        const bonusPart = Math.max(0, v - baseSI);
+        const isBonusMonth = bonusPart > 0;
+        return `<td style="text-align:right;font-size:12px;${isBonusMonth ? 'background:#fffbeb' : ''}">
+          <div style="${isBonusMonth ? 'font-weight:700' : ''}">${fmt(baseSI)}</div>
+          ${isBonusMonth ? `<div style="font-size:9px;color:#d97706;font-weight:700">+${fmt(bonusPart)}<br>▲賞与SI</div>` : ''}
         </td>`;
       }).join('')}
       <td style="text-align:right;font-weight:700;color:var(--emerald-dark)">${fmt(annualTotal)}</td>
     </tr>`).join('');
 
-  // 月次合計
-  const monthTotals = Array.from({ length: 12 }, (_, mi) =>
-    empData.reduce((s, { budgetMonthly }) => s + budgetMonthly[mi], 0)
-  );
-  const grandTotal = monthTotals.reduce((s, v) => s + v, 0);
+  const { regularSI, bonusSI, bonusSalary } = _wfCalcBreakdown(pref, startMonth);
+  const totalRegSI   = regularSI.reduce((s, v) => s + v, 0);
+  const totalBonSI   = bonusSI.reduce((s, v) => s + v, 0);
+  const totalBonSal  = bonusSalary.reduce((s, v) => s + v, 0);
+  const grandSI      = totalRegSI + totalBonSI;
 
-  tfoot.innerHTML = `
-    <tr style="background:#f0f9ff;font-weight:700">
-      <td style="position:sticky;left:0;background:#f0f9ff;padding:8px 10px">合計</td>
+  const tfRow = (label, arr, total, bg, color, bold) => `
+    <tr style="background:${bg}">
+      <td style="position:sticky;left:0;background:${bg};padding:6px 10px;font-size:11.5px;${bold?'font-weight:700':'color:var(--text-muted)'}">${label}</td>
       <td></td>
-      ${monthTotals.map(v => `<td style="text-align:right;padding:6px 8px">${fmt(v)}</td>`).join('')}
-      <td style="text-align:right;padding:6px 8px;color:var(--emerald-dark)">${fmt(grandTotal)}</td>
+      ${arr.map(v => `<td style="text-align:right;padding:5px 8px;font-size:11.5px;${v>0&&color?'color:'+color:''}">${v ? fmt(v) : '–'}</td>`).join('')}
+      <td style="text-align:right;padding:5px 8px;font-weight:700;${color?'color:'+color:''}">${fmt(total)}</td>
     </tr>`;
+
+  tfoot.innerHTML =
+    tfRow('法定福利費（月額）合計',   regularSI,  totalRegSI,  '#f0f9ff', '',        true) +
+    tfRow('うち賞与分法定福利費',      bonusSI,    totalBonSI,  '#fffbeb', '#d97706', false) +
+    tfRow('賞与支給額合計',           bonusSalary, totalBonSal, '#fff7f0', '#ea580c', false) +
+    `<tr style="background:#e0f2fe;font-weight:700;border-top:2px solid #bae6fd">
+      <td style="position:sticky;left:0;background:#e0f2fe;padding:7px 10px">法定福利費 総合計</td>
+      <td></td>
+      ${Array.from({length:12},(_,i)=>`<td style="text-align:right;padding:6px 8px">${fmt(regularSI[i]+bonusSI[i])}</td>`).join('')}
+      <td style="text-align:right;padding:6px 8px;color:var(--emerald-dark)">${fmt(grandSI)}</td>
+    </tr>`;
+}
+
+function _wfEnsureAccount(budget, newId, newName, parentId, parentNameKeyword) {
+  const accounts = budget.dynamicAccounts;
+  if (!accounts) return;
+  if (accounts.find(a => a.id === newId)) return; // 既存
+
+  const parent = accounts.find(a => a.id === parentId) ||
+                 accounts.find(a => a.name?.includes(parentNameKeyword));
+  if (!parent) return;
+
+  let insertAt = accounts.indexOf(parent) + 1;
+  // 既存の子をスキップして末尾に挿入
+  while (insertAt < accounts.length && accounts[insertAt].parentId === parent.id) insertAt++;
+
+  accounts.splice(insertAt, 0, {
+    id: newId, name: newName, type: 'input',
+    indent: (parent.indent ?? 1) + 1, parentId: parent.id,
+    section: parent.section || 'pl', sign: parent.sign ?? 1,
+    bold: false, custom: true,
+  });
 }
 
 function _wfApplyToBudget() {
@@ -387,19 +443,35 @@ function _wfApplyToBudget() {
   const pref       = document.getElementById('wf_pref')?.value || window.App?.currentCompany?.prefecture || '東京都';
   const startMonth = budget.startMonth || 4;
 
-  const monthTotals = Array.from({ length: 12 }, (_, mi) =>
-    _wfEmployees.reduce((s, emp) => {
-      const cal = calcEmpMonthly(emp, pref);
-      return s + cal[(startMonth - 1 + mi) % 12];
-    }, 0)
-  );
+  const { regularSI, bonusSI, bonusSalary } = _wfCalcBreakdown(pref, startMonth);
 
   if (!budget.rows) budget.rows = {};
-  budget.rows['sga_welfare'] = monthTotals;
+
+  if (budget.dynamicAccounts) {
+    // 新規勘定科目を追加（なければ）
+    _wfEnsureAccount(budget, 'wf_welfare_bonus', '法定福利費（従業員賞与）', 'sga_welfare', '法定福利費');
+    _wfEnsureAccount(budget, 'wf_emp_bonus',     '賞与（従業員）',           'sga_bonus',   '賞与');
+    budget.rows['sga_welfare']      = regularSI;
+    budget.rows['wf_welfare_bonus'] = bonusSI;
+    budget.rows['wf_emp_bonus']     = bonusSalary;
+  } else {
+    // 静的科目：既存の法定福利費・賞与行へ合算
+    budget.rows['sga_welfare'] = regularSI.map((v, i) => v + bonusSI[i]);
+    budget.rows['sga_bonus']   = bonusSalary;
+  }
 
   saveBudget(budget);
   window.App.currentBudget = budget;
-  alert(`法定福利費を予算に反映しました。\n年間合計：${fmt(monthTotals.reduce((s,v)=>s+v,0))}`);
+
+  const hasDyn = !!budget.dynamicAccounts;
+  alert(
+    `予算に反映しました。\n` +
+    `法定福利費（月額分）：${fmt(regularSI.reduce((s,v)=>s+v,0))}\n` +
+    `法定福利費（賞与分）：${fmt(bonusSI.reduce((s,v)=>s+v,0))}\n` +
+    `賞与支給額合計：${fmt(bonusSalary.reduce((s,v)=>s+v,0))}\n` +
+    (hasDyn ? '→ 「法定福利費（従業員賞与）」「賞与（従業員）」科目に書き込みました' :
+              '→ 既存の法定福利費・賞与行に書き込みました（試算表インポート後は科目が分離されます）')
+  );
 }
 
 function fmt(n) {
