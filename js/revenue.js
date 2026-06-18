@@ -643,10 +643,19 @@ function importRevenueExcel(file) {
 
       if (!imported.length) { alert('インポートできる顧問先が見つかりませんでした'); return; }
 
-      if (_revClients.length && !confirm(`既存の${_revClients.length}社に追加しますか？\n（「キャンセル」で上書き）`)) {
-        _revClients = imported;
+      if (_revClients.length) {
+        const choice = confirm(
+          `既存の顧問先が${_revClients.length}社あります。\n\n` +
+          `【OK】　　上書き（既存データを全て置き換え）\n` +
+          `【キャンセル】　追加（既存データに追記）`
+        );
+        if (choice) {
+          _revClients = imported;
+        } else {
+          _revClients.push(...imported);
+        }
       } else {
-        _revClients.push(...imported);
+        _revClients = imported;
       }
 
       _revRefresh();
