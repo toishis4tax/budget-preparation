@@ -975,11 +975,12 @@ function calcZeroOut() {
     return;
   }
 
-  // 各役員の社会保険料率（会社負担）を算出
-  const si1 = calcSocialInsurance(monthly1, 0, age1, pref);
-  const rate1 = monthly1 > 0 ? si1.annual / (monthly1 * 12) : 0.145;
-  const si2 = calcSocialInsurance(monthly2, 0, age2, pref);
-  const rate2 = monthly2 > 0 ? si2.annual / (monthly2 * 12) : 0.145;
+  // 賞与の法定福利費（会社負担）をキャップ込みで正確に計算
+  // calcSocialInsurance は健保上限573万円・厚生年金上限150万円を正しく適用する
+  function _bonusWelfare(bonus, monthly, age, p) {
+    return calcSocialInsurance(monthly, bonus, age, p).annual
+         - calcSocialInsurance(monthly, 0,     age, p).annual;
+  }
 
   // 配分比率を決定
   let ratio1 = 0.5, ratio2 = 0.5;
@@ -991,17 +992,22 @@ function calcZeroOut() {
     ratio1 = r / 100; ratio2 = 1 - ratio1;
   }
 
-  // 全体の賞与総額を計算
-  // 賞与B全体、各人に r1×B, r2×B 支給
-  // 法定福利費 = r1×B×rate1 + r2×B×rate2
-  // B + r1×B×rate1 + r2×B×rate2 = pretax
-  // B × (1 + r1×rate1 + r2×rate2) = pretax
-  const combinedRate = ratio1 * rate1 + ratio2 * rate2;
-  const totalBonus   = Math.round(pretax / (1 + combinedRate));
+  // 二分探索で総賞与額を求める
+  // B + bonusWelfare(ratio1×B) + bonusWelfare(ratio2×B) = pretax
+  let lo = 0, hi = pretax;
+  for (let iter = 0; iter < 60; iter++) {
+    const mid = Math.round((lo + hi) / 2);
+    const b1  = Math.round(mid * ratio1);
+    const b2  = Math.round(mid * ratio2);
+    const total = mid + _bonusWelfare(b1, monthly1, age1, pref) + _bonusWelfare(b2, monthly2, age2, pref);
+    if (total < pretax) lo = mid; else hi = mid;
+    if (hi - lo <= 1) break;
+  }
+  const totalBonus = Math.round((lo + hi) / 2);
   const bonus1  = Math.round(totalBonus * ratio1);
   const bonus2  = Math.round(totalBonus * ratio2);
-  const welfare1 = Math.round(bonus1 * rate1);
-  const welfare2 = Math.round(bonus2 * rate2);
+  const welfare1 = _bonusWelfare(bonus1, monthly1, age1, pref);
+  const welfare2 = _bonusWelfare(bonus2, monthly2, age2, pref);
   const totalWelfare = welfare1 + welfare2;
   const remain = pretax - totalBonus - totalWelfare;
 
