@@ -307,7 +307,9 @@ function _getPrevYearCash(budgetPrev1) {
       var src = budgetPrev1.actualRows || budgetPrev1.rows || {};
       var vals = src[cashAcc.id];
       if (vals) {
-        for (var i = 11; i >= 0; i--) {
+        // 期末月（index 11）を優先。0の場合のみ直前の非ゼロにフォールバック
+        if (vals[11]) return vals[11];
+        for (var i = 10; i >= 0; i--) {
           if (vals[i] != null && vals[i] !== 0) return vals[i];
         }
       }

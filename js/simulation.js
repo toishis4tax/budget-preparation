@@ -306,8 +306,13 @@ function renderCashFlow(container, budget) {
       // actualRows（実績インポート値）を優先。なければrows（予算入力値）を参照
       const src = budgetPrev1.actualRows || budgetPrev1.rows || {};
       const cashArr = src[cashAcc.id] || [];
-      for (let i = 11; i >= 0; i--) {
-        if (cashArr[i] != null && cashArr[i] !== 0) { autoCash = cashArr[i]; break; }
+      // 期末月（index 11）を優先。0の場合のみ直前の非ゼロにフォールバック
+      if (cashArr[11]) {
+        autoCash = cashArr[11];
+      } else {
+        for (let i = 10; i >= 0; i--) {
+          if (cashArr[i] != null && cashArr[i] !== 0) { autoCash = cashArr[i]; break; }
+        }
       }
       cashSource = `前期末 BS残高（自動取得）`;
     }
