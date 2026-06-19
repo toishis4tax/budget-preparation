@@ -299,9 +299,16 @@ function renderCashFlow(container, budget) {
   // 途中月は拾わない
   let autoCash = 0, cashSource = '手動入力';
   const budgetPrev1 = (typeof getBudget === 'function') ? getBudget(company?.id, curYear - 1) : null;
-  const _findCashAcc = b => b?.dynamicAccounts?.find(a =>
-    a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section?.startsWith('bs')
-  );
+  const _findCashAcc = b => {
+    if (!b?.dynamicAccounts) return null;
+    // ミロク形式: bs_cash_group（現金及び預金合計）を優先
+    const cg = b.dynamicAccounts.find(a => a.cashGroup && a.section?.startsWith('bs'));
+    if (cg) return cg;
+    // 汎用: 名前マッチ（信金・銀行 も対応）
+    return b.dynamicAccounts.find(a =>
+      a.name.replace(/\s/g,'').match(/現金|預金|現預金|信金|銀行|信用組合/) && a.section?.startsWith('bs')
+    );
+  };
   // ① 前期末（index 11 = 期末月）
   const prevCashAcc = _findCashAcc(budgetPrev1);
   if (prevCashAcc) {

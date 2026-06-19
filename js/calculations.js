@@ -104,7 +104,8 @@ function calcAllValuesDynamic(budget) {
     return calcAllValues(budget.rows || {});
   }
   const accts = budget.dynamicAccounts;
-  const result = { ...(budget.rows || {}) };
+  // getMergedRows で actualRows(実績) と rows(予算) をブレンドしてから集計開始
+  const result = { ...(typeof getMergedRows === 'function' ? getMergedRows(budget) : budget.rows || {}) };
 
   // 親子マップ構築
   const kids = {};
@@ -138,7 +139,12 @@ function calcAllValuesDynamic(budget) {
 
 function evalDynFormula(formula, vals) {
   const tokens = formula.trim().split(/\s+/);
-  const get = id => vals[id] || new Array(13).fill(0);
+  const get = id => {
+    const arr = vals[id];
+    if (!arr) return new Array(13).fill(0);
+    if (arr.length >= 13) return arr;
+    return [...arr, ...new Array(13 - arr.length).fill(0)]; // インポート値は12要素→13にパディング
+  };
   let res = [...get(tokens[0])];
   for (let i = 1; i + 1 < tokens.length; i += 2) {
     const b = get(tokens[i + 1]);

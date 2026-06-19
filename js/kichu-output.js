@@ -301,7 +301,9 @@ function _getPrevYearCash(budgetPrev1) {
   if (!budgetPrev1) return null;
   if (budgetPrev1.dynamicAccounts && budgetPrev1.dynamicAccounts.length) {
     var cashAcc = budgetPrev1.dynamicAccounts.find(function(a) {
-      return a.name && a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section && a.section.startsWith('bs');
+      return a.cashGroup && a.section && a.section.startsWith('bs');
+    }) || budgetPrev1.dynamicAccounts.find(function(a) {
+      return a.name && a.name.replace(/\s/g,'').match(/現金|預金|現預金|信金|銀行|信用組合/) && a.section && a.section.startsWith('bs');
     });
     if (cashAcc) {
       var src = budgetPrev1.actualRows || budgetPrev1.rows || {};
@@ -328,7 +330,9 @@ function renderKichuCashflow(container, budget, company) {
   // ② 前期末がなければ当期首（index 0）を使用
   if (prevCashAuto == null && budget.dynamicAccounts) {
     var _curCashAcc = budget.dynamicAccounts.find(function(a) {
-      return a.name && a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section && a.section.startsWith('bs');
+      return a.cashGroup && a.section && a.section.startsWith('bs');
+    }) || budget.dynamicAccounts.find(function(a) {
+      return a.name && a.name.replace(/\s/g,'').match(/現金|預金|現預金|信金|銀行|信用組合/) && a.section && a.section.startsWith('bs');
     });
     if (_curCashAcc) {
       var _curSrc = budget.actualRows || budget.rows || {};

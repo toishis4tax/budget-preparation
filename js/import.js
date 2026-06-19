@@ -463,9 +463,15 @@ function parseMirokuMonthlySmart(data, startMonth) {
     budgetCumCols.push(cumCols[m] ?? -1);
   }
 
-  // 累計→月次変換
-  const deCumulate = cumVals => cumVals.map((v, i) => i === 0 ? v : v - cumVals[i - 1]);
-  const getVals = row => deCumulate(budgetCumCols.map(col => col >= 0 ? parseNum(row[col]) : 0));
+  // PL: 累計→月次変換（trailing zeros で負にならないよう保護）
+  const deCumulateSafe = cumVals => {
+    let lastNz = -1;
+    for (let i = cumVals.length - 1; i >= 0; i--) { if (cumVals[i] !== 0) { lastNz = i; break; } }
+    return cumVals.map((v, i) => i > lastNz ? 0 : (i === 0 ? v : v - cumVals[i - 1]));
+  };
+  // BS: 月末残高はそのまま使う（累計ではなく残高）
+  const getPlVals = row => deCumulateSafe(budgetCumCols.map(col => col >= 0 ? parseNum(row[col]) : 0));
+  const getBsVals = row => budgetCumCols.map(col => col >= 0 ? parseNum(row[col]) : 0);
 
   // PL セクション情報
   const PL_SECTIONS = {
@@ -568,7 +574,7 @@ function parseMirokuMonthlySmart(data, startMonth) {
         ensureSection(plSection, PL_SECTIONS);
       }
 
-      const vals = getVals(row);
+      const vals = getPlVals(row);
       if (!vals.some(v => v !== 0)) {
         if (!isIndented) plLastParent = null;
         continue;
@@ -600,11 +606,19 @@ function parseMirokuMonthlySmart(data, startMonth) {
           bsPending = [];
           bsLastParent = null;
         }
+        // 現金及び預金合計を cashGroup として保存（期首現金自動取得に使用）
+        if (nameTrim === '【現金及び預金】' || nameTrim === '【現金・預金】') {
+          const cVals = getBsVals(row);
+          if (cVals.some(v => v !== 0)) {
+            bsPending.push({ id: 'bs_cash_group', name: '現金及び預金', type: 'parent', indent: 1, parentId: null, section: null, sign: 1, cashGroup: true });
+            rows['bs_cash_group'] = cVals;
+          }
+        }
         // すべての【】行をスキップ
         continue;
       }
 
-      const vals = getVals(row);
+      const vals = getBsVals(row);
       if (!vals.some(v => v !== 0)) {
         if (!isIndented) bsLastParent = null;
         continue;

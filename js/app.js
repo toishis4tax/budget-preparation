@@ -313,9 +313,10 @@ function renderSimulation(container, budget) {
     const equity    = last('sec_equity');
 
     // 現預金を動的科目から探す
-    const cashAcc = budget.dynamicAccounts.find(a =>
-      a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section?.startsWith('bs')
-    );
+    const cashAcc = budget.dynamicAccounts.find(a => a.cashGroup && a.section?.startsWith('bs'))
+      || budget.dynamicAccounts.find(a =>
+        a.name.replace(/\s/g,'').match(/現金|預金|現預金|信金|銀行|信用組合/) && a.section?.startsWith('bs')
+      );
     const cash = cashAcc ? last(cashAcc.id) : 0;
 
     bsAssetsRows = [
