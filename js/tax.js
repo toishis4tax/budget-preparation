@@ -160,6 +160,11 @@ function renderTaxSimulator(container) {
             <input type="number" id="tax_adj_add" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
           </div>
           <div class="form-group">
+            <label>当期事業税支払額（減算）</label>
+            <input type="number" id="tax_adj_biztax" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
+            <div style="font-size:10px;color:var(--text-muted);margin-top:3px">※ 前期確定分・予定納税など当期中に支払った事業税</div>
+          </div>
+          <div class="form-group">
             <label>その他減算項目</label>
             <input type="number" id="tax_adj_sub" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
           </div>
@@ -207,11 +212,12 @@ function runTaxSim() {
   const adjExecBonus     = parseFloat(document.getElementById('tax_adj_exec_bonus')?.value     || 0);
   const adjEntertainment = parseFloat(document.getElementById('tax_adj_entertainment')?.value   || 0);
   const adjAdd           = parseFloat(document.getElementById('tax_adj_add')?.value             || 0);
+  const adjBizTax        = parseFloat(document.getElementById('tax_adj_biztax')?.value          || 0);
   const adjSub           = parseFloat(document.getElementById('tax_adj_sub')?.value             || 0);
   const nolRaw           = parseFloat(document.getElementById('tax_nol')?.value                 || 0);
 
   const totalAdd = adjExecBonus + adjEntertainment + adjAdd;
-  const totalSub = adjSub;
+  const totalSub = adjBizTax + adjSub;
 
   // 課税所得 = 税引前利益 + 加算 - 減算 - 欠損金
   const incomeBeforeNol = pretax + totalAdd - totalSub;
