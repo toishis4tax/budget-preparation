@@ -295,16 +295,17 @@ function renderCashFlow(container, budget) {
     : calcAllValues(budget.rows);
   const monthLabels = getMonthLabels(budget.startMonth || 4);
 
-  // 期首現預金: 前期末BS現預金科目から取得
+  // 期首現預金: 前期末BS現預金科目から取得（actualRows優先）
   let autoCash = 0, cashSource = '手動入力';
   const budgetPrev1 = (typeof getBudget === 'function') ? getBudget(company?.id, curYear - 1) : null;
   if (budgetPrev1 && budgetPrev1.dynamicAccounts) {
-    const prevAllVals = calcAllValuesDynamic(budgetPrev1);
     const cashAcc = budgetPrev1.dynamicAccounts.find(a =>
       a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section?.startsWith('bs')
     );
     if (cashAcc) {
-      const cashArr = prevAllVals[cashAcc.id] || [];
+      // actualRows（実績インポート値）を優先。なければrows（予算入力値）を参照
+      const src = budgetPrev1.actualRows || budgetPrev1.rows || {};
+      const cashArr = src[cashAcc.id] || [];
       for (let i = 11; i >= 0; i--) {
         if (cashArr[i] != null && cashArr[i] !== 0) { autoCash = cashArr[i]; break; }
       }
