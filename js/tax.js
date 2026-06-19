@@ -328,6 +328,11 @@ function applyTaxToBudget() {
 
 function _ctaxAcctCalc(budget, company) {
   if (!budget?.dynamicAccounts?.length) return null;
+  // 旧データ移行: company.ctaxClassification → budget.ctaxClassification（一度だけ）
+  if (!budget.ctaxClassification && company?.ctaxClassification && Object.keys(company.ctaxClassification).length) {
+    budget.ctaxClassification = { ...company.ctaxClassification };
+    saveBudget(budget);
+  }
   const cls  = budget.ctaxClassification || {};
   // 末端科目（type=input）のみ対象 → 親集計不要。getMergedRows で実績月(actualRows)+予算月(rows)を正しくブレンド
   const merged = getMergedRows(budget);

@@ -249,6 +249,11 @@ function renderGridRows(budget, allVals, months) {
   const parentIds = new Set(accounts.filter(a => a.parentId).map(a => a.parentId));
 
   const company = window.App?.currentCompany;
+  // 旧データ移行: company.ctaxClassification → budget.ctaxClassification（一度だけ）
+  if (budget && !budget.ctaxClassification && company?.ctaxClassification && Object.keys(company.ctaxClassification).length) {
+    budget.ctaxClassification = { ...company.ctaxClassification };
+    saveBudget(budget);
+  }
   const ctaxCls = budget?.ctaxClassification || {};
 
   accounts.forEach((acc, accIdx) => {
