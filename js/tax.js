@@ -136,7 +136,6 @@ function renderTaxSimulator(container) {
 
   const capital  = company?.capital  || 10_000_000;
   const prepaid1 = company?.prepaid1 || 0;
-  const prepaid2 = company?.prepaid2 || 0;
 
   container.innerHTML = `
     <div class="sim-panel">
@@ -185,13 +184,9 @@ function renderTaxSimulator(container) {
           </div>
 
           <h3 style="margin-top:14px">💳 予定納税</h3>
-          <div class="form-group">
-            <label>第1回予定納税（円）</label>
-            <input type="number" id="tax_prepaid1" value="${prepaid1}" class="form-input" step="10000" oninput="runTaxSim()">
-          </div>
           <div class="form-group" style="margin-bottom:0">
-            <label>第2回予定納税（円）</label>
-            <input type="number" id="tax_prepaid2" value="${prepaid2}" class="form-input" step="10000" oninput="runTaxSim()">
+            <label>中間申告納付額（円）</label>
+            <input type="number" id="tax_prepaid1" value="${prepaid1}" class="form-input" step="10000" oninput="runTaxSim()">
           </div>
         </div>
 
@@ -217,7 +212,6 @@ function runTaxSim() {
   const pretax   = parseFloat(document.getElementById('tax_pretax')?.value  || 0);
   const capital  = parseFloat(document.getElementById('tax_capital')?.value || 10_000_000);
   const prepaid1 = parseFloat(document.getElementById('tax_prepaid1')?.value || 0);
-  const prepaid2 = parseFloat(document.getElementById('tax_prepaid2')?.value || 0);
 
   const adjExecBonus     = parseFloat(document.getElementById('tax_adj_exec_bonus')?.value     || 0);
   const adjEntertainment = parseFloat(document.getElementById('tax_adj_entertainment')?.value   || 0);
@@ -238,7 +232,7 @@ function runTaxSim() {
   const taxableIncome = Math.max(0, incomeBeforeNol - nolDeduction);
 
   const taxes = calcAllTax(taxableIncome, capital);
-  const prepaid = prepaid1 + prepaid2;
+  const prepaid = prepaid1;
   const balance = taxes.total - prepaid;
 
   // 調整サマリー
