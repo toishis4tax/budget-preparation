@@ -1,5 +1,19 @@
 // 法人税額シミュレーション
 
+function _showToast(msg, duration = 2500) {
+  let el = document.getElementById('_tax_toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = '_tax_toast';
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#323232;color:#fff;padding:10px 20px;border-radius:6px;font-size:14px;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = '0'; }, duration);
+}
+
 const TAX_RATES = {
   corp: {
     small_low:   0.15,  // 資本金1億円以下・年800万円以下
@@ -307,8 +321,6 @@ function applyTaxToBudget() {
   window.App.currentBudget = budget;
   const calcNet = budget.dynamicAccounts?.find(a => a.id === 'calc_net');
   const taxAccCheck = budget.dynamicAccounts?.find(a => a.id === taxAccId);
-  console.log('applyTax: taxAccId=', taxAccId, 'taxAcc=', taxAccCheck, 'calc_net formula=', calcNet?.formula, 'rows=', budget.rows[taxAccId]);
-  alert(`反映完了\n科目ID: ${taxAccId}\n科目名: ${taxAccCheck?.name ?? '見つからず'}\n当期純利益formula: ${calcNet?.formula ?? 'なし'}\n月次合計: ${(budget.rows[taxAccId]||[]).reduce((s,v)=>s+v,0).toLocaleString()}円`);
 }
 
 // 消費税関連ページ
@@ -320,7 +332,6 @@ function _ctaxAcctCalc(budget, company) {
   // 末端科目（type=input）のみ対象 → 親集計不要。getMergedRows で実績月(actualRows)+予算月(rows)を正しくブレンド
   const merged = getMergedRows(budget);
   let taxableRevenue = 0, taxableExpense = 0;
-  const _dbg = [];
   for (const acc of budget.dynamicAccounts) {
     // input（予算入力）と rev_display（未確定・実績表示）の両方を対象にする
     if (acc.type !== 'input' && acc.type !== 'rev_display') continue;
@@ -330,13 +341,9 @@ function _ctaxAcctCalc(budget, company) {
     // 実績＋予算ブレンド済み月次値（調整欄 index 12 含む）
     const vals = merged[acc.id] || [];
     const total = vals.reduce((s, v, i) => i <= 12 ? s + Math.abs(v || 0) : s, 0);
-    const cat = acc.sign === 1 ? '売上' : '仕入';
-    _dbg.push(`[${cat}] ${acc.name}(${acc.id}) section=${acc.section} total=${total.toLocaleString()}`);
     if (acc.sign === 1) taxableRevenue += total;
     else                taxableExpense += total;
   }
-  console.log('[消費税②] 含まれる科目:\n' + _dbg.join('\n'));
-  console.log(`[消費税②] 課税売上=${taxableRevenue.toLocaleString()} 課税仕入=${taxableExpense.toLocaleString()}`);
   return {
     taxableRevenue,
     taxableExpense,
@@ -624,5 +631,5 @@ function saveCtaxToCompany() {
   company.kanijukazei       = kani;
   saveCompany(company);
   window.App.companies = getCompanies();
-  alert('会社情報を更新しました');
+  _showToast('会社情報を更新しました');
 }

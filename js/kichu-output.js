@@ -3,22 +3,48 @@
 
 window._kichuCharts = {};
 
+var _kichuPhaseTypes = {
+  1: [
+    { type:'forecast',    label:'着地予測' },
+    { type:'monthly',     label:'月次業績' },
+    { type:'cashflow',    label:'資金繰り' },
+    { type:'prevcomp',    label:'前期比較' },
+    { type:'taxplanning', label:'決算対策' },
+    { type:'execcomp',    label:'役員報酬' },
+  ],
+  2: [
+    { type:'taxplanning', label:'決算対策' },
+    { type:'forecast',    label:'着地予測' },
+    { type:'execcomp',    label:'役員報酬' },
+    { type:'prevcomp',    label:'前期比較' },
+  ],
+  3: [
+    { type:'monthly',     label:'月次業績' },
+    { type:'prevcomp',    label:'前期比較' },
+    { type:'cashflow',    label:'資金繰り' },
+  ],
+};
+
 function showKichuOutput(type) {
   const modal = document.getElementById('kichu_output_modal');
   const body  = document.getElementById('kichu_output_body');
-  const title = document.getElementById('kichu_output_title');
+  const tabsEl = document.getElementById('kichu_output_tabs');
   if (!modal) return;
-  const titles = {
-    monthly:    '月次業績報告書',
-    cashflow:   '資金繰り予測表',
-    forecast:   '着地予測・税金概算',
-    execcomp:   '役員報酬提案書',
-    socialins:  '社会保険試算',
-    prevcomp:   '前期比較表',
-    taxplanning:'決算対策提案書',
-  };
-  title.textContent = titles[type] || type;
+
+  const phase = (window.App && window.App.currentPhase) || 1;
+  const tabList = _kichuPhaseTypes[phase] || _kichuPhaseTypes[1];
+
+  if (tabsEl) {
+    tabsEl.innerHTML = tabList.map(t => `
+      <button id="kichu_tab_${t.type}"
+        style="padding:5px 13px;border-radius:20px;border:1.5px solid ${t.type===type?'var(--emerald-mid)':'var(--border)'};
+               background:${t.type===type?'var(--emerald-mid)':'transparent'};color:${t.type===type?'#fff':'var(--text-muted)'};
+               font-size:11.5px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;font-family:inherit"
+        onclick="showKichuOutput('${t.type}')">${t.label}</button>`).join('');
+  }
+
   modal.style.display = 'block';
+  body.innerHTML = '';
   renderKichuOutput(type, body);
 }
 
@@ -860,7 +886,8 @@ function renderKichuSocialIns(container, budget, company) {
 
   // 計算関数
   function calcSocialIns(monthlyComp, pref, kaigo, bonusAmt) {
-    var kenpoRate = (KENPO[pref] || 10.00) / 100;
+    var prefKey = pref ? pref.replace(/[都道府県]$/, '') : pref; // '東京都'→'東京'
+    var kenpoRate = (KENPO[prefKey] || 10.00) / 100;
     var kaigoRate = kaigo ? 0.016 : 0;
     var nenkinRate = 0.183;
 
@@ -898,17 +925,17 @@ function renderKichuSocialIns(container, budget, company) {
     };
   }
 
-  var prefOptions = Object.keys(KENPO).map(function(p) {
-    return '<option value="' + p + '"' + (p === '東京' ? ' selected' : '') + '>' + p + '</option>';
-  }).join('');
-
   var lsKey = 'socialins_' + (company.id||'') + '_' + curYear;
   var saved = JSON.parse(localStorage.getItem(lsKey) || '{}');
 
   var defaultComp  = saved.monthlyComp  || (company.execComp || 500000);
-  var defaultPref  = saved.pref         || '東京';
+  var defaultPref  = saved.pref         || (company.prefecture ? company.prefecture.replace(/[都道府県]$/, '') : '東京');
   var defaultKaigo = saved.kaigo != null ? saved.kaigo : true;
   var defaultBonus = saved.bonusAmt     || 0;
+
+  var prefOptions = Object.keys(KENPO).map(function(p) {
+    return '<option value="' + p + '"' + (p === defaultPref ? ' selected' : '') + '>' + p + '</option>';
+  }).join('');
 
   container.innerHTML = `
     <div class="kichu-doc-title">${escHtml(company.name)} — 社会保険試算</div>
@@ -1424,7 +1451,7 @@ function renderKichuTaxPlanning(container, budget, company) {
     <div class="kichu-section">
       <div class="kichu-section-title">今期実施可能な決算対策</div>
       <div style="font-size:11px;color:#64748b;margin-bottom:12px">
-        ※ 金額はすべて概算・参考値です。実施前に必ず詳細を確認してください。
+        ※ 金額はすべて概算・参考値です。各対策の節税効果は独立計算のため合計できません。実施前に必ず詳細を確認してください。
       </div>
       ${measureCards || '<div class="no-data-small">該当する対策項目がありません</div>'}
     </div>

@@ -577,7 +577,7 @@ function _extendRowSelection(currentAccId, dir) {
     nextInput.select();
   }
 
-  updateSelectionHint();
+  updateFillHint();
 }
 
 function commitCell(input) {
@@ -625,7 +625,9 @@ function handleCopy(e) {
   const col   = parseInt(input.dataset.col);
   const budget = window.App?.currentBudget;
   if (!budget) return;
-  const vals = budget.rows[accId] || new Array(12).fill(0);
+  const _isActual = getActualCols(budget)[col];
+  const _src = _isActual ? (budget.actualRows || budget.rows) : budget.rows;
+  const vals = _src[accId] || new Array(12).fill(0);
   _copyBuffer = { rows: [[vals[col]]], startRow: accId, startCol: col };
 }
 
@@ -650,13 +652,14 @@ function handlePaste(e) {
   const inputAccs  = accounts.filter(a => a.type === 'input');
   const startIdx   = inputAccs.findIndex(a => a.id === startAccId);
 
+  const actualCols = getActualCols(budget);
   pasteRows.forEach((row, ri) => {
     const acc = inputAccs[startIdx + ri];
     if (!acc) return;
     if (!budget.rows[acc.id]) budget.rows[acc.id] = new Array(12).fill(0);
     row.forEach((val, ci) => {
       const col = startCol + ci;
-      if (col < 12) budget.rows[acc.id][col] = val;
+      if (col < 12 && !actualCols[col]) budget.rows[acc.id][col] = val;
     });
   });
 
@@ -692,26 +695,27 @@ function applyFill() {
 
   const startCol = input ? parseInt(input.dataset.col) : 0;
 
+  const _fillActualCols = getActualCols(budget);
   targetIds.forEach(accId => {
     if (!budget.rows[accId]) budget.rows[accId] = new Array(12).fill(0);
     const vals = budget.rows[accId];
     switch (type) {
       case 'copy':
-        for (let i = startCol; i < 12; i++) vals[i] = vals[startCol];
+        for (let i = startCol; i < 12; i++) if (!_fillActualCols[i]) vals[i] = vals[startCol];
         break;
       case 'prev_month_pct':
         for (let i = startCol + 1; i < 12; i++)
-          vals[i] = Math.round(vals[i-1] * (1 + value / 100));
+          if (!_fillActualCols[i]) vals[i] = Math.round(vals[i-1] * (1 + value / 100));
         break;
       case 'prev_year_pct':
         for (let i = startCol; i < 12; i++)
-          vals[i] = Math.round(vals[i] * (1 + value / 100));
+          if (!_fillActualCols[i]) vals[i] = Math.round(vals[i] * (1 + value / 100));
         break;
       case 'fixed':
-        for (let i = startCol; i < 12; i++) vals[i] = value;
+        for (let i = startCol; i < 12; i++) if (!_fillActualCols[i]) vals[i] = value;
         break;
       case 'bulk_delta':
-        for (let i = startCol; i < 12; i++) vals[i] += value;
+        for (let i = startCol; i < 12; i++) if (!_fillActualCols[i]) vals[i] += value;
         break;
     }
 
@@ -973,7 +977,7 @@ function clearRowSelection() {
   _selectedRows.clear();
   _selAnchor = null;
   document.querySelectorAll('#grid_tbody tr.selected-row').forEach(tr => tr.classList.remove('selected-row'));
-  updateSelectionHint();
+  updateFillHint();
 }
 
 function deleteSelectedRow(targetAccId) {

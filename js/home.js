@@ -116,6 +116,9 @@ function renderHome(container) {
     if (phase === 'kichu') {
       return `<button class="phase-output-btn" onclick="setPhase(${phaseNum});showKichuOutput('forecast')">📄 成果物を出力</button>`;
     }
+    if (phase === 'kessan') {
+      return `<button class="phase-output-btn" onclick="setPhase(${phaseNum});showKichuOutput('taxplanning')">📄 成果物を出力</button>`;
+    }
     return `<button class="phase-output-btn" onclick="setPhase(${phaseNum});showOutputModal('${phase}')">📄 成果物を出力</button>`;
   };
 
