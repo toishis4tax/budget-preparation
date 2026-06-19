@@ -249,7 +249,7 @@ function renderGridRows(budget, allVals, months) {
   const parentIds = new Set(accounts.filter(a => a.parentId).map(a => a.parentId));
 
   const company = window.App?.currentCompany;
-  const ctaxCls = company?.ctaxClassification || {};
+  const ctaxCls = budget?.ctaxClassification || {};
 
   accounts.forEach((acc, accIdx) => {
     if (acc.type === 'separator') {

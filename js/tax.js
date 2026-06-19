@@ -328,7 +328,7 @@ function applyTaxToBudget() {
 
 function _ctaxAcctCalc(budget, company) {
   if (!budget?.dynamicAccounts?.length) return null;
-  const cls  = company.ctaxClassification || {};
+  const cls  = budget.ctaxClassification || {};
   // 末端科目（type=input）のみ対象 → 親集計不要。getMergedRows で実績月(actualRows)+予算月(rows)を正しくブレンド
   const merged = getMergedRows(budget);
   let taxableRevenue = 0, taxableExpense = 0;
@@ -374,11 +374,9 @@ function setCtaxClassification(accId, checked) {
   const company = window.App?.currentCompany;
   const budget  = window.App?.currentBudget;
   if (!company || !budget) return;
-  if (!company.ctaxClassification) company.ctaxClassification = {};
-  company.ctaxClassification[accId] = !!checked;
-  saveCompany(company);
-  const saved = getCompanies().find(c => c.id === company.id);
-  if (saved) window.App.currentCompany = saved;
+  if (!budget.ctaxClassification) budget.ctaxClassification = {};
+  budget.ctaxClassification[accId] = !!checked;
+  saveBudget(budget);
   const el = document.getElementById('ctax_acct_result');
   if (el) {
     const ctaxEst = calcCtaxEstimate(budget, window.App.currentCompany);
@@ -388,7 +386,8 @@ function setCtaxClassification(accId, checked) {
 
 function toggleCtaxClassification(accId) {
   const company = window.App?.currentCompany;
-  setCtaxClassification(accId, !(company?.ctaxClassification?.[accId] !== false));
+  const budget = window.App?.currentBudget;
+  setCtaxClassification(accId, !(budget?.ctaxClassification?.[accId] !== false));
 }
 
 // ---- メイン ----
