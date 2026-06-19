@@ -1,4 +1,4 @@
-// 役員報酬・役員賞与 最適化シミュレーター
+﻿// 役員報酬・役員賞与 最適化シミュレーター
 
 // 所得税簡易計算（給与所得控除後・基礎控除48万円適用）
 function calcIncomeTax(annualSalary) {
@@ -177,9 +177,6 @@ function renderExecComp(container, budget) {
   _execState.pref     = pref;
   _execState.targetProfit = pretax;
 
-  const prefs = Object.keys(KENPO_RATES || {});
-  const prefOptions = prefs.map(p =>
-    `<option value="${p}" ${p===pref?'selected':''}>${p}</option>`).join('');
 
   container.innerHTML = `
     <div class="sim-panel">
@@ -199,10 +196,6 @@ function renderExecComp(container, budget) {
               <div class="form-group">
                 <label>現状の税引前利益（予算ベース）</label>
                 <input type="number" id="zero_pretax" value="${pretax}" step="100000" class="form-input" oninput="calcZeroOut()">
-              </div>
-              <div class="form-group">
-                <label>協会けんぽ（都道府県）</label>
-                <select id="zero_pref" class="form-input" onchange="calcZeroOut()">${prefOptions}</select>
               </div>
               <div class="form-group" style="margin:0">
                 <label>配分方法</label>
@@ -273,10 +266,6 @@ function renderExecComp(container, budget) {
             <label>資本金</label>
             <input type="number" id="ec_capital" value="${capital}" step="100000" class="form-input"
               oninput="updateExecCalc()">
-          </div>
-          <div class="form-group">
-            <label>協会けんぽ（都道府県）</label>
-            <select id="ec_pref" class="form-input" onchange="updateExecCalc()">${prefOptions}</select>
           </div>
           <div class="form-group">
             <label>役員賞与（会社全体・年間）</label>
@@ -442,7 +431,7 @@ function removeOfficerBonus(i, bi) {
 function updateExecCalc() {
   const pretax  = parseFloat(document.getElementById('ec_pretax')?.value  || 0);
   const capital = parseFloat(document.getElementById('ec_capital')?.value || 10_000_000);
-  const pref    = document.getElementById('ec_pref')?.value || '東京都';
+  const pref    = window.App?.currentCompany?.prefecture || '東京都';
 
   const officers = _execState.officers;
 
@@ -624,7 +613,7 @@ function switchExecTab(tab) {
 function renderExecSICards() {
   const el = document.getElementById('exec_si_officer_cards');
   if (!el) return;
-  const pref = document.getElementById('zero_pref')?.value || window.App?.currentCompany?.prefecture || '東京都';
+  const pref = window.App?.currentCompany?.prefecture || '東京都';
 
   el.innerHTML = _execState.officers.map((o, i) => {
     const baseSI = calcSocialInsurance(o.monthly || 0, 0, o.age || 50, pref).monthly;
@@ -959,7 +948,7 @@ function calcZeroOut() {
   if (!el) return;
 
   const pretax    = parseFloat(document.getElementById('zero_pretax')?.value || 0);
-  const pref      = document.getElementById('zero_pref')?.value || '東京都';
+  const pref      = window.App?.currentCompany?.prefecture || '東京都';
   const splitMode = document.getElementById('zero_split_mode')?.value || 'equal';
   const monthly1  = parseFloat(document.getElementById('zero_monthly1')?.value || 800000);
   const age1      = parseFloat(document.getElementById('zero_age1')?.value || 50);
@@ -1096,7 +1085,7 @@ function applyZeroOutToAdj(bonus, welfare) {
 function _execApplyZeroToBudget(bonus1, bonus2, welfare1, welfare2) {
   const budget = window.App?.currentBudget;
   if (!budget) { alert('予算データがありません'); return; }
-  const pref = document.getElementById('zero_pref')?.value || '東京都';
+  const pref = window.App?.currentCompany?.prefecture || '東京都';
   const startMonth = budget.startMonth || 4;
   if (!budget.rows) budget.rows = {};
 
@@ -1126,3 +1115,4 @@ function _execApplyZeroToBudget(bonus1, bonus2, welfare1, welfare2) {
 }
 
 function annualTotal(arr) { return (arr || []).reduce((a,b)=>a+b,0); }
+
