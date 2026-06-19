@@ -114,44 +114,33 @@ function renderTaxSummary(container) {
   const sched = calcPaySchedule(fiscal, interim?.ctaxTimes || 0);
 
   const fmtN   = v => v ? Math.round(v).toLocaleString('ja-JP') : '—';
-  const fmtInp = (key) => {
+  const fmtInp = (key, placeholder) => {
     const val = saved[key] || '';
-    return `<input type="number" class="taxsum-input" id="tsi_${key}" value="${val}" placeholder="ミロクより"
+    return `<input type="number" class="taxsum-input" id="tsi_${key}" value="${val}" placeholder="${placeholder || '入力'}"
       oninput="updateTaxSum('${key}', this.value)">`;
   };
-
-  // 行生成（法人税系 1回）
-  const row1 = (label, key, interimVal, interimMonthLabel, indent) => {
-    const annual = parseFloat(saved[key]) || 0;
-    const diff   = annual > 0 ? annual - interimVal : null;
-    const next   = annual >= 100_000 ? Math.floor(annual / 2 / 100) * 100 : 0;
-    const diffCls = diff !== null ? (diff < 0 ? 'taxsum-refund' : 'taxsum-pay') : '';
-    const cls = indent ? 'taxsum-indent' : '';
-    return `<tr class="${cls}">
-      <td class="taxsum-label">${label}</td>
-      <td>${fmtInp(key)}</td>
-      <td class="taxsum-num">${interimVal ? fmtN(interimVal) + '<br><span class="taxsum-schedule">1回 ･ ' + interimMonthLabel + '</span>' : '—'}</td>
-      <td class="taxsum-num ${diffCls}">${diff !== null ? (diff < 0 ? '△' : '') + Math.abs(diff).toLocaleString('ja-JP') : '—'}</td>
-      <td class="taxsum-num">${next > 0 ? fmtN(next) : '—'}</td>
-    </tr>`;
+  const calcNext = (annual, divN) =>
+    annual >= 100_000 ? Math.floor(annual / divN / 100) * 100 : 0;
+  const fmtDiff = (annual, interim) => {
+    if (!annual) return '—';
+    const d = annual - interim;
+    const cls = d < 0 ? 'taxsum-refund' : 'taxsum-pay';
+    return `<span class="${cls}">${d < 0 ? '△' : ''}${Math.abs(d).toLocaleString('ja-JP')}</span>`;
   };
 
-  // 消費税行（N回）
-  const rowCtax = (label, key, perPayment, times, monthLabels, indent) => {
-    const annual  = parseFloat(saved[key]) || 0;
-    const totalInterim = perPayment * times;
-    const diff    = annual > 0 ? annual - totalInterim : null;
-    const diffCls = diff !== null ? (diff < 0 ? 'taxsum-refund' : 'taxsum-pay') : '';
+  // 行生成（法人税系・消費税共通）
+  // divN: 翌期予定の除数（法人税=2, 消費税1回=2, 3回=4, 11回=12）
+  const row = (label, annKey, intKey, divN, indent) => {
+    const annual  = parseFloat(saved[annKey]) || 0;
+    const interim = parseFloat(saved[intKey]) || 0;
+    const next    = calcNext(annual, divN);
     const cls = indent ? 'taxsum-indent' : '';
-    const schedHtml = times > 0
-      ? `<br><span class="taxsum-schedule">${times}回 ･ ${fmtN(perPayment)}/回<br>${monthLabels}</span>`
-      : '<br><span class="taxsum-schedule">中間納付なし</span>';
     return `<tr class="${cls}">
       <td class="taxsum-label">${label}</td>
-      <td>${fmtInp(key)}</td>
-      <td class="taxsum-num">${times > 0 ? fmtN(totalInterim) + schedHtml : '—'}</td>
-      <td class="taxsum-num ${diffCls}">${diff !== null ? (diff < 0 ? '△' : '') + Math.abs(diff).toLocaleString('ja-JP') : '—'}</td>
-      <td class="taxsum-num">${annual >= 100_000 ? fmtN(Math.floor(annual / (times > 0 ? (times === 1 ? 2 : times === 3 ? 4 : 12) : 2) / 100) * 100) : '—'}</td>
+      <td>${fmtInp(annKey, 'ミロクより')}</td>
+      <td>${fmtInp(intKey, '0')}</td>
+      <td class="taxsum-num" id="tsd_${annKey}">${fmtDiff(annual, interim)}</td>
+      <td class="taxsum-num" id="tsn_${annKey}">${next > 0 ? fmtN(next) : '—'}</td>
     </tr>`;
   };
 
@@ -159,15 +148,13 @@ function renderTaxSummary(container) {
 
   // 消費税の納付月ラベル
   const ctaxMonthLabel = sched.ctaxInterimMonths.map(m => m + '月').join('･');
+  const ctaxDivN = interim?.ctaxTimes === 11 ? 12 : interim?.ctaxTimes === 3 ? 4 : 2;
 
   // 合計
-  const keys = ['corp','localCorp','prefKatsu','prefKintou','business','special','cityKatsu','cityKintou','ctax','localCtax'];
-  const totalAnnual   = keys.reduce((a, k) => a + (parseFloat(saved[k]) || 0), 0);
-  const totalInterim  = interim
-    ? interim.corp + interim.localCorp + interim.prefKatsu + interim.prefKintou +
-      interim.business + interim.special + interim.cityKatsu + interim.cityKintou +
-      interim.ctaxTotal + interim.localCtaxTotal
-    : 0;
+  const annKeys = ['corp','localCorp','prefKatsu','prefKintou','business','special','cityKatsu','cityKintou','ctax','localCtax'];
+  const intKeys = annKeys.map(k => 'i_' + k);
+  const totalAnnual  = annKeys.reduce((a, k) => a + (parseFloat(saved[k]) || 0), 0);
+  const totalInterim = intKeys.reduce((a, k) => a + (parseFloat(saved[k]) || 0), 0);
   const totalDiff = totalAnnual > 0 ? totalAnnual - totalInterim : null;
 
   // 事業年度テキスト
@@ -186,51 +173,49 @@ function renderTaxSummary(container) {
       <div class="taxsum-info-bar">
         <span>資本金：${fmtN(company.capital)}円</span>
         <span>決算月：${fiscal}月</span>
-        <span>前期データ：${prevBudget ? '✅ あり（中間を自動計算）' : '⚠️ なし（要手入力）'}</span>
         ${interim?.ctaxTimes > 0 ? `<span style="color:#2563eb;font-weight:700">消費税中間：年${interim.ctaxTimes}回（${ctaxMonthLabel}）</span>` : ''}
       </div>
 
       <div class="taxsum-section">
-        <div class="taxsum-section-title">年間税額を入力（ミロク確定値） ／ 中間納付は前期データから自動計算</div>
+        <div class="taxsum-section-title">年間税額・予定中間納付を入力（ミロク確定値） ／ 翌期予定は自動計算</div>
         <table class="taxsum-table">
           <thead>
             <tr>
               <th class="taxsum-label-col">税　目</th>
               <th>年間税額<br><span style="font-weight:400;font-size:10px">ミロクより入力</span></th>
-              <th>予定・中間納付<br><span style="font-weight:400;font-size:10px">回数・納付月・自動計算</span></th>
+              <th>予定・中間納付<br><span style="font-weight:400;font-size:10px">直接入力</span></th>
               <th>差引納付額<br><span style="font-weight:400;font-size:10px">自動計算</span></th>
-              <th>翌期予定<br><span style="font-weight:400;font-size:10px">参考</span></th>
+              <th>翌期予定<br><span style="font-weight:400;font-size:10px">自動計算</span></th>
             </tr>
           </thead>
           <tbody>
             ${sepRow(`■ 法人税・地方法人税　　中間申告：${sched.corpInterimMonth}月（年1回）`)}
-            ${row1('法人税',     'corp',     interim?.corp      || 0, sched.corpInterimMonth + '月', false)}
-            ${row1('地方法人税', 'localCorp',interim?.localCorp || 0, sched.corpInterimMonth + '月', true)}
+            ${row('法人税',           'corp',      'i_corp',      2, false)}
+            ${row('地方法人税',       'localCorp', 'i_localCorp', 2, true)}
             ${sepRow(`■ 都道府県民税・事業税　中間申告：${sched.corpInterimMonth}月（年1回）`)}
-            ${row1('都道府県民税 法人税割', 'prefKatsu',  interim?.prefKatsu  || 0, sched.corpInterimMonth + '月', false)}
-            ${row1('都道府県民税 均等割',   'prefKintou', interim?.prefKintou || 0, sched.corpInterimMonth + '月', true)}
-            ${row1('事業税（所得割）',       'business',   interim?.business   || 0, sched.corpInterimMonth + '月', false)}
-            ${row1('特別法人事業税',         'special',    interim?.special    || 0, sched.corpInterimMonth + '月', true)}
+            ${row('都道府県民税 法人税割', 'prefKatsu',  'i_prefKatsu',  2, false)}
+            ${row('都道府県民税 均等割',   'prefKintou', 'i_prefKintou', 2, true)}
+            ${row('事業税（所得割）',       'business',   'i_business',   2, false)}
+            ${row('特別法人事業税',         'special',    'i_special',    2, true)}
             ${sepRow(`■ 市町村民税　　中間申告：${sched.corpInterimMonth}月（年1回）`)}
-            ${row1('市町村民税 法人税割', 'cityKatsu',  interim?.cityKatsu  || 0, sched.corpInterimMonth + '月', false)}
-            ${row1('市町村民税 均等割',   'cityKintou', interim?.cityKintou || 0, sched.corpInterimMonth + '月', true)}
+            ${row('市町村民税 法人税割', 'cityKatsu',  'i_cityKatsu',  2, false)}
+            ${row('市町村民税 均等割',   'cityKintou', 'i_cityKintou', 2, true)}
             ${sepRow(`■ 消費税　　中間申告：${interim?.ctaxTimes > 0 ? `年${interim.ctaxTimes}回（${ctaxMonthLabel}）` : '中間なし（前期48万以下）'}`)}
-            ${rowCtax('消費税',     'ctax',     interim?.ctaxPerPayment      || 0, interim?.ctaxTimes || 0, ctaxMonthLabel, false)}
-            ${rowCtax('地方消費税', 'localCtax', interim?.localCtaxPerPayment || 0, interim?.ctaxTimes || 0, ctaxMonthLabel, true)}
+            ${row('消費税',     'ctax',     'i_ctax',     ctaxDivN, false)}
+            ${row('地方消費税', 'localCtax', 'i_localCtax', ctaxDivN, true)}
             <tr class="taxsum-total">
               <td class="taxsum-label">合　計</td>
-              <td class="taxsum-num">${fmtN(totalAnnual)}</td>
-              <td class="taxsum-num">${fmtN(totalInterim)}</td>
-              <td class="taxsum-num ${totalDiff !== null ? (totalDiff < 0 ? 'taxsum-refund' : 'taxsum-pay') : ''}">
-                ${totalDiff !== null ? (totalDiff < 0 ? '△' : '') + Math.abs(totalDiff).toLocaleString('ja-JP') : '—'}
-              </td>
+              <td class="taxsum-num" id="tst_annual">${fmtN(totalAnnual)}</td>
+              <td class="taxsum-num" id="tst_interim">${fmtN(totalInterim)}</td>
+              <td class="taxsum-num" id="tst_diff">${totalDiff !== null
+                ? `<span class="${totalDiff < 0 ? 'taxsum-refund' : 'taxsum-pay'}">${totalDiff < 0 ? '△' : ''}${Math.abs(totalDiff).toLocaleString('ja-JP')}</span>`
+                : '—'}</td>
               <td class="taxsum-num">—</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      ${!prevBudget ? `<div class="taxsum-warn">⚠️ 前期データがないため中間納税額を自動計算できません。前期の推移表をインポートしてください。</div>` : ''}
       <div style="text-align:right;margin-top:8px">
         <button class="btn-solid" onclick="exportTaxSummaryPDF()">📄 PDF出力</button>
       </div>
@@ -248,60 +233,55 @@ function updateTaxSum(key, value) {
 }
 
 function rerenderTaxSumCalc(saved) {
-  const company    = window.App?.currentCompany;
-  const curYear    = window.App?.currentYear;
+  const company = window.App?.currentCompany;
+  const curYear = window.App?.currentYear;
   const prevBudget = getBudget(company?.id, curYear - 1);
-  const interim    = calcInterimTax(prevBudget, company);
+  const interim = calcInterimTax(prevBudget, company);
+  const ctaxDivN = interim?.ctaxTimes === 11 ? 12 : interim?.ctaxTimes === 3 ? 4 : 2;
 
-  const entries = {
-    corp:      interim?.corp      || 0,
-    localCorp: interim?.localCorp || 0,
-    prefKatsu: interim?.prefKatsu || 0,
-    prefKintou:interim?.prefKintou|| 0,
-    business:  interim?.business  || 0,
-    special:   interim?.special   || 0,
-    cityKatsu: interim?.cityKatsu || 0,
-    cityKintou:interim?.cityKintou|| 0,
-    ctax:      interim?.ctaxTotal || 0,
-    localCtax: interim?.localCtaxTotal || 0,
-  };
+  const annKeys = ['corp','localCorp','prefKatsu','prefKintou','business','special','cityKatsu','cityKintou','ctax','localCtax'];
+  const divNMap = { ctax: ctaxDivN, localCtax: ctaxDivN };
 
   let totalAnnual = 0, totalInterim = 0;
-  Object.keys(entries).forEach(k => {
-    const annual      = parseFloat(saved[k]) || 0;
-    const interimVal  = entries[k];
+
+  annKeys.forEach(k => {
+    const annual  = parseFloat(saved[k]) || 0;
+    const interimV = parseFloat(saved['i_' + k]) || 0;
     totalAnnual  += annual;
-    totalInterim += interimVal;
+    totalInterim += interimV;
 
-    const inp = document.getElementById(`tsi_${k}`);
-    if (!inp) return;
-    const tr  = inp.closest('tr');
-    if (!tr) return;
-    const tds = tr.querySelectorAll('td');
-    if (tds.length < 4) return;
+    // 差引納付額
+    const diffEl = document.getElementById(`tsd_${k}`);
+    if (diffEl) {
+      if (annual > 0) {
+        const d = annual - interimV;
+        const cls = d < 0 ? 'taxsum-refund' : 'taxsum-pay';
+        diffEl.innerHTML = `<span class="${cls}">${d < 0 ? '△' : ''}${Math.abs(d).toLocaleString('ja-JP')}</span>`;
+      } else {
+        diffEl.innerHTML = '—';
+      }
+    }
 
-    const diff = annual > 0 ? annual - interimVal : null;
-    tds[3].textContent = diff !== null
-      ? (diff < 0 ? '△' : '') + Math.abs(diff).toLocaleString('ja-JP') : '—';
-    tds[3].className = 'taxsum-num ' + (diff !== null ? (diff < 0 ? 'taxsum-refund' : 'taxsum-pay') : '');
-
-    const times = (k === 'ctax' || k === 'localCtax') ? (interim?.ctaxTimes || 0) : 1;
-    const divN  = times === 1 ? 2 : times === 3 ? 4 : times === 11 ? 12 : 2;
-    const next  = annual >= 100_000 ? Math.floor(annual / divN / 100) * 100 : 0;
-    tds[4].textContent = next > 0 ? next.toLocaleString('ja-JP') : '—';
+    // 翌期予定
+    const nextEl = document.getElementById(`tsn_${k}`);
+    if (nextEl) {
+      const divN = divNMap[k] || 2;
+      const next = annual >= 100_000 ? Math.floor(annual / divN / 100) * 100 : 0;
+      nextEl.textContent = next > 0 ? next.toLocaleString('ja-JP') : '—';
+    }
   });
 
-  const totalRow = document.querySelector('.taxsum-table .taxsum-total');
-  if (totalRow) {
-    const tds = totalRow.querySelectorAll('td');
-    const totalDiff = totalAnnual > 0 ? totalAnnual - totalInterim : null;
-    if (tds[1]) tds[1].textContent = totalAnnual ? totalAnnual.toLocaleString('ja-JP') : '—';
-    if (tds[2]) tds[2].textContent = totalInterim ? totalInterim.toLocaleString('ja-JP') : '—';
-    if (tds[3]) {
-      tds[3].textContent = totalDiff !== null
-        ? (totalDiff < 0 ? '△' : '') + Math.abs(totalDiff).toLocaleString('ja-JP') : '—';
-      tds[3].className = 'taxsum-num ' + (totalDiff !== null ? (totalDiff < 0 ? 'taxsum-refund' : 'taxsum-pay') : '');
-    }
+  // 合計行
+  const totalDiff = totalAnnual > 0 ? totalAnnual - totalInterim : null;
+  const elA = document.getElementById('tst_annual');
+  const elI = document.getElementById('tst_interim');
+  const elD = document.getElementById('tst_diff');
+  if (elA) elA.textContent = totalAnnual ? totalAnnual.toLocaleString('ja-JP') : '—';
+  if (elI) elI.textContent = totalInterim ? totalInterim.toLocaleString('ja-JP') : '—';
+  if (elD) {
+    elD.innerHTML = totalDiff !== null
+      ? `<span class="${totalDiff < 0 ? 'taxsum-refund' : 'taxsum-pay'}">${totalDiff < 0 ? '△' : ''}${Math.abs(totalDiff).toLocaleString('ja-JP')}</span>`
+      : '—';
   }
 }
 

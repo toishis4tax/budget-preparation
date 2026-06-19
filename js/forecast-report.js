@@ -56,11 +56,12 @@ function renderForecastReport(container) {
   // 人件費: 動的科目の場合は名前で探す、静的の場合はsga_salary
   const getLaborArr = () => {
     if (budget.dynamicAccounts) {
-      const LABOR_RE = /給与|給料|賃金|役員報酬|賞与|法定福利|福利厚生|人件費|退職|手当/;
-      // input/rev_display のみ（header は子の集計なので二重計上を防ぐ）
+      const LABOR_RE = /給与|給料|賃金|役員報酬|役員賞与|賞与|法定福利|福利厚生|厚生費|福利費|雑給|人件費|退職|手当/;
+      // 親科目（indent<=1）のみ対象。補助科目（indent>=2）は親に集計済みなので除外し二重計上を防ぐ
       const matched = budget.dynamicAccounts.filter(a =>
         a.section?.startsWith('pl') &&
-        (a.type === 'input' || a.type === 'rev_display') &&
+        a.type !== 'section' &&
+        (a.indent ?? 1) <= 1 &&
         LABOR_RE.test(a.name)
       );
       if (matched.length > 0) {

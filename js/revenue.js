@@ -20,6 +20,22 @@ function saveRevenueClients(companyId, year, clients) {
   } catch {}
 }
 
+// 課税設定（売上区分ごと）
+const REV_CTAX_KEY = 'revenue_ctax_v1';
+function loadRevCtaxSettings(companyId, year) {
+  try {
+    const all = JSON.parse(localStorage.getItem(REV_CTAX_KEY) || '{}');
+    return all[`${companyId}_${year}`] ?? { sales_advisory: true, sales_compliance: true, sales_consulting: true };
+  } catch { return { sales_advisory: true, sales_compliance: true, sales_consulting: true }; }
+}
+function saveRevCtaxSettings(companyId, year, settings) {
+  try {
+    const all = JSON.parse(localStorage.getItem(REV_CTAX_KEY) || '{}');
+    all[`${companyId}_${year}`] = settings;
+    localStorage.setItem(REV_CTAX_KEY, JSON.stringify(all));
+  } catch {}
+}
+
 // 売上区分の定義
 const REV_CATEGORIES = [
   { id: 'sales_advisory',   name: '顧問報酬' },
@@ -38,6 +54,7 @@ function newClient() {
     contractStart: { year: now.getFullYear(), month: now.getMonth() + 1 },
     contractEnd:   { year: '', month: '' },  // 解約年月（空なら継続）
     retainer: 0,
+    taxable: true,
     filingCalMonth: -1,
     settlementFee: 0,
     yearEndAdj: 0,
@@ -106,6 +123,7 @@ function renderRevenue(container) {
 
   _revBudgetYear = budget.year || window.App.currentYear;
   _revClients = loadRevenueClients(company.id, _revBudgetYear);
+  const _revCtax = loadRevCtaxSettings(company.id, _revBudgetYear);
   const startMonth = budget.startMonth || 4;
   const months = getMonthLabels(startMonth);
 
@@ -184,6 +202,7 @@ function renderRevenue(container) {
               <col style="width:170px">
               <col style="width:120px"><!-- 区分 -->
               <col style="width:60px"> <!-- 確定 -->
+              <col style="width:48px"> <!-- 課税 -->
               <col style="width:110px"><!-- 契約開始 -->
               <col style="width:110px"><!-- 解約年月 -->
               <col style="width:88px"> <!-- 顧問料 -->
@@ -202,6 +221,7 @@ function renderRevenue(container) {
                 <th style="position:sticky;left:0;background:#e0f2fe;z-index:15">顧問先名</th>
                 <th>区分</th>
                 <th>確定</th>
+                <th title="課税売上かどうか（消費税設定へ反映）">課税</th>
                 <th>契約開始</th>
                 <th>解約年月</th>
                 <th>顧問料/月</th>
@@ -279,10 +299,8 @@ function renderRevTable(startMonth, months) {
     const total   = monthly.reduce((a,b)=>a+b,0);
     const cs = c.contractStart || {};
 
-    // 申告月（表示用）
-    const filingDisp = c.filingCalMonth > 0 ? MONTH_LABELS_JP[c.filingCalMonth-1] : '–';
-
-    const settlOpts = `<option value="-1"${(c.filingCalMonth??-1)<0?' selected':''}>なし</option>` +
+    // 申告月セレクト（直接編集可・決算月変更時は自動上書き）
+    const filingOpts = `<option value="-1"${(c.filingCalMonth??-1)<0?' selected':''}>なし</option>` +
       MONTH_LABELS_JP.map((m,i)=>`<option value="${i+1}"${c.filingCalMonth===i+1?' selected':''}>${m}</option>`).join('');
 
     const monthCells = monthly.map((v, mi) => {
@@ -328,6 +346,12 @@ function renderRevTable(startMonth, months) {
         <label style="cursor:pointer;display:flex;align-items:center;justify-content:center;gap:3px;font-size:11px">
           <input type="checkbox" ${isConfirmed?'checked':''} style="width:14px;height:14px;accent-color:var(--emerald-mid)"
             onchange="_revClients[${ci}].confirmed=this.checked;_revRefresh()">
+        </label>
+      </td>
+      <td style="padding:4px 5px;text-align:center">
+        <label style="cursor:pointer;display:flex;align-items:center;justify-content:center" title="課税売上（消費税設定へ反映）">
+          <input type="checkbox" ${c.taxable !== false ? 'checked' : ''} style="width:14px;height:14px;accent-color:#f59e0b"
+            onchange="_revClients[${ci}].taxable=this.checked;_revSave()">
         </label>
       </td>
       <td style="padding:4px 5px">
@@ -376,7 +400,12 @@ function renderRevTable(startMonth, months) {
           ${MONTH_LABELS_JP.map((m,i)=>`<option value="${i+1}"${c.filingCalMonth>0&&(((c.filingCalMonth-1+(c.indiv?9:10))%12)+1)===i+1?' selected':''}>${m}</option>`).join('')}
         </select>
       </td>
-      <td style="padding:4px 5px;text-align:center;font-weight:600;color:var(--emerald-dark)">${filingDisp}</td>
+      <td style="padding:4px 5px">
+        <select class="form-input" style="width:58px;font-size:11px;padding:2px 3px;font-weight:600;color:var(--emerald-dark)"
+          onchange="_revClients[${ci}].filingCalMonth=+this.value;_revRefresh()">
+          ${filingOpts}
+        </select>
+      </td>
       <td style="padding:4px 5px">
         <input type="number" class="form-input" style="width:84px;font-size:12px;padding:4px 6px;text-align:right"
           value="${c.settlementFee||''}" placeholder="0" step="10000"
@@ -530,6 +559,14 @@ function _revSave() {
   const company = window.App?.currentCompany;
   if (!company) return;
   saveRevenueClients(company.id, _revBudgetYear, _revClients);
+}
+
+function _revSaveCtax(catId, checked) {
+  const company = window.App?.currentCompany;
+  if (!company) return;
+  const settings = loadRevCtaxSettings(company.id, _revBudgetYear);
+  settings[catId] = checked;
+  saveRevCtaxSettings(company.id, _revBudgetYear, settings);
 }
 
 function _revRefresh() {
@@ -734,6 +771,19 @@ function applyRevenueToBudget() {
   }
 
   budget.revenueAccounts = revAccounts;
+
+  // 課税設定を ctaxClassification に反映（顧問先ごと）
+  if (!budget.ctaxClassification) budget.ctaxClassification = {};
+  _revClients.filter(c => c.name).forEach(c => {
+    const revId = `rev_${c.id}`;
+    budget.ctaxClassification[revId] = c.taxable !== false;
+    // 名前一致で既存dynamicAccounts行にも反映
+    if (budget.dynamicAccounts) {
+      const cat = c.category || 'sales_advisory';
+      const existing = budget.dynamicAccounts.find(a => a.parentId === cat && a.name === c.name);
+      if (existing) budget.ctaxClassification[existing.id] = c.taxable !== false;
+    }
+  });
 
   saveBudget(budget);
   window.App.currentBudget = budget;

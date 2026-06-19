@@ -112,10 +112,16 @@ function calcAllTax(pretaxProfit, capital) {
   const taxBase    = trunc1000(pretaxProfit);
   const corp       = calcCorpTax(taxBase, capital);
   const localCorp  = calcLocalCorpTax(corp);
-  const inhabitant = calcInhabitantTax(corp, capital);
+  const small      = isSmall(capital);
+  // 住民税内訳
+  const prefWari   = trunc100(corp * TAX_RATES.inhabitant.pref.small);
+  const cityWari   = trunc100(corp * TAX_RATES.inhabitant.city.small);
+  const prefKintou = small ? 20000 : 70000;   // 道府県民税均等割
+  const cityKintou = small ? 50000 : 130000;  // 市町村民税均等割
+  const inhabitant = prefWari + cityWari + prefKintou + cityKintou;
   const { income: business, special } = calcBusinessTax(taxBase, capital);
   const total      = corp + localCorp + inhabitant + business + special;
-  return { corp, localCorp, inhabitant, business, special, total };
+  return { corp, localCorp, inhabitant, prefWari, prefKintou, cityWari, cityKintou, business, special, total };
 }
 
 function renderTaxSimulator(container) {
@@ -135,7 +141,26 @@ function renderTaxSimulator(container) {
   }
 
   const capital  = company?.capital  || 10_000_000;
-  const prepaid1 = company?.prepaid1 || 0;
+
+  // 中間納付 — taxsummary_v1 と同じストレージから読み込み（税金一覧表と連動）
+  const curYear = window.App?.currentYear || new Date().getFullYear();
+  const tsaved  = loadTaxSummaryData(company?.id, curYear);
+  const corpInterimKeys = [
+    { key: 'i_corp',      label: '法人税',                 indent: false },
+    { key: 'i_localCorp', label: '地方法人税',              indent: true  },
+    { key: 'i_prefKatsu', label: '道府県民税　法人税割',    indent: false },
+    { key: 'i_prefKintou',label: '道府県民税　均等割',      indent: true  },
+    { key: 'i_business',  label: '事業税（所得割）',        indent: false },
+    { key: 'i_special',   label: '特別法人事業税',          indent: true  },
+    { key: 'i_cityKatsu', label: '市町村民税　法人税割',    indent: false },
+    { key: 'i_cityKintou',label: '市町村民税　均等割',      indent: true  },
+  ];
+  const corpInterimHtml = corpInterimKeys.map(({ key, label, indent }) => `
+    <div class="form-group" style="margin-bottom:4px${indent ? ';padding-left:12px' : ''}">
+      <label style="font-size:11px">${label}</label>
+      <input type="number" id="taxp_${key}" value="${tsaved[key] || ''}" class="form-input" step="10000" placeholder="0"
+        oninput="updateCorpInterim('${key}', this.value)">
+    </div>`).join('');
 
   container.innerHTML = `
     <div class="sim-panel">
@@ -183,10 +208,11 @@ function renderTaxSimulator(container) {
             <div style="font-size:10px;color:var(--text-muted);margin-top:3px">※ 所得の最大50%まで控除可（中小法人は100%）</div>
           </div>
 
-          <h3 style="margin-top:14px">💳 予定納税</h3>
-          <div class="form-group" style="margin-bottom:0">
-            <label>中間申告納付額（円）</label>
-            <input type="number" id="tax_prepaid1" value="${prepaid1}" class="form-input" step="10000" oninput="runTaxSim()">
+          <h3 style="margin-top:14px">💳 中間申告納付（税目別入力）</h3>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">税金一覧表と連動して保存されます</div>
+          ${corpInterimHtml}
+          <div style="font-size:12px;font-weight:600;margin-top:6px;padding:6px 8px;background:#f1f5f9;border-radius:6px">
+            合計: <span id="taxp_total">—</span> 円
           </div>
         </div>
 
@@ -208,10 +234,28 @@ function renderTaxSimulator(container) {
   runTaxSim();
 }
 
+function updateCorpInterim(key, val) {
+  const company = window.App?.currentCompany;
+  const curYear = window.App?.currentYear || new Date().getFullYear();
+  if (!company) return;
+  const saved = loadTaxSummaryData(company.id, curYear);
+  saved[key] = parseFloat(val) || 0;
+  saveTaxSummaryData(company.id, curYear, saved);
+  runTaxSim();
+}
+
 function runTaxSim() {
   const pretax   = parseFloat(document.getElementById('tax_pretax')?.value  || 0);
   const capital  = parseFloat(document.getElementById('tax_capital')?.value || 10_000_000);
-  const prepaid1 = parseFloat(document.getElementById('tax_prepaid1')?.value || 0);
+  // 中間納付は税目別inputの合計
+  const corpInterimKeys = ['i_corp','i_localCorp','i_prefKatsu','i_prefKintou','i_business','i_special','i_cityKatsu','i_cityKintou'];
+  const prepaid1 = corpInterimKeys.reduce((sum, k) => {
+    const el = document.getElementById(`taxp_${k}`);
+    return sum + (parseFloat(el?.value) || 0);
+  }, 0);
+  // 合計表示を更新
+  const totalEl = document.getElementById('taxp_total');
+  if (totalEl) totalEl.textContent = prepaid1 > 0 ? prepaid1.toLocaleString('ja-JP') : '0';
 
   const adjExecBonus     = parseFloat(document.getElementById('tax_adj_exec_bonus')?.value     || 0);
   const adjEntertainment = parseFloat(document.getElementById('tax_adj_entertainment')?.value   || 0);
@@ -274,8 +318,10 @@ function runTaxSim() {
 
   const localCorpDetail = `法人税 ${fmt(taxes.corp)} × ${pct(TAX_RATES.local_corp)}`;
 
-  const perCapita = small ? TAX_RATES.inhabitant.per_capita_small : TAX_RATES.inhabitant.per_capita_large;
-  const inhabDetail = `均等割 ${perCapita.toLocaleString()}円 ＋ 法人税割（道府県${pct(TAX_RATES.inhabitant.pref.small)} ＋ 市町村${pct(TAX_RATES.inhabitant.city.small)}）`;
+  const prefWariDetail  = `法人税 ${fmt(taxes.corp)} × ${pct(TAX_RATES.inhabitant.pref.small)}`;
+  const prefKintouDetail = `均等割（道府県）`;
+  const cityWariDetail  = `法人税 ${fmt(taxes.corp)} × ${pct(TAX_RATES.inhabitant.city.small)}`;
+  const cityKintouDetail = `均等割（市町村）`;
 
   let bizDetail;
   if (small) {
@@ -296,7 +342,10 @@ function runTaxSim() {
   tbody.innerHTML = `
     <tr><td>法人税${sub(corpDetail)}</td><td class="num">${fmt(taxes.corp)}</td></tr>
     <tr><td>地方法人税${sub(localCorpDetail)}</td><td class="num">${fmt(taxes.localCorp)}</td></tr>
-    <tr><td>法人住民税${sub(inhabDetail)}</td><td class="num">${fmt(taxes.inhabitant)}</td></tr>
+    <tr style="color:var(--text-muted)"><td style="padding-left:8px;font-size:12px">道府県民税　法人税割${sub(prefWariDetail)}</td><td class="num" style="font-size:12px">${fmt(taxes.prefWari)}</td></tr>
+    <tr style="color:var(--text-muted)"><td style="padding-left:8px;font-size:12px">道府県民税　均等割${sub(prefKintouDetail)}</td><td class="num" style="font-size:12px">${fmt(taxes.prefKintou)}</td></tr>
+    <tr style="color:var(--text-muted)"><td style="padding-left:8px;font-size:12px">市町村民税　法人税割${sub(cityWariDetail)}</td><td class="num" style="font-size:12px">${fmt(taxes.cityWari)}</td></tr>
+    <tr style="color:var(--text-muted)"><td style="padding-left:8px;font-size:12px">市町村民税　均等割${sub(cityKintouDetail)}</td><td class="num" style="font-size:12px">${fmt(taxes.cityKintou)}</td></tr>
     <tr><td>法人事業税${sub(bizDetail)}</td><td class="num">${fmt(taxes.business)}</td></tr>
     <tr><td>特別法人事業税${sub(specialDetail)}</td><td class="num">${fmt(taxes.special)}</td></tr>
     <tr class="total-row"><td><strong>税額合計</strong></td><td class="num"><strong>${fmt(taxes.total)}</strong></td></tr>
@@ -429,8 +478,11 @@ function setCtaxClassification(accId, checked) {
   saveBudget(budget);
   const el = document.getElementById('ctax_acct_result');
   if (el) {
-    const ctaxEst = calcCtaxEstimate(budget, window.App.currentCompany);
-    el.innerHTML = _ctaxAcctResultHtml(_ctaxAcctCalc(budget, window.App.currentCompany), ctaxEst?.ctaxPrepaid);
+    const co = window.App?.currentCompany;
+    const cy = window.App?.currentYear || new Date().getFullYear();
+    const sv = loadTaxSummaryData(co?.id, cy);
+    const sp = (parseFloat(sv['i_ctax']) || 0) + (parseFloat(sv['i_localCtax']) || 0);
+    el.innerHTML = _ctaxAcctResultHtml(_ctaxAcctCalc(budget, co), sp);
   }
 }
 
@@ -442,6 +494,23 @@ function toggleCtaxClassification(accId) {
 
 // ---- メイン ----
 
+function updateCtaxInterim(key, val) {
+  const company = window.App?.currentCompany;
+  const curYear = window.App?.currentYear || new Date().getFullYear();
+  if (!company) return;
+  const saved = loadTaxSummaryData(company.id, curYear);
+  saved[key] = parseFloat(val) || 0;
+  saveTaxSummaryData(company.id, curYear, saved);
+  // 表示を再計算
+  const ctaxEl  = document.getElementById('ctaxp_i_ctax_disp');
+  const lctaxEl = document.getElementById('ctaxp_i_localCtax_disp');
+  const s = loadTaxSummaryData(company.id, curYear);
+  const ctaxV  = parseFloat(s['i_ctax'])     || 0;
+  const lctaxV = parseFloat(s['i_localCtax'])|| 0;
+  if (ctaxEl)  ctaxEl.textContent  = (ctaxV  > 0 ? '▲' : '') + Math.abs(ctaxV).toLocaleString('ja-JP');
+  if (lctaxEl) lctaxEl.textContent = (lctaxV > 0 ? '▲' : '') + Math.abs(lctaxV).toLocaleString('ja-JP');
+}
+
 function renderCtaxJudge(container) {
   window._ctaxContainer = container;
   const company = window.App?.currentCompany;
@@ -449,9 +518,26 @@ function renderCtaxJudge(container) {
   const ctaxEst = (company && budget) ? calcCtaxEstimate(budget, company) : null;
   const hasDynamic = !!budget?.dynamicAccounts?.length;
 
+  // 中間納付額 — taxsummary_v1 から読み込み（税金一覧表・消費税ページで共有）
+  const ctaxCurYear = window.App?.currentYear || new Date().getFullYear();
+  const ctaxTsaved  = loadTaxSummaryData(company?.id, ctaxCurYear);
+  const ctaxStoredPrepaid = (parseFloat(ctaxTsaved['i_ctax']) || 0) + (parseFloat(ctaxTsaved['i_localCtax']) || 0);
+
+  // ③ 簡易課税列は動的科目があれば常に表示（どのブランチでも共通）
+  const kaniCol = hasDynamic ? `
+    <div style="border-left:1px solid var(--border);padding-left:16px">
+      <div class="ctax-method-label">③ 簡易課税（業種別）</div>
+      ${_kaniColHtml(budget, company, ctaxCurYear, ctaxStoredPrepaid)}
+    </div>` : '';
+
   const estHtml = (() => {
     if (!ctaxEst) return '<div class="no-data-small">会社情報・予算データがありません</div>';
-    if (ctaxEst.exempt) return '<div class="no-data-small">免税事業者のため消費税概算は不要です</div>';
+    if (ctaxEst.exempt) return `
+      <div class="no-data-small">免税事業者のため消費税概算は不要です</div>
+      ${hasDynamic ? `
+        <div style="display:grid;grid-template-columns:1fr;gap:0 16px;margin-top:8px">
+          ${kaniCol}
+        </div>` : ''}`;
 
     const isHonzoku  = ctaxEst.method !== 'kani';
     const showTabs   = isHonzoku && hasDynamic && !ctaxEst.noData;
@@ -466,7 +552,8 @@ function renderCtaxJudge(container) {
         ${_ctaxAcctTabHtml(budget, company)}`;
     }
 
-    const balance = (ctaxEst.ctax || 0) - (ctaxEst.ctaxPrepaid || 0);
+    const usedPrepaid = ctaxStoredPrepaid;
+    const balance = (ctaxEst.ctax || 0) - usedPrepaid;
     const acctCalc = hasDynamic ? _ctaxAcctCalc(budget, company) : null;
 
     // ① 試算表ベース コンテンツ
@@ -497,19 +584,19 @@ function renderCtaxJudge(container) {
 
     const bsFooter = `
       <div class="tax-kpi-total"><span>消費税額（概算）</span><span>${Math.round(ctaxEst.ctax/1000).toLocaleString()}千円</span></div>
-      <div class="tax-kpi-row"><span>中間納付額</span><span>▲${Math.round((ctaxEst.ctaxPrepaid||0)/1000).toLocaleString()}千円</span></div>
+      <div class="tax-kpi-row"><span>中間納付額</span><span>▲${Math.round(usedPrepaid/1000).toLocaleString()}千円</span></div>
       <div class="tax-kpi-row ${balance>=0?'tax-pay':'tax-refund'}">
         <span>${balance>=0?'確定申告　納付見込':'確定申告　還付見込'}</span>
         <span><strong>${Math.round(Math.abs(balance)/1000).toLocaleString()}千円</strong></span>
       </div>`;
 
-    const note = `<div style="margin-top:8px;font-size:10px;color:var(--text-muted)">※概算値。予定納税・中間納付の設定は「会社情報を編集」から変更できます。</div>`;
+    const note = `<div style="margin-top:8px;font-size:10px;color:var(--text-muted)">※概算値。</div>`;
 
-    // 両方並列表示
+    // 両方並列表示（① ② ③ の3列）
     if (showTabs && acctCalc) {
       return `
         <div class="tax-kpi-row"><span>計算方法</span><span>本則課税</span></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px;margin-top:8px;align-items:start">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 16px;margin-top:8px;align-items:start">
           <div>
             <div class="ctax-method-label">① 試算表ベース</div>
             ${bsContent}
@@ -518,8 +605,9 @@ function renderCtaxJudge(container) {
           <div style="border-left:1px solid var(--border);padding-left:16px">
             <div class="ctax-method-label">② 科目別簡易計算</div>
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">課税科目は「月次予算入力」の各科目行で設定</div>
-            <div id="ctax_acct_result">${_ctaxAcctResultHtml(acctCalc, ctaxEst.ctaxPrepaid)}</div>
+            <div id="ctax_acct_result">${_ctaxAcctResultHtml(acctCalc, ctaxStoredPrepaid)}</div>
           </div>
+          ${kaniCol}
         </div>
         ${note}`;
     }
@@ -529,19 +617,51 @@ function renderCtaxJudge(container) {
       return `
         <div class="tax-kpi-row"><span>計算方法</span><span>本則課税</span></div>
         <div style="font-size:11px;color:var(--text-muted);margin:4px 0 8px">仮払・仮受消費税の残高データなし。科目別簡易計算をご利用ください。</div>
-        <div class="ctax-method-label">② 科目別簡易計算</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">課税科目は「月次予算入力」の各科目行で設定</div>
-        <div id="ctax_acct_result">${_ctaxAcctResultHtml(acctCalc, ctaxEst.ctaxPrepaid)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:8px;align-items:start">
+          <div>
+            <div class="ctax-method-label">② 科目別簡易計算</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">課税科目は「月次予算入力」の各科目行で設定</div>
+            <div id="ctax_acct_result">${_ctaxAcctResultHtml(acctCalc, ctaxStoredPrepaid)}</div>
+          </div>
+          ${kaniCol}
+        </div>
         ${note}`;
     }
 
     // ① のみ（動的科目なし or 簡易課税）
-    return `
+    if (!hasDynamic) return `
       <div class="tax-kpi-row"><span>計算方法</span><span>${metodLabel}</span></div>
       ${bsContent}
       ${bsFooter}
       ${note}`;
+
+    // ① + ③（動的科目あり、BS試算表のみ）
+    return `
+      <div class="tax-kpi-row"><span>計算方法</span><span>${metodLabel}</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:8px;align-items:start">
+        <div>${bsContent}${bsFooter}</div>
+        ${kaniCol}
+      </div>
+      ${note}`;
   })();
+
+  // 中間納付 input — taxsummary_v1 と連動（ctaxCurYear / ctaxTsaved は上部で定義済み）
+  const ctaxPrepaidSection = company ? `
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="font-weight:600;font-size:13px;margin-bottom:8px">💳 中間申告納付（直接入力・税金一覧表と連動）</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="form-group" style="margin-bottom:0">
+          <label style="font-size:11px">消費税　中間納付額（円）</label>
+          <input type="number" id="ctaxp_i_ctax" value="${ctaxTsaved['i_ctax'] || ''}" class="form-input" step="10000" placeholder="0"
+            oninput="updateCtaxInterim('i_ctax', this.value)">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label style="font-size:11px">地方消費税　中間納付額（円）</label>
+          <input type="number" id="ctaxp_i_localCtax" value="${ctaxTsaved['i_localCtax'] || ''}" class="form-input" step="10000" placeholder="0"
+            oninput="updateCtaxInterim('i_localCtax', this.value)">
+        </div>
+      </div>
+    </div>` : '';
 
   container.innerHTML = `
     <div class="sim-panel">
@@ -549,7 +669,7 @@ function renderCtaxJudge(container) {
       <div class="card-h" style="margin-bottom:16px">
         <h3>💰 消費税額概算</h3>
         ${estHtml}
-        ${company ? `<div style="margin-top:12px"><button class="btn btn-sm btn-outline" onclick="openCompanyModal('${company.id}')">会社情報を編集（業種・中間納付）</button></div>` : ''}
+        ${ctaxPrepaidSection}
       </div>
       <div class="card-h">
           <h3>📋 課税区分チェック</h3>
@@ -608,6 +728,7 @@ function renderCtaxJudge(container) {
       </div>
     </div>`;
   runCtaxJudge();
+  if (budget?.dynamicAccounts?.length) _kaniCalc(company, ctaxCurYear);
 }
 
 function runCtaxJudge() {
@@ -666,6 +787,211 @@ function runCtaxJudge() {
       </tr>
     </table>
   `;
+}
+
+// ===== ③ 簡易課税 科目別業種区分 =====
+
+const KANI_MINAS = { 1:0.90, 2:0.80, 3:0.70, 4:0.60, 5:0.50, 6:0.40 };
+
+// 勘定科目ベースの課税売上科目を返す
+// 設計: 売上セクションの「直接の子」だけを返す
+//   - 2層構造（section → input補助科目）: 補助科目を表示
+//   - 3層構造（section → header勘定科目 → input補助科目）: 勘定科目を表示
+// calcAllValuesDynamic がヘッダーの子を集計済みなので av[id] の値はどちらも正しい
+function _kaniRevAccs(budget) {
+  if (!budget?.dynamicAccounts?.length) return [];
+
+  // 売上セクション特定: id='sec_revenue' または名前に売上/収入を含む section 型
+  const revSection = budget.dynamicAccounts.find(a =>
+    a.id === 'sec_revenue' ||
+    (a.type === 'section' && a.sign === 1 && /売上|収入/i.test(a.name || ''))
+  );
+  // 静的科目（accounts.js）のフォールバック: parentId='sales' の科目
+  if (!revSection) {
+    return budget.dynamicAccounts.filter(a =>
+      a.parentId === 'sales' && (a.type === 'input' || a.type === 'rev_display') && a.sign === 1
+    );
+  }
+
+  // 売上セクションの直接の子（section 以外の全型）
+  return budget.dynamicAccounts.filter(a =>
+    a.parentId === revSection.id && a.type !== 'section' && a.type !== 'calculated'
+  );
+}
+const KANI_LABEL = { 1:'第1種（卸売）', 2:'第2種（小売）', 3:'第3種（製造等）', 4:'第4種（その他）', 5:'第5種（サービス等）', 6:'第6種（不動産）' };
+
+function _kaniKey(company, year) {
+  return `kani_ctax_v1_${company?.id || ''}_${year || ''}`;
+}
+
+function _kaniSave(company, year) {
+  const data = {};
+  document.querySelectorAll('[data-kani-acc]').forEach(el => {
+    data[el.dataset.kaniAcc] = parseInt(el.value) || 5;
+  });
+  const otherEl   = document.getElementById('kani_other_sales');
+  const otherType = document.getElementById('kani_other_type');
+  data._otherSales = parseFloat(otherEl?.value) || 0;
+  data._otherType  = parseInt(otherType?.value) || 4;
+  localStorage.setItem(_kaniKey(company, year), JSON.stringify(data));
+  _kaniCalc(company, year);
+}
+
+function _kaniCalc(company, year) {
+  const data = {};
+  document.querySelectorAll('[data-kani-acc]').forEach(el => {
+    data[el.dataset.kaniAcc] = parseInt(el.value) || 5;
+  });
+  const otherSales = parseFloat(document.getElementById('kani_other_sales')?.value) || 0;
+
+  const budget = window.App?.currentBudget;
+  if (!budget) return;
+
+  // getMergedRows で実績+予算をブレンド（actualRows のみの会社でも正しく取得）
+  const allVals = budget.dynamicAccounts
+    ? calcAllValuesDynamic({ ...budget, rows: getMergedRows(budget) })
+    : calcAllValues(budget.rows);
+
+  // 科目ごとに消費税計算（勘定科目ベース = 補助科目除外）
+  let totalSales = 0, totalCtax = 0;
+  const rows = [];
+  _kaniRevAccs(budget).forEach(acc => {
+    const annual = (allVals[acc.id] || []).slice(0, 13).reduce((s, v) => s + Math.abs(v || 0), 0);
+    if (annual === 0) return;
+    const type = data[acc.id] || 5;
+    const minas = KANI_MINAS[type] || 0.50;
+    const ctax = annual * 0.10 * (1 - minas);
+    totalSales += annual;
+    totalCtax  += ctax;
+    rows.push({ name: acc.name, annual, type, minas, ctax });
+  });
+
+  // その他
+  if (otherSales > 0) {
+    const type = parseInt(document.getElementById('kani_other_type')?.value) || 4;
+    const minas = KANI_MINAS[type] || 0.60;
+    const ctax = otherSales * 0.10 * (1 - minas);
+    totalSales += otherSales;
+    totalCtax  += ctax;
+    rows.push({ name: 'その他', annual: otherSales, type, minas, ctax });
+  }
+
+  // 結果表示更新（#kani_result に種別集計 + 合計 + 中間納付 + 納付見込を出力）
+  const resEl = document.getElementById('kani_result');
+  if (!resEl) return;
+  const fmtN = v => Math.round(v / 1000).toLocaleString('ja-JP');
+
+  if (rows.length === 0) {
+    resEl.innerHTML = '<div class="tax-kpi-row" style="color:var(--text-muted);font-size:11px">売上データがありません</div>';
+    return;
+  }
+
+  // 種別集計
+  const byType = {};
+  rows.forEach(r => { byType[r.type] = (byType[r.type] || 0) + r.ctax; });
+  const typeRows = Object.keys(byType).sort((a,b) => +a - +b).map(t =>
+    `<div class="tax-kpi-row" style="font-size:11px;color:var(--text-muted)">
+       <span>第${t}種（みなし${Math.round(KANI_MINAS[+t]*100)}%）</span>
+       <span>${fmtN(byType[t])}千円</span>
+     </div>`
+  ).join('');
+
+  // 中間納付（taxsummary から読む）
+  const co = window.App?.currentCompany;
+  const cy = window.App?.currentYear || new Date().getFullYear();
+  const sv = loadTaxSummaryData(co?.id, cy);
+  const prepaid = (parseFloat(sv['i_ctax']) || 0) + (parseFloat(sv['i_localCtax']) || 0);
+  const kaniTotal = Math.round(totalCtax);
+  const balance   = kaniTotal - prepaid;
+
+  resEl.innerHTML = `
+    <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px">
+      ${typeRows}
+    </div>
+    <div class="tax-kpi-total" style="margin-top:6px"><span>消費税額（推計）</span><span>${fmtN(kaniTotal)}千円</span></div>
+    <div class="tax-kpi-row"><span>中間納付額</span><span>▲${fmtN(prepaid)}千円</span></div>
+    <div class="tax-kpi-row ${balance>=0?'tax-pay':'tax-refund'}">
+      <span>${balance>=0?'確定申告　納付見込':'確定申告　還付見込'}</span>
+      <span><strong>${fmtN(Math.abs(balance))}千円</strong></span>
+    </div>`;
+}
+
+// 簡易課税の消費税合計を返す純計算関数（DOM不要・forecast-reportからも呼び出し可）
+function _kaniCtaxTotal(budget, company, year) {
+  if (!budget?.dynamicAccounts?.length) return 0;
+  const saved = {};
+  try { Object.assign(saved, JSON.parse(localStorage.getItem(_kaniKey(company, year)) || '{}')); } catch(e) {}
+
+  const allVals = calcAllValuesDynamic({ ...budget, rows: getMergedRows(budget) });
+
+  let total = 0;
+  _kaniRevAccs(budget).forEach(acc => {
+    const annual = (allVals[acc.id] || []).slice(0, 13).reduce((s, v) => s + Math.abs(v || 0), 0);
+    if (!annual) return;
+    const type  = saved[acc.id] || 5;
+    total += annual * 0.10 * (1 - (KANI_MINAS[type] || 0.50));
+  });
+
+  const otherSales = saved._otherSales || 0;
+  if (otherSales > 0) {
+    const type = saved._otherType || 4;
+    total += otherSales * 0.10 * (1 - (KANI_MINAS[type] || 0.60));
+  }
+  return Math.round(total);
+}
+
+// ③ 列のコンテンツHTMLを返す（外枠なし・estHtml の3列目として埋め込む）
+function _kaniColHtml(budget, company, year, prepaid) {
+  if (!budget?.dynamicAccounts?.length) {
+    return '<div style="color:var(--text-muted);font-size:11px">予算データがありません</div>';
+  }
+  const saved = {};
+  try { Object.assign(saved, JSON.parse(localStorage.getItem(_kaniKey(company, year)) || '{}')); } catch(e) {}
+
+  const merged     = getMergedRows(budget);
+  const mergedVals = calcAllValuesDynamic({ ...budget, rows: merged });
+
+  const typeOpts = (accId, def) => [1,2,3,4,5,6].map(t =>
+    `<option value="${t}" ${(saved[accId] ?? def) === t ? 'selected' : ''}>${t}種</option>`
+  ).join('');
+
+  const revAccs = _kaniRevAccs(budget);
+
+  const accRows = revAccs.map(acc => {
+    const annual = (mergedVals[acc.id] || []).slice(0, 13).reduce((s, v) => s + Math.abs(v || 0), 0);
+    const fmtA   = Math.round(annual / 1000).toLocaleString();
+    return `
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px;align-items:center;border-bottom:1px solid var(--border);padding:4px 0">
+        <span style="font-size:11px">${escHtml(acc.name)}</span>
+        <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">${fmtA}千円</span>
+        <select data-kani-acc="${acc.id}" style="font-size:10px;padding:1px 2px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);height:24px"
+          onchange="_kaniSave(window.App?.currentCompany, window.App?.currentYear)">
+          ${typeOpts(acc.id, 5)}
+        </select>
+      </div>`;
+  }).join('');
+
+  const otherSales = saved._otherSales || 0;
+  const otherType  = saved._otherType  || 4;
+  const otherRow = `
+    <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px;align-items:center;padding:4px 0;border-top:1px dashed var(--border)">
+      <span style="font-size:11px;color:var(--text-muted)">その他</span>
+      <input type="number" id="kani_other_sales" value="${otherSales || ''}" placeholder="円" step="100000"
+        style="font-size:10px;padding:1px 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);height:24px;width:90px;text-align:right"
+        oninput="_kaniSave(window.App?.currentCompany, window.App?.currentYear)">
+      <select id="kani_other_type" style="font-size:10px;padding:1px 2px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);height:24px"
+        onchange="_kaniSave(window.App?.currentCompany, window.App?.currentYear)">
+        ${[1,2,3,4,5,6].map(t => `<option value="${t}" ${otherType===t?'selected':''}>${t}種</option>`).join('')}
+      </select>
+    </div>`;
+
+  return `
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">売上科目ごとに業種区分を設定</div>
+    ${accRows}
+    ${otherRow}
+    <div id="kani_result" style="margin-top:6px">
+      <div style="color:var(--text-muted);font-size:11px">↑ 種を選択すると自動計算されます</div>
+    </div>`;
 }
 
 // 課税区分チェックの値を会社情報に保存

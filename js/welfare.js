@@ -418,38 +418,87 @@ function _wfRenderTable() {
     </tr>`;
 }
 
-// 勘定科目を動的に追加する汎用関数
-// parentExcludeKeyword: 名前にこれを含む科目は親候補から除外
-function _wfEnsureAccount(budget, newId, newName, parentId, parentNameKeyword, parentExcludeKeyword) {
-  const accounts = budget.dynamicAccounts;
-  if (!accounts) return;
-  if (accounts.find(a => a.id === newId)) return; // 既存
+// ===== 反映グループ共通ヘルパー =====
 
-  let parent = accounts.find(a => a.id === parentId);
-  if (!parent) {
-    parent = accounts.find(a =>
-      a.name?.includes(parentNameKeyword) &&
-      (!parentExcludeKeyword || !a.name?.includes(parentExcludeKeyword))
-    );
-  }
-  // 除外キーワードで弾かれた場合、該当科目を parentNameKeyword にリネームして親として使用
-  if (!parent && parentExcludeKeyword) {
-    const excluded = accounts.find(a => a.id === parentId) ||
-                     accounts.find(a => a.name?.includes(parentNameKeyword));
-    if (excluded) {
-      excluded.name = parentNameKeyword;
-      parent = excluded;
+// 販売費及び一般管理費の末尾に「法定福利費（反映）」「賞与（反映）」親科目を作成
+// 既存（旧バージョンで誤った位置に作られたもの）も子科目ごと正しい位置へ再配置する
+function _ensureReflectGroup(budget) {
+  let accts = budget.dynamicAccounts;
+  if (!accts) return { wfWelfarePar: null, wfBonusPar: null };
+
+  const REFLECT_IDS = ['wf_reflect_welfare', 'wf_reflect_bonus'];
+  const CHILD_IDS   = ['wf_welfare_bonus', 'wf_emp_bonus', 'exec_welfare_bonus', 'exec_bonus'];
+
+  // 反映グループ（親＋子）を一旦すべて取り出す
+  const groupIds = new Set([...REFLECT_IDS, ...CHILD_IDS]);
+  const pulled = accts.filter(a => groupIds.has(a.id));
+  accts = budget.dynamicAccounts = accts.filter(a => !groupIds.has(a.id));
+
+  // 親科目を取得 or 生成
+  let wfWelfarePar = pulled.find(a => a.id === 'wf_reflect_welfare') || {
+    id: 'wf_reflect_welfare', name: '法定福利費（反映）', type: 'parent',
+    indent: 1, parentId: 'sec_sga', section: 'pl', sign: -1, bold: true, custom: true,
+  };
+  let wfBonusPar = pulled.find(a => a.id === 'wf_reflect_bonus') || {
+    id: 'wf_reflect_bonus', name: '賞与（反映）', type: 'parent',
+    indent: 1, parentId: 'sec_sga', section: 'pl', sign: -1, bold: true, custom: true,
+  };
+  // 名前・位置情報を正規化
+  wfWelfarePar.name = '法定福利費（反映）'; wfWelfarePar.type = 'parent';
+  wfWelfarePar.indent = 1; wfWelfarePar.parentId = 'sec_sga'; wfWelfarePar.section = 'pl'; wfWelfarePar.sign = -1; wfWelfarePar.bold = true;
+  wfBonusPar.name = '賞与（反映）'; wfBonusPar.type = 'parent';
+  wfBonusPar.indent = 1; wfBonusPar.parentId = 'sec_sga'; wfBonusPar.section = 'pl'; wfBonusPar.sign = -1; wfBonusPar.bold = true;
+
+  // 子科目（存在するものだけ）を親ごとに振り分け
+  const welfareKids = pulled.filter(a => a.id === 'wf_welfare_bonus' || a.id === 'exec_welfare_bonus');
+  const bonusKids   = pulled.filter(a => a.id === 'wf_emp_bonus'     || a.id === 'exec_bonus');
+
+  // sec_sga 配下（その子孫）の末尾を挿入位置とする（営業利益などの計算行の手前で止める）
+  const sgaIdx = accts.findIndex(a => a.id === 'sec_sga');
+  let insertPos = accts.length;
+  if (sgaIdx >= 0) {
+    const sgaMembers = new Set(['sec_sga']);
+    insertPos = sgaIdx + 1;
+    for (let i = sgaIdx + 1; i < accts.length; i++) {
+      const a = accts[i];
+      if (a.type !== 'section' && a.parentId && sgaMembers.has(a.parentId)) {
+        sgaMembers.add(a.id);
+        insertPos = i + 1;
+      } else {
+        break;
+      }
     }
   }
+
+  // ブロックとして組み立てて一括挿入
+  const block = [wfWelfarePar, ...welfareKids, wfBonusPar, ...bonusKids];
+  accts.splice(insertPos, 0, ...block);
+
+  return { wfWelfarePar, wfBonusPar };
+}
+
+// 指定親IDの下に子科目を作成（既存なら名前・親を更新）
+function _wfEnsureChildOf(budget, childId, childName, parentId) {
+  const accts = budget.dynamicAccounts;
+  const parent = accts.find(a => a.id === parentId);
   if (!parent) return;
 
-  let insertAt = accounts.indexOf(parent) + 1;
-  while (insertAt < accounts.length && accounts[insertAt].parentId === parent.id) insertAt++;
+  const existing = accts.find(a => a.id === childId);
+  if (existing) {
+    existing.name     = childName;
+    existing.parentId = parentId;
+    existing.indent   = (parent.indent ?? 1) + 1;
+    existing.section  = parent.section || 'pl';
+    existing.sign     = parent.sign ?? -1;
+    return;
+  }
 
-  accounts.splice(insertAt, 0, {
-    id: newId, name: newName, type: 'input',
-    indent: (parent.indent ?? 1) + 1, parentId: parent.id,
-    section: parent.section || 'pl', sign: parent.sign ?? 1,
+  let pos = accts.indexOf(parent) + 1;
+  while (pos < accts.length && accts[pos].parentId === parentId) pos++;
+  accts.splice(pos, 0, {
+    id: childId, name: childName, type: 'input',
+    indent: (parent.indent ?? 1) + 1, parentId: parentId,
+    section: parent.section || 'pl', sign: parent.sign ?? -1,
     bold: false, custom: true,
   });
 }
@@ -460,7 +509,6 @@ function _wfApplyToBudget() {
 
   const pref       = window.App?.currentCompany?.prefecture || '東京都';
   const startMonth = budget.startMonth || 4;
-
   const { regularSI, bonusSI, bonusSalary } = _wfCalcBreakdown(pref, startMonth);
 
   if (!budget.rows) budget.rows = {};
@@ -468,66 +516,29 @@ function _wfApplyToBudget() {
   if (budget.dynamicAccounts) {
     // 旧コードが作った wf_auto_* 科目を除去
     budget.dynamicAccounts = budget.dynamicAccounts.filter(a => !a.id?.startsWith('wf_auto_'));
-    const accts = budget.dynamicAccounts;
 
-    // 正しい親科目を特定
-    const welfarePar = accts.find(a => a.id === 'sga_welfare') ||
-                       accts.find(a => a.name?.includes('法定福利費') && !a.name?.includes('役員') && !a.name?.includes('従業員'));
-    const bonusPar   = accts.find(a => a.id === 'sga_bonus') ||
-                       accts.find(a => a.name?.includes('賞与') && !a.id?.startsWith('wf_') && !a.id?.startsWith('exec_'));
+    // 反映グループ（販管費末尾）を確保
+    _ensureReflectGroup(budget);
 
-    // 「役員賞与」→「賞与」リネーム
-    if (bonusPar && bonusPar.name !== '賞与') bonusPar.name = '賞与';
+    // 子科目を法定福利費（反映）・賞与（反映）の下に配置
+    _wfEnsureChildOf(budget, 'wf_welfare_bonus', '法定福利費（従業員賞与）', 'wf_reflect_welfare');
+    _wfEnsureChildOf(budget, 'wf_emp_bonus',     '従業員賞与',               'wf_reflect_bonus');
 
-    // 既存の自動生成科目：名前・parentId・indent を正規化
-    const wfWelfareBonus = accts.find(a => a.id === 'wf_welfare_bonus');
-    if (wfWelfareBonus && welfarePar) {
-      wfWelfareBonus.name     = '法定福利費（従業員賞与）';
-      wfWelfareBonus.parentId = welfarePar.id;
-      wfWelfareBonus.indent   = (welfarePar.indent ?? 1) + 1;
-    }
-    const wfEmpBonus = accts.find(a => a.id === 'wf_emp_bonus');
-    if (wfEmpBonus && bonusPar) {
-      wfEmpBonus.name     = '賞与（従業員）';
-      wfEmpBonus.parentId = bonusPar.id;
-      wfEmpBonus.indent   = (bonusPar.indent ?? 1) + 1;
-    }
-    const execBonus = accts.find(a => a.id === 'exec_bonus');
-    if (execBonus && bonusPar) {
-      execBonus.name     = '賞与（役員）';
-      execBonus.parentId = bonusPar.id;
-      execBonus.indent   = (bonusPar.indent ?? 1) + 1;
-    }
-    const execWelfareBonus = accts.find(a => a.id === 'exec_welfare_bonus');
-    if (execWelfareBonus && welfarePar) {
-      execWelfareBonus.name     = '法定福利費（役員賞与）';
-      execWelfareBonus.parentId = welfarePar.id;
-      execWelfareBonus.indent   = (welfarePar.indent ?? 1) + 1;
-    }
-
-    // 新規勘定科目を追加（なければ）
-    _wfEnsureAccount(budget, 'wf_welfare_bonus', '法定福利費（従業員賞与）', 'sga_welfare', '法定福利費', '役員');
-    _wfEnsureAccount(budget, 'wf_emp_bonus', '賞与（従業員）', 'sga_bonus', '賞与', '役員');
-    budget.rows['sga_welfare']      = regularSI;
+    // 値を書き込み（既存のCSVインポート済み科目は変更しない）
     budget.rows['wf_welfare_bonus'] = bonusSI;
     budget.rows['wf_emp_bonus']     = bonusSalary;
   } else {
-    // 静的科目：既存の法定福利費・賞与行へ合算
     budget.rows['sga_welfare'] = regularSI.map((v, i) => v + bonusSI[i]);
     budget.rows['sga_bonus']   = bonusSalary;
   }
 
   saveBudget(budget);
   window.App.currentBudget = budget;
-
-  const hasDyn = !!budget.dynamicAccounts;
   alert(
     `予算に反映しました。\n` +
-    `法定福利費（月額分）：${fmt(regularSI.reduce((s,v)=>s+v,0))}\n` +
-    `法定福利費（賞与分）：${fmt(bonusSI.reduce((s,v)=>s+v,0))}\n` +
-    `賞与支給額合計：${fmt(bonusSalary.reduce((s,v)=>s+v,0))}\n` +
-    (hasDyn ? '→ 「法定福利費（従業員賞与）」「賞与（従業員）」科目に書き込みました' :
-              '→ 既存の法定福利費・賞与行に書き込みました（試算表インポート後は科目が分離されます）')
+    `法定福利費（従業員賞与分）：${fmt(bonusSI.reduce((s,v)=>s+v,0))}\n` +
+    `従業員賞与合計：${fmt(bonusSalary.reduce((s,v)=>s+v,0))}\n` +
+    `→ 「法定福利費（反映）」「賞与（反映）」グループに書き込みました`
   );
 }
 

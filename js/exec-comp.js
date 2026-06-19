@@ -752,37 +752,6 @@ function renderExecSITable() {
     </tr>`;
 }
 
-function _execEnsureAccount(budget, newId, newName, parentId, parentNameKeyword, parentExcludeKeyword) {
-  const accounts = budget.dynamicAccounts;
-  if (!accounts) return;
-  if (accounts.find(a => a.id === newId)) return;
-  let parent = accounts.find(a => a.id === parentId);
-  if (!parent) {
-    parent = accounts.find(a =>
-      a.name?.includes(parentNameKeyword) &&
-      (!parentExcludeKeyword || !a.name?.includes(parentExcludeKeyword))
-    );
-  }
-  // 除外キーワードで弾かれた場合、該当科目を parentNameKeyword にリネームして親として使用
-  if (!parent && parentExcludeKeyword) {
-    const excluded = accounts.find(a => a.id === parentId) ||
-                     accounts.find(a => a.name?.includes(parentNameKeyword));
-    if (excluded) {
-      excluded.name = parentNameKeyword;
-      parent = excluded;
-    }
-  }
-  if (!parent) return;
-  let insertAt = accounts.indexOf(parent) + 1;
-  while (insertAt < accounts.length && accounts[insertAt].parentId === parent.id) insertAt++;
-  accounts.splice(insertAt, 0, {
-    id: newId, name: newName, type: 'input',
-    indent: (parent.indent ?? 1) + 1, parentId: parent.id,
-    section: parent.section || 'pl', sign: parent.sign ?? 1,
-    bold: false, custom: true,
-  });
-}
-
 function _execApplySIToBudget() {
   const budget = window.App?.currentBudget;
   if (!budget) { alert('予算データがありません'); return; }
@@ -790,50 +759,23 @@ function _execApplySIToBudget() {
   const startMonth = budget.startMonth || 4;
   const { regularSI, bonusSI, bonusSalary } = _execCalcBreakdown(pref, startMonth);
   if (!budget.rows) budget.rows = {};
+
   if (budget.dynamicAccounts) {
-    // 旧コードが作った wf_auto_* 科目を除去
     budget.dynamicAccounts = budget.dynamicAccounts.filter(a => !a.id?.startsWith('wf_auto_'));
+
+    // 反映グループ（販管費末尾）を確保（welfare.js の共有ヘルパーを使用）
+    _ensureReflectGroup(budget);
+    _wfEnsureChildOf(budget, 'exec_welfare_bonus', '法定福利費（役員賞与）', 'wf_reflect_welfare');
+    _wfEnsureChildOf(budget, 'exec_bonus',          '役員賞与',               'wf_reflect_bonus');
+
+    // 役員月額報酬：動的な役員報酬科目を探して書き込む
     const accts = budget.dynamicAccounts;
+    const execMonthly = Array(12).fill(_execState.officers.reduce((s,o)=>s+(o.monthly||0),0));
+    const execAcct = accts.find(a => a.name?.includes('役員報酬') && !a.name?.includes('賞与')) ||
+                     accts.find(a => a.id === 'sga_exec');
+    if (execAcct) budget.rows[execAcct.id] = execMonthly;
+    else           budget.rows['sga_exec']  = execMonthly;
 
-    // 正しい親科目を特定
-    const welfarePar = accts.find(a => a.id === 'sga_welfare') ||
-                       accts.find(a => a.name?.includes('法定福利費') && !a.name?.includes('役員') && !a.name?.includes('従業員'));
-    const bonusPar   = accts.find(a => a.id === 'sga_bonus') ||
-                       accts.find(a => a.name?.includes('賞与') && !a.id?.startsWith('wf_') && !a.id?.startsWith('exec_'));
-
-    // 「役員賞与」→「賞与」リネーム
-    if (bonusPar && bonusPar.name !== '賞与') bonusPar.name = '賞与';
-
-    // 既存の自動生成科目：名前・parentId・indent を正規化
-    const wfWelfareBonus = accts.find(a => a.id === 'wf_welfare_bonus');
-    if (wfWelfareBonus && welfarePar) {
-      wfWelfareBonus.name     = '法定福利費（従業員賞与）';
-      wfWelfareBonus.parentId = welfarePar.id;
-      wfWelfareBonus.indent   = (welfarePar.indent ?? 1) + 1;
-    }
-    const wfEmpBonus = accts.find(a => a.id === 'wf_emp_bonus');
-    if (wfEmpBonus && bonusPar) {
-      wfEmpBonus.name     = '賞与（従業員）';
-      wfEmpBonus.parentId = bonusPar.id;
-      wfEmpBonus.indent   = (bonusPar.indent ?? 1) + 1;
-    }
-    const execBonusAcc = accts.find(a => a.id === 'exec_bonus');
-    if (execBonusAcc && bonusPar) {
-      execBonusAcc.name     = '賞与（役員）';
-      execBonusAcc.parentId = bonusPar.id;
-      execBonusAcc.indent   = (bonusPar.indent ?? 1) + 1;
-    }
-    const execWelfareBonus = accts.find(a => a.id === 'exec_welfare_bonus');
-    if (execWelfareBonus && welfarePar) {
-      execWelfareBonus.name     = '法定福利費（役員賞与）';
-      execWelfareBonus.parentId = welfarePar.id;
-      execWelfareBonus.indent   = (welfarePar.indent ?? 1) + 1;
-    }
-
-    _execEnsureAccount(budget, 'exec_welfare_bonus', '法定福利費（役員賞与）', 'sga_welfare', '法定福利費', null);
-    _execEnsureAccount(budget, 'exec_bonus',         '賞与（役員）',           'sga_bonus',   '賞与',       '役員');
-    budget.rows['sga_exec']           = _execState.officers.map ? Array(12).fill(_execState.officers.reduce((s,o)=>s+(o.monthly||0),0)) : Array(12).fill(0);
-    budget.rows['sga_welfare']        = regularSI;
     budget.rows['exec_welfare_bonus'] = bonusSI;
     budget.rows['exec_bonus']         = bonusSalary;
   } else {
@@ -846,9 +788,9 @@ function _execApplySIToBudget() {
   alert(
     `予算に反映しました。\n` +
     `役員報酬：${Math.round(_execState.officers.reduce((s,o)=>s+(o.monthly||0),0)).toLocaleString()}円/月\n` +
-    `法定福利費（月額）：${Math.round(regularSI.reduce((s,v)=>s+v,0)).toLocaleString()}\n` +
-    `法定福利費（賞与分）：${Math.round(bonusSI.reduce((s,v)=>s+v,0)).toLocaleString()}\n` +
-    `役員賞与合計：${Math.round(bonusSalary.reduce((s,v)=>s+v,0)).toLocaleString()}`
+    `法定福利費（役員賞与分）：${Math.round(bonusSI.reduce((s,v)=>s+v,0)).toLocaleString()}\n` +
+    `役員賞与合計：${Math.round(bonusSalary.reduce((s,v)=>s+v,0)).toLocaleString()}\n` +
+    `→ 「法定福利費（反映）」「賞与（反映）」グループに書き込みました`
   );
 }
 
@@ -1124,11 +1066,10 @@ function _execApplyZeroToBudget(bonus1, bonus2, welfare1, welfare2) {
   welfareBonus[bonusMonth] = welfare1 + welfare2;
 
   if (budget.dynamicAccounts) {
-    _execEnsureAccount(budget, 'exec_welfare_bonus', '法定福利費（役員賞与）', 'sga_welfare', '法定福利費', null);
-    _execEnsureAccount(budget, 'exec_bonus', '賞与（役員）', 'sga_bonus', '賞与', null);
-    const cur = budget.rows['exec_bonus'] || Array(12).fill(0);
-    budget.rows['exec_bonus'] = bonusByMonth;
-    const curW = budget.rows['exec_welfare_bonus'] || Array(12).fill(0);
+    _ensureReflectGroup(budget);
+    _wfEnsureChildOf(budget, 'exec_welfare_bonus', '法定福利費（役員賞与）', 'wf_reflect_welfare');
+    _wfEnsureChildOf(budget, 'exec_bonus',          '役員賞与',               'wf_reflect_bonus');
+    budget.rows['exec_bonus']         = bonusByMonth;
     budget.rows['exec_welfare_bonus'] = welfareBonus;
   } else {
     const curBonus = budget.rows['sga_bonus'] || Array(12).fill(0);

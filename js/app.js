@@ -115,8 +115,9 @@ function openCompanyModal(editId) {
   document.getElementById('modal_industry').value           = company?.industry || 'other';
   document.getElementById('modal_business_type').value      = company?.businessType || 5;
   document.getElementById('modal_prepaid1').value           = company?.prepaid1 || 0;
-  document.getElementById('modal_prepaid2').value           = company?.prepaid2 || 0;
+  if (document.getElementById('modal_prepaid2')) document.getElementById('modal_prepaid2').value = company?.prepaid2 || 0;
   document.getElementById('modal_ctax_prepaid').value       = company?.ctaxPrepaid || 0;
+  document.getElementById('modal_employees').value          = company?.employees || 1;
   modal.classList.add('open');
 }
 
@@ -140,8 +141,9 @@ function saveCompanyForm() {
   const prepaid1      = parseFloat(document.getElementById('modal_prepaid1')?.value) || 0;
   const prepaid2      = parseFloat(document.getElementById('modal_prepaid2')?.value) || 0;
   const ctaxPrepaid   = parseFloat(document.getElementById('modal_ctax_prepaid')?.value) || 0;
+  const employees     = parseInt(document.getElementById('modal_employees')?.value) || 1;
   const company = { id: id || generateId(), name, capital, prefecture: pref, fiscalMonth: fiscal,
-    invoiceRegistered: invoice, kanijukazei: kani, kijunUriage: kijun, industry, businessType, prepaid1, prepaid2, ctaxPrepaid };
+    invoiceRegistered: invoice, kanijukazei: kani, kijunUriage: kijun, industry, businessType, prepaid1, prepaid2, ctaxPrepaid, employees };
   saveCompany(company);
   App.companies = getCompanies();
   App.currentCompany = company;
@@ -236,7 +238,8 @@ function showPage(page) {
     case 'tax':        renderTaxSimulator(container);                     break;
     case 'ctax':       renderCtaxJudge(container);                        break;
     case 'health':     renderHealthDiag(container, budget);               break;
-    case 'taxsummary': renderTaxSummary(container);                       break;
+    case 'taxsummary':     renderTaxSummary(container);                   break;
+    case 'forecastreport': renderForecastReport(container);               break;
     case 'bizanalysis': renderBizAnalysis(container);                     break;
     default:           container.innerHTML = '<div class="no-data">ページが見つかりません</div>';
   }
