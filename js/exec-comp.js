@@ -197,13 +197,20 @@ function renderExecComp(container, budget) {
                 <label>現状の税引前利益（予算ベース）</label>
                 <input type="number" id="zero_pretax" value="${pretax}" step="100000" class="form-input" oninput="calcZeroOut()">
               </div>
-              <div class="form-group" style="margin:0">
+              <div class="form-group">
                 <label>配分方法</label>
                 <select id="zero_split_mode" class="form-input" onchange="calcZeroOut()">
                   <option value="equal">均等分割（50:50）</option>
                   <option value="ratio">比率指定</option>
                   <option value="officer1">役員①のみ</option>
                   <option value="officer2">役員②のみ</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>賞与支払回数</label>
+                <select id="zero_bonus_times" class="form-input" onchange="calcZeroOut()">
+                  <option value="1">1回</option>
+                  <option value="2">2回（÷2 ずつ）</option>
                 </select>
               </div>
               <div id="zero_ratio_row" style="display:none;margin-top:10px;padding:10px;background:var(--bg);border-radius:8px">
@@ -947,9 +954,10 @@ function calcZeroOut() {
   const el = document.getElementById('zero_result');
   if (!el) return;
 
-  const pretax    = parseFloat(document.getElementById('zero_pretax')?.value || 0);
-  const pref      = window.App?.currentCompany?.prefecture || '東京都';
-  const splitMode = document.getElementById('zero_split_mode')?.value || 'equal';
+  const pretax      = parseFloat(document.getElementById('zero_pretax')?.value || 0);
+  const pref        = window.App?.currentCompany?.prefecture || '東京都';
+  const splitMode   = document.getElementById('zero_split_mode')?.value || 'equal';
+  const bonusTimes  = parseInt(document.getElementById('zero_bonus_times')?.value || 1);
   const monthly1  = parseFloat(document.getElementById('zero_monthly1')?.value || 800000);
   const age1      = parseFloat(document.getElementById('zero_age1')?.value || 50);
   const monthly2  = parseFloat(document.getElementById('zero_monthly2')?.value || 500000);
@@ -965,8 +973,26 @@ function calcZeroOut() {
   }
 
   // 賞与の法定福利費（会社負担）をキャップ込みで正確に計算
-  // calcSocialInsurance は健保上限573万円・厚生年金上限150万円を正しく適用する
+  // bonusTimes=2 の場合は ÷2 を2回計算（厚生年金上限150万×2回・健保573万上限考慮）
   function _bonusWelfare(bonus, monthly, age, p) {
+    if (bonusTimes === 2 && bonus > 0) {
+      const half = Math.floor(bonus / 2 / 1000) * 1000;
+      const rates    = (typeof KENPO_RATES !== 'undefined' ? KENPO_RATES : {})[p] || KENPO_RATES?.['東京都'] || { health: 0.0998, care: 0.016 };
+      const careFlag = age >= 40 && age < 65;
+      const BONUS_CAP_H = 5730000, BONUS_CAP_P = 1500000;
+      const KOSEI = 0.183, KODOMO = 0.0036;
+      // 1回目
+      const h1 = Math.min(half, BONUS_CAP_H);
+      const p1 = Math.min(half, BONUS_CAP_P);
+      const w1 = Math.floor(h1 * rates.health / 2) + (careFlag ? Math.floor(h1 * rates.care / 2) : 0)
+               + Math.floor(p1 * KOSEI / 2) + Math.floor(p1 * KODOMO);
+      // 2回目: 健保は累計上限の残り分のみ
+      const h2 = Math.min(half, Math.max(0, BONUS_CAP_H - half));
+      const p2 = Math.min(half, BONUS_CAP_P);
+      const w2 = Math.floor(h2 * rates.health / 2) + (careFlag ? Math.floor(h2 * rates.care / 2) : 0)
+               + Math.floor(p2 * KOSEI / 2) + Math.floor(p2 * KODOMO);
+      return w1 + w2;
+    }
     return calcSocialInsurance(monthly, bonus, age, p).annual
          - calcSocialInsurance(monthly, 0,     age, p).annual;
   }
@@ -1005,6 +1031,7 @@ function calcZeroOut() {
   const taxAfter  = calcAllTax(Math.max(0, remain), capital);
   const fmtV = v => Math.round(v).toLocaleString();
 
+  const perPayLabel = bonusTimes === 2 ? `（1回あたり ${Math.round(bonus1/2).toLocaleString()}円 / ${Math.round(bonus2/2).toLocaleString()}円）` : '';
   const officerRow = (label, bonus, welfare) => bonus === 0 ? '' : `
     <div style="background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:12px;margin-bottom:8px">
       <div style="font-size:11px;font-weight:700;color:#065f46;margin-bottom:8px">${label}</div>
@@ -1016,7 +1043,7 @@ function calcZeroOut() {
     <h3>💡 推奨役員賞与・調整額</h3>
     <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:16px;margin-bottom:14px">
       <div style="font-size:11px;color:#166534;font-weight:700;margin-bottom:10px">合計</div>
-      <div class="tax-kpi-row"><span>役員賞与 合計</span><span style="font-weight:700;color:#166534">${fmtV(totalBonus)}円</span></div>
+      <div class="tax-kpi-row"><span>役員賞与 合計（${bonusTimes}回払い）${bonusTimes===2?'<span style="font-size:10px;color:#64748b;margin-left:6px">'+perPayLabel+'</span>':''}</span><span style="font-weight:700;color:#166534">${fmtV(totalBonus)}円</span></div>
       <div class="tax-kpi-row"><span>法定福利費 合計</span><span style="font-weight:700;color:#166534">${fmtV(totalWelfare)}円</span></div>
       <div class="tax-kpi-total"><span>支出合計</span><span>${fmtV(totalBonus + totalWelfare)}円</span></div>
       <div class="tax-kpi-row" style="margin-top:6px"><span>調整後　税引前利益</span>
