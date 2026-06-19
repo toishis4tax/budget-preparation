@@ -305,14 +305,8 @@ function _getPrevYearCash(budgetPrev1) {
     });
     if (cashAcc) {
       var src = budgetPrev1.actualRows || budgetPrev1.rows || {};
-      var vals = src[cashAcc.id];
-      if (vals) {
-        // 期末月（index 11）を優先。0の場合のみ直前の非ゼロにフォールバック
-        if (vals[11]) return vals[11];
-        for (var i = 10; i >= 0; i--) {
-          if (vals[i] != null && vals[i] !== 0) return vals[i];
-        }
-      }
+      var v = (src[cashAcc.id] || [])[11]; // 期末月（index 11）のみ。途中月は拾わない
+      if (v) return v;
     }
   }
   return null;
@@ -328,15 +322,26 @@ function renderKichuCashflow(container, budget, company) {
   var companyId  = company.id || 'default';
   var lsKey      = 'kichu_cf2_' + companyId + '_' + curYear;
 
-  // 前期末現預金を自動取得
+  // 前期末現預金を自動取得（① 前期末 index 11 → ② 当期首 index 0 → ③ 0）
   var budgetPrev1    = (typeof getBudget === 'function') ? getBudget(company.id, curYear - 1) : null;
   var prevCashAuto   = _getPrevYearCash(budgetPrev1);
+  // ② 前期末がなければ当期首（index 0）を使用
+  if (prevCashAuto == null && budget.dynamicAccounts) {
+    var _curCashAcc = budget.dynamicAccounts.find(function(a) {
+      return a.name && a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section && a.section.startsWith('bs');
+    });
+    if (_curCashAcc) {
+      var _curSrc = budget.actualRows || budget.rows || {};
+      var _v0 = (_curSrc[_curCashAcc.id] || [])[0];
+      if (_v0) prevCashAuto = _v0;
+    }
+  }
 
   // localStorage から設定値を読み込む
   var saved = {};
   try { saved = JSON.parse(localStorage.getItem(lsKey) || '{}'); } catch(e) {}
 
-  // 期首現預金: 手動入力 > 前期末自動取得
+  // 期首現預金: 手動入力 > 自動取得
   var startCashK = saved.startCash != null ? saved.startCash
                  : (prevCashAuto != null ? Math.round(prevCashAuto / 1000) : 0);
   var prevCorpTaxK = saved.prevCorpTax || 0;  // 前期法人税等（千円）

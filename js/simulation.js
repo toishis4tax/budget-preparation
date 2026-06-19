@@ -295,36 +295,27 @@ function renderCashFlow(container, budget) {
     : calcAllValues(budget.rows);
   const monthLabels = getMonthLabels(budget.startMonth || 4);
 
-  // 期首現預金: 前期末BS現預金科目から取得（actualRows優先）
+  // 期首現預金: ① 前期末（index 11）→ ② 当期首（index 0）→ ③ 0（手入力）
+  // 途中月は拾わない
   let autoCash = 0, cashSource = '手動入力';
   const budgetPrev1 = (typeof getBudget === 'function') ? getBudget(company?.id, curYear - 1) : null;
-  if (budgetPrev1 && budgetPrev1.dynamicAccounts) {
-    const cashAcc = budgetPrev1.dynamicAccounts.find(a =>
-      a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section?.startsWith('bs')
-    );
-    if (cashAcc) {
-      // actualRows（実績インポート値）を優先。なければrows（予算入力値）を参照
-      const src = budgetPrev1.actualRows || budgetPrev1.rows || {};
-      const cashArr = src[cashAcc.id] || [];
-      // 期末月（index 11）を優先。0の場合のみ直前の非ゼロにフォールバック
-      if (cashArr[11]) {
-        autoCash = cashArr[11];
-      } else {
-        for (let i = 10; i >= 0; i--) {
-          if (cashArr[i] != null && cashArr[i] !== 0) { autoCash = cashArr[i]; break; }
-        }
-      }
-      cashSource = `前期末 BS残高（自動取得）`;
-    }
-  } else if (budget.dynamicAccounts) {
-    // フォールバック: 当期BSの期首値（第1月）
-    const cashAcc = budget.dynamicAccounts.find(a =>
-      a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section?.startsWith('bs')
-    );
-    if (cashAcc) {
-      const cashArr = allVals[cashAcc.id] || [];
-      autoCash = cashArr[0] || 0;
-      cashSource = 'BS残高（自動取得）';
+  const _findCashAcc = b => b?.dynamicAccounts?.find(a =>
+    a.name.replace(/\s/g,'').match(/現金|預金|現預金/) && a.section?.startsWith('bs')
+  );
+  // ① 前期末（index 11 = 期末月）
+  const prevCashAcc = _findCashAcc(budgetPrev1);
+  if (prevCashAcc) {
+    const src = budgetPrev1.actualRows || budgetPrev1.rows || {};
+    const v = (src[prevCashAcc.id] || [])[11];
+    if (v) { autoCash = v; cashSource = '前期末 BS残高（自動取得）'; }
+  }
+  // ② 当期首（index 0 = 期初月の実績）
+  if (!autoCash && budget.dynamicAccounts) {
+    const curCashAcc = _findCashAcc(budget);
+    if (curCashAcc) {
+      const src = budget.actualRows || budget.rows || {};
+      const v = (src[curCashAcc.id] || [])[0];
+      if (v) { autoCash = v; cashSource = '当期首 BS残高（自動取得）'; }
     }
   }
 
