@@ -326,6 +326,14 @@ function parseMjsMonthlySmart(data, startMonth) {
     else if (!c1 && c2 && lastC1) hasSubs.add(lastC1);
   }
 
+  // MoneyForwardが平坦構造で出力する場合: 科目名で強制的に親子関係を設定
+  const FORCE_SUB_OF = {
+    '社会保険料': '法定福利費', '社会保険': '法定福利費',
+    '雇用保険料': '法定福利費', '雇用保険': '法定福利費',
+    '健康保険料': '法定福利費', '厚生年金保険料': '法定福利費',
+    '労働保険料': '法定福利費', '介護保険料': '法定福利費',
+  };
+
   // セクションマップをスペース除去済みキーで再構築
   const secMapClean = {};
   for (const [k, v] of Object.entries(DYN_SECTION_MAP)) {
@@ -336,6 +344,7 @@ function parseMjsMonthlySmart(data, startMonth) {
   const accts = [], rows = {};
   let secInfo = null, curParent = null, ctr = 0;
   const seenSecs = new Set();
+  const nameToId = {}; // 科目名 → ID（強制グルーピング参照用）
   const mkId = prefix => `${prefix}${++ctr}`;
 
   for (let ri = headerRowIdx + 1; ri < data.length; ri++) {
@@ -364,10 +373,29 @@ function parseMjsMonthlySmart(data, startMonth) {
     if (c1r && !c2r) {
       if (DYN_SKIP_ROWS.has(c1)) continue;
       const vals = getVals(row);
+      // FORCE_SUB_OF: 社会保険料・雇用保険料など法定福利費の子として扱う
+      const forcedParentName = FORCE_SUB_OF[c1];
+      const forcedParentId   = forcedParentName ? (nameToId[forcedParentName] || null) : null;
+      if (forcedParentId) {
+        // 値ゼロでもスキップしない（親計算に影響するため）
+        const pfx = secInfo?.section?.startsWith('bs') ? 'b' : 'p';
+        const sid = mkId(pfx);
+        accts.push({
+          id: sid, name: c1r, type: 'input',
+          indent: 2, parentId: forcedParentId,
+          section: secInfo?.section || 'pl', sign: secInfo?.sign ?? 1,
+        });
+        rows[sid] = vals;
+        // 親をparentに昇格
+        const par = accts.find(a => a.id === forcedParentId);
+        if (par && par.type === 'input') par.type = 'parent';
+        continue;
+      }
       if (!vals.some(v => v !== 0)) { curParent = null; continue; }
       const pfx = secInfo?.section?.startsWith('bs') ? 'b' : 'p';
       const aid = mkId(pfx);
       const isParent = hasSubs.has(c1r);
+      nameToId[c1r] = aid; // 後続のFORCE_SUB_OF参照用
       accts.push({
         id: aid, name: c1r,
         type: isParent ? 'parent' : 'input',
