@@ -49,22 +49,29 @@ function isSmall(capital) {
   return capital <= CAPITAL_THRESHOLD;
 }
 
+// 切捨てヘルパー
+const trunc100  = v => Math.floor(v / 100)  * 100;   // 100円未満切捨て（税額）
+const trunc1000 = v => Math.floor(v / 1000) * 1000;  // 1,000円未満切捨て（課税標準）
+
 function calcCorpTax(pretaxProfit, capital) {
   if (pretaxProfit <= 0) return 0;
   const small = isSmall(capital);
+  let tax;
   if (small) {
     if (pretaxProfit <= THRESHOLD_800) {
-      return pretaxProfit * TAX_RATES.corp.small_low;
+      tax = pretaxProfit * TAX_RATES.corp.small_low;
     } else {
-      return THRESHOLD_800 * TAX_RATES.corp.small_low
-           + (pretaxProfit - THRESHOLD_800) * TAX_RATES.corp.small_high;
+      tax = THRESHOLD_800 * TAX_RATES.corp.small_low
+          + (pretaxProfit - THRESHOLD_800) * TAX_RATES.corp.small_high;
     }
+  } else {
+    tax = pretaxProfit * TAX_RATES.corp.large;
   }
-  return pretaxProfit * TAX_RATES.corp.large;
+  return trunc100(tax);
 }
 
 function calcLocalCorpTax(corpTax) {
-  return corpTax * TAX_RATES.local_corp;
+  return trunc100(corpTax * TAX_RATES.local_corp);
 }
 
 function calcInhabitantTax(corpTax, capital) {
@@ -72,9 +79,9 @@ function calcInhabitantTax(corpTax, capital) {
   const perCapita = small
     ? TAX_RATES.inhabitant.per_capita_small
     : TAX_RATES.inhabitant.per_capita_large;
-  const prefK割 = corpTax * TAX_RATES.inhabitant.pref.small;
-  const cityKatsuWari = corpTax * TAX_RATES.inhabitant.city.small;
-  return perCapita + prefK割 + cityKatsuWari;
+  const prefWari  = trunc100(corpTax * TAX_RATES.inhabitant.pref.small);
+  const cityWari  = trunc100(corpTax * TAX_RATES.inhabitant.city.small);
+  return perCapita + prefWari + cityWari;
 }
 
 function calcBusinessTax(pretaxProfit, capital) {
@@ -95,15 +102,18 @@ function calcBusinessTax(pretaxProfit, capital) {
   } else {
     income = pretaxProfit * TAX_RATES.business.small_high;
   }
-  const special = income * TAX_RATES.business.special;
+  income = trunc100(income);
+  const special = trunc100(income * TAX_RATES.business.special);
   return { income, special };
 }
 
 function calcAllTax(pretaxProfit, capital) {
-  const corp       = calcCorpTax(pretaxProfit, capital);
+  // 課税標準（所得）は1,000円未満切捨て
+  const taxBase    = trunc1000(pretaxProfit);
+  const corp       = calcCorpTax(taxBase, capital);
   const localCorp  = calcLocalCorpTax(corp);
   const inhabitant = calcInhabitantTax(corp, capital);
-  const { income: business, special } = calcBusinessTax(pretaxProfit, capital);
+  const { income: business, special } = calcBusinessTax(taxBase, capital);
   const total      = corp + localCorp + inhabitant + business + special;
   return { corp, localCorp, inhabitant, business, special, total };
 }
