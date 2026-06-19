@@ -25,25 +25,26 @@
   </div>
   </div>
 
-  <!-- フェーズ共通: ハブ -->
+  <!-- フェーズ共通: ダッシュボード -->
   <div class="nav-item" data-page="home" data-phase="0">
-    <span class="icon">⊞</span>フェーズ選択
+    <span class="icon">📋</span>ダッシュボード
+  </div>
+
+  <!-- 共通: 推移表アップロード -->
+  <div class="nav-item" data-page="import">
+    <span class="icon">📤</span>推移表アップロード
   </div>
 
   <!-- ① 期中 -->
   <div class="sidebar-phase" id="phase-section-1">
     <div class="sidebar-phase-label phase1" onclick="togglePhase(1)">
       <span class="phase-dot dot-1"></span>
-      <span>① 期中</span>
+      <span>① 期中・決算</span>
       <span class="phase-toggle-icon" id="phase-toggle-1">▾</span>
     </div>
     <div class="phase-nav-items" id="phase-nav-1">
       <div class="nav-item nav-sub-item" data-page="home" data-phase="1">
         <span class="icon">🏠</span>ホーム
-      </div>
-      <div class="nav-item nav-sub-item" data-page="import" data-phase="1">
-        <span class="icon">📤</span>推移表アップロード
-        <span class="nav-ctx">月次</span>
       </div>
       <div class="nav-item nav-sub-item" data-page="budget" data-phase="1">
         <span class="icon">📝</span>月次予算入力
@@ -60,86 +61,46 @@
       <div class="nav-item nav-sub-item" data-page="execcomp" data-phase="1">
         <span class="icon">👔</span>役員賞与
       </div>
+      <div class="nav-item nav-sub-item" data-page="forecastreport" data-phase="1">
+        <span class="icon">📋</span>当期決算予測報告
+      </div>
       <div class="nav-item nav-sub-item" data-page="tax" data-phase="1">
         <span class="icon">🧮</span>法人税概算
       </div>
       <div class="nav-item nav-sub-item" data-page="ctax" data-phase="1">
-        <span class="icon">🧾</span>消費税
+        <span class="icon">🧾</span>消費税概算
       </div>
     </div>
   </div>
 
-  <!-- ② 決算 -->
+  <!-- ② 申告・報告 -->
   <div class="sidebar-phase" id="phase-section-2">
     <div class="sidebar-phase-label phase2" onclick="togglePhase(2)">
       <span class="phase-dot dot-2"></span>
-      <span>② 決算</span>
+      <span>② 申告・報告</span>
       <span class="phase-toggle-icon" id="phase-toggle-2">▸</span>
     </div>
     <div class="phase-nav-items" id="phase-nav-2">
       <div class="nav-item nav-sub-item" data-page="home" data-phase="2">
         <span class="icon">🏠</span>ホーム
       </div>
-      <div class="nav-item nav-sub-item" data-page="import" data-phase="2">
-        <span class="icon">📤</span>推移表アップロード
-        <span class="nav-ctx">決算前</span>
+      <div class="nav-item nav-sub-item" data-page="simulation" data-phase="2">
+        <span class="icon">📐</span>単年度 PL/BS
       </div>
-      <div class="nav-item nav-sub-item" data-page="tax" data-phase="2">
-        <span class="icon">🧮</span>税額概算
+      <div class="nav-item nav-sub-item" data-page="health" data-phase="2">
+        <span class="icon">🩺</span>財務健康診断
       </div>
-      <div class="nav-item nav-sub-item" data-page="ctax" data-phase="2">
-        <span class="icon">🧾</span>消費税関連
+      <div class="nav-item nav-sub-item" data-page="fiveyear" data-phase="2">
+        <span class="icon">📅</span>5か年計画
       </div>
-      <div class="nav-item nav-sub-item" data-page="welfare" data-phase="2">
-        <span class="icon">🏥</span>従業員賞与
+      <div class="nav-item nav-sub-item" data-page="taxsummary" data-phase="2">
+        <span class="icon">📑</span>税金一覧表
+      </div>
+      <div class="nav-item nav-sub-item" data-page="bizanalysis" data-phase="2">
+        <span class="icon">📊</span>経営分析表
       </div>
       <div class="nav-item nav-sub-item" data-page="execcomp" data-phase="2">
         <span class="icon">👔</span>役員賞与
-      </div>
-      <div class="nav-item nav-sub-item" data-page="budget" data-phase="2">
-        <span class="icon">✏️</span>調整入力
-      </div>
-    </div>
-  </div>
-
-  <!-- ③ 申告・報告 -->
-  <div class="sidebar-phase" id="phase-section-3">
-    <div class="sidebar-phase-label phase3" onclick="togglePhase(3)">
-      <span class="phase-dot dot-3"></span>
-      <span>③ 申告・報告</span>
-      <span class="phase-toggle-icon" id="phase-toggle-3">▸</span>
-    </div>
-    <div class="phase-nav-items" id="phase-nav-3">
-      <div class="nav-item nav-sub-item" data-page="home" data-phase="3">
-        <span class="icon">🏠</span>ホーム
-      </div>
-      <div class="nav-item nav-sub-item" data-page="import" data-phase="3">
-        <span class="icon">📤</span>推移表アップロード
-        <span class="nav-ctx">確定値</span>
-      </div>
-      <div class="nav-item nav-sub-item" data-page="simulation" data-phase="3">
-        <span class="icon">📊</span>3期比較 PL/BS
-      </div>
-      <div class="nav-item nav-sub-item" data-page="health" data-phase="3">
-        <span class="icon">🩺</span>財務健康診断
-      </div>
-      <div class="nav-item nav-sub-item" data-page="fiveyear" data-phase="3">
-        <span class="icon">📅</span>5か年計画
-      </div>
-      <div class="nav-item nav-sub-item" data-page="taxsummary" data-phase="3">
-        <span class="icon">📑</span>税金一覧表
-      </div>
-      <div class="nav-item nav-sub-item" data-page="bizanalysis" data-phase="3">
-        <span class="icon">📊</span>経営分析表
-      </div>
-      <div class="nav-item nav-sub-item" data-page="execcomp" data-phase="3">
-        <span class="icon">👔</span>役員賞与
-      </div>
-      <div class="nav-item nav-sub-item" data-page="tax" data-phase="3">
-        <span class="icon">🧮</span>法人税概算
-      </div>
-      <div class="nav-item nav-sub-item" data-page="ctax" data-phase="3">
-        <span class="icon">🧾</span>消費税
       </div>
     </div>
   </div>
@@ -225,6 +186,10 @@
       </select>
     </div>
     <div class="form-group">
+      <label>従業員数（人）</label>
+      <input type="number" id="modal_employees" class="form-input" value="1" min="1" step="1">
+    </div>
+    <div class="form-group">
       <label>決算月</label>
       <select id="modal_fiscal" class="form-input">
         <option value="1">1月</option><option value="2">2月</option>
@@ -290,21 +255,22 @@
 
 <!-- ===== JS ===== -->
 <script src="js/accounts.js"></script>
-<script src="js/home.js"></script>
+<script src="js/home.js?v=4"></script>
 <script src="js/storage.js"></script>
 <script src="js/calculations.js?v=2"></script>
-<script src="js/tax.js?v=13"></script>
+<script src="js/tax.js?v=25"></script>
 <script src="js/welfare.js?v=2"></script>
 <script src="js/simulation.js?v=6"></script>
 <script src="js/health.js"></script>
-<script src="js/grid.js?v=6"></script>
+<script src="js/grid.js?v=7"></script>
 <script src="js/export.js"></script>
-<script src="js/import.js?v=4"></script>
+<script src="js/import.js?v=10"></script>
 <script src="js/exec-comp.js?v=3"></script>
-<script src="js/revenue.js"></script>
+<script src="js/revenue.js?v=4"></script>
 <script src="js/taxsummary.js"></script>
+<script src="js/forecast-report.js?v=4"></script>
 <script src="js/bizanalysis.js"></script>
-<script src="js/kichu-output.js?v=8"></script>
+<script src="js/kichu-output.js?v=10"></script>
 <script src="js/app.js"></script>
 
 <script>

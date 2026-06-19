@@ -18,8 +18,7 @@ function renderHome(container) {
 
   // フェーズ別ダッシュボードに振り分け
   if (phase === 1) return renderPhase1Home(container, budget, company);
-  if (phase === 2) return renderPhase2Home(container, budget, company);
-  if (phase === 3) return renderPhase3Home(container, budget, company);
+  if (phase === 2) return renderPhase3Home(container, budget, company);
 
   const capital   = company.capital || 10000000;
   const curYear   = window.App?.currentYear || new Date().getFullYear();
@@ -158,6 +157,43 @@ function renderHome(container) {
         </div>
       </div>
 
+      <!-- ===== インポート状況 ===== -->
+      ${(() => {
+        const importHistory = typeof getImportHistory === 'function' ? getImportHistory(company.id) : [];
+        const getLatestImport = yr => {
+          const h = importHistory.filter(x => x.year === yr);
+          return h.length ? h.reduce((a, b) => a.importedAt > b.importedAt ? a : b) : null;
+        };
+        const fmtDate = ts => {
+          const d = new Date(ts);
+          return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        };
+        const rows = [curYear, curYear-1, curYear-2].map(yr => {
+          const imp = getLatestImport(yr);
+          const m   = yr === curYear ? mCur : yr === curYear-1 ? mPrev1 : mPrev2;
+          const plHtml = m ? `
+            <span style="margin-left:8px">売上: <b>${fmtHome(m.sales)}</b></span>
+            <span style="margin-left:8px">営業利益: <b style="color:${m.op>=0?'#059669':'#dc2626'}">${fmtHome(m.op)}</b></span>
+            <span style="margin-left:8px">純利益: <b style="color:${m.net>=0?'#059669':'#dc2626'}">${fmtHome(m.net)}</b></span>
+            <span style="margin-left:8px">現預金: <b>${fmtHome(m.cashEnd)}</b></span>
+          ` : `<span style="color:var(--text-muted);margin-left:8px">データなし</span>`;
+          return `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span style="font-weight:700;min-width:68px">${yr}年度</span>
+            <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${imp?'#dcfce7':'#f1f5f9'};color:${imp?'#15803d':'#64748b'}">
+              ${imp ? `インポート済み（${fmtDate(imp.importedAt)}）` : '未インポート'}
+            </span>
+            <span style="font-size:12px;color:var(--text-muted);flex:1">${plHtml}</span>
+          </div>`;
+        }).join('');
+        return `<div class="home-card">
+          <div class="home-card-title">📥 インポート状況</div>
+          ${rows}
+          <div style="margin-top:10px">
+            <button class="btn-solid" onclick="showPage('import')">📤 推移表アップロード</button>
+          </div>
+        </div>`;
+      })()}
+
       <!-- ===== フェーズハブ ===== -->
       <div class="phase-hub">
 
@@ -175,7 +211,6 @@ function renderHome(container) {
           </div>
 
           <div class="phase-tools">
-            ${toolLink('import',   1, '📤 推移表アップロード', hasImport ? 'データあり' : '未インポート')}
             ${toolLink('budget',   1, '📝 月次予算入力',       hasData ? `${pct}%完了` : '未入力')}
             ${toolLink('revenue',  1, '💹 売上予算設定')}
             ${toolLink('cashflow', 1, '💰 CF予測')}
@@ -195,44 +230,11 @@ function renderHome(container) {
           ${outputBtn('kichu', 1)}
         </div>
 
-        <!-- ② 決算 -->
-        <div class="phase-card phase-amber">
-          <div class="phase-card-head">
-            <div class="phase-card-head-row">
-              <div class="phase-num">②</div>
-              <div class="phase-title-wrap">
-                <div class="phase-title">決算</div>
-              </div>
-              ${phaseStatus(hasTax, hasTax ? '概算計算済' : '未計算')}
-            </div>
-            <div class="phase-desc">税金・調整を概算で詰める</div>
-          </div>
-
-          <div class="phase-tools">
-            ${toolLink('tax',      2, '🧮 税額概算',           hasTax ? `法人税 ${Math.round(taxTotal/10000)}万円` : '要データ')}
-            ${toolLink('ctax',     2, '🧾 消費税関連',          ctaxJudge)}
-            ${toolLink('execcomp', 2, '👤 役員報酬・賞与最適化')}
-          </div>
-
-          <div class="phase-kpi-mini">
-            <div class="phase-kpi-item">
-              <span class="phase-kpi-label">法人税等</span>
-              <span class="phase-kpi-val">${taxTotal > 0 ? fmtHome(taxTotal) : '—'}</span>
-            </div>
-            <div class="phase-kpi-item">
-              <span class="phase-kpi-label">消費税</span>
-              <span class="phase-kpi-val">${ctaxEst && !ctaxEst.exempt && !ctaxEst.noData ? fmtHome(ctaxEst.ctax) : ctaxEst?.exempt ? '免税' : '—'}</span>
-            </div>
-          </div>
-
-          ${outputBtn('kessan', 2)}
-        </div>
-
-        <!-- ③ 申告・報告 -->
+        <!-- ② 申告・報告 -->
         <div class="phase-card phase-green">
           <div class="phase-card-head">
             <div class="phase-card-head-row">
-              <div class="phase-num">③</div>
+              <div class="phase-num">②</div>
               <div class="phase-title-wrap">
                 <div class="phase-title">申告・報告</div>
               </div>
@@ -242,10 +244,10 @@ function renderHome(container) {
           </div>
 
           <div class="phase-tools">
-            ${toolLink('simulation', 3, '📊 3期比較PL',           hasPrev ? `${curYear-2}〜${curYear}年度` : '過去データ必要')}
-            ${toolLink('health',     3, '🩺 財務健康診断')}
-            ${toolLink('simulation', 3, '📐 損益分岐点')}
-            ${toolLink('fiveyear',   3, '🔮 5か年シミュレーション')}
+            ${toolLink('bizanalysis', 2, '📊 3期比較PL',           hasPrev ? `${curYear-2}〜${curYear}年度` : '過去データ必要')}
+            ${toolLink('health',     2, '🩺 財務健康診断')}
+            ${toolLink('simulation', 2, '📐 単年度PL/BS')}
+            ${toolLink('fiveyear',   2, '🔮 5か年シミュレーション')}
           </div>
 
           <div class="phase-kpi-mini">
@@ -363,7 +365,7 @@ function showOutputModal(phase) {
       ]
     },
     申告: {
-      label: '③ 申告・報告 — 成果物',
+      label: '② 申告・報告 — 成果物',
       outputs: [
         { label: '決算報告書パック（PDF）',  icon:'📋', fn: "alert('決算報告書 PDF出力（準備中）')" },
         { label: '3期比較表（Excel）',       icon:'📊', fn: "alert('3期比較 Excel出力（準備中）')" },
@@ -515,7 +517,7 @@ function phaseHomeTopbar(company, curYear, accentColor, phaseLabel) {
       </div>
       <div class="home-meta">
         <button class="btn btn-sm" onclick="openCompanyModal('${company.id}')">会社情報を編集</button>
-        <button class="btn btn-sm btn-outline" onclick="App.currentPhase=0;showPage('home')">⊞ フェーズ選択</button>
+        <button class="btn btn-sm btn-outline" onclick="App.currentPhase=0;showPage('home')">📋 ダッシュボード</button>
       </div>
     </div>`;
 }
@@ -620,17 +622,6 @@ function renderPhase1Home(container, budget, company) {
         ${actualLabel && budgetLabel ? `<div style="font-size:10px;color:var(--text-muted);margin-top:6px">青背景＝実績確定値　白背景＝予算入力値</div>` : ''}
       </div>
 
-      <!-- CF残高 -->
-      ${cashAcc ? `
-      <div class="home-card">
-        <div class="home-card-title">💰 現預金残高</div>
-        <div style="font-size:28px;font-weight:800;color:${cashEnd>=0?'#0369a1':'#dc2626'};padding:8px 0">${fmtHome(cashEnd)}</div>
-        <div style="font-size:11px;color:var(--text-muted)">${actualThrough >= 0 ? `${actualThrough+1}か月末時点` : '最終月'} • 詳細は CF予測へ</div>
-        <div style="margin-top:10px">
-          <button class="btn btn-sm btn-outline" onclick="showPage('cashflow')">CF予測を見る →</button>
-        </div>
-      </div>` : ''}
-
       <!-- クイックアクション -->
       <div class="home-card">
         <div class="home-card-title">🚀 クイックアクション</div>
@@ -638,20 +629,18 @@ function renderPhase1Home(container, budget, company) {
           <button class="btn-solid" onclick="showPage('import')">📤 推移表アップロード</button>
           <button class="btn-outline" onclick="showPage('budget')">📝 月次予算入力</button>
           <button class="btn-outline" onclick="showPage('cashflow')">💰 CF予測</button>
-          <button class="btn-outline" onclick="setPhase(2);showPage('home')">② 決算フェーズへ →</button>
+          <button class="btn-outline" onclick="setPhase(2);showPage('home')">② 申告・報告へ →</button>
         </div>
       </div>
 
       <!-- 成果物 -->
       <div class="home-card">
         <div class="home-card-title">📄 成果物を出力</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="phase-output-btn" style="width:auto;padding:10px 24px;background:#1e40af;font-size:14px;font-weight:700;box-shadow:0 2px 8px rgba(30,64,175,0.3)" onclick="setPhase(1);showPage('forecastreport')">📋 当期決算予測報告</button>
           <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('monthly')">月次業績報告書</button>
           <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('prevcomp')">前期比較表</button>
           <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('cashflow')">資金繰り予測表</button>
-          <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('forecast')">着地予測・税金概算</button>
-          <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('taxplanning')">決算対策提案書</button>
-          <button class="phase-output-btn phase-blue" style="width:auto;padding:8px 20px" onclick="showKichuOutput('execcomp')">役員報酬提案書</button>
         </div>
       </div>
     </div>`;
@@ -745,10 +734,9 @@ function renderPhase2Home(container, budget, company) {
       <div class="home-card">
         <div class="home-card-title">📄 成果物を出力</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('forecast')">着地予測・税金概算</button>
-          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('taxplanning')">決算対策提案書</button>
-          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('execcomp')">役員報酬提案書</button>
-          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('socialins')">社会保険試算</button>
+          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('monthly')">月次業績報告書</button>
+          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('prevcomp')">前期比較表</button>
+          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('cashflow')">資金繰り予測表</button>
         </div>
       </div>
     </div>`;
@@ -872,11 +860,7 @@ function renderPhase3Home(container, budget, company) {
         <div class="progress-items" style="margin-bottom:14px">
           ${checks.map(c => `<span class="progress-item ${c.done?'done':'pending'}">${c.done?'✅':'⬜'} ${c.label}</span>`).join('')}
         </div>
-        ${readyCount < 3 ? `<div style="font-size:12px;color:#f59e0b;margin-bottom:12px">⚠️ 不足データは「推移表アップロード（確定値）」から取込んでください</div>` : ''}
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#10b981" onclick="showOutputModal('申告')">決算報告書パック</button>
-          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#10b981" onclick="showOutputModal('申告')">5か年計画書</button>
-        </div>
+        ${readyCount < 3 ? `<div style="font-size:12px;color:#f59e0b">⚠️ 不足データは「推移表アップロード（確定値）」から取込んでください</div>` : ''}
       </div>
 
       <!-- クイックアクション -->

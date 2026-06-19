@@ -33,7 +33,7 @@ function getMergedRows(budget) {
   const allIds = new Set([...Object.keys(base), ...Object.keys(actual)]);
   allIds.forEach(id => {
     merged[id] = Array.from({length: 13}, (_, i) => {
-      if (i >= 12) return (base[id]?.[i] || 0); // 調整列は予算のまま
+      if (i >= 12) { const av = actual[id]?.[i] || 0; return av || (base[id]?.[i] || 0); } // 調整列: actualRows優先、なければrows
       return cols[i] ? (actual[id]?.[i] || 0) : (base[id]?.[i] || 0);
     });
   });

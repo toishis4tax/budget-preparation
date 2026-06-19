@@ -301,22 +301,19 @@ function parseMjsMonthlySmart(data, startMonth) {
     if (bi < 12) budgetMonthMap[bi] = col;
   });
 
-  // 決算整理列を検出（月次が全0でも年度合計を取れる）
+  // 決算整理列を検出
   let adjustCol = -1;
   const hdrRow = data[headerRowIdx];
   for (let i = 0; i < hdrRow.length; i++) {
-    const s = String(hdrRow[i]||'').trim();
-    if (s === '決算整理' || s === '決算') { adjustCol = i; break; }
+    const s = String(hdrRow[i]||'').trim().replace(/\s+/g,'');
+    if (s === '決算整理仕訳' || s === '決算整理' || s === '決算') { adjustCol = i; break; }
   }
 
-  // 月次値取得（決算整理列フォールバック付き）
+  // 月次値取得（決算整理は index 12 に格納）
   const getVals = row => {
     const vals = budgetMonthMap.map(col => col >= 0 ? parseNum(row[col]) : 0);
-    if (adjustCol >= 0 && !vals.some(v => v !== 0)) {
-      const adj = parseNum(row[adjustCol]);
-      if (adj !== 0) { const v2 = [...vals]; v2[11] = adj; return v2; }
-    }
-    return vals;
+    const adj = adjustCol >= 0 ? parseNum(row[adjustCol]) : 0;
+    return [...vals, adj]; // 13要素: [0..11]=月次, [12]=決算整理
   };
 
   // パス1: 補助科目を持つ勘定科目を把握
@@ -738,6 +735,19 @@ let _importState = {
   fileName: '',
 };
 
+function syncImportYear(val) {
+  const y   = parseInt(val);
+  const cur = window.App?.currentYear || new Date().getFullYear();
+  // currentYear は変えない（インポート先年度は保存先の指定のみ）
+  const sm = parseInt(document.getElementById('import_start_month')?.value || 4);
+  const endMonth = (sm - 2 + 12) % 12;
+  const at = document.getElementById('import_actual_through');
+  if (at) {
+    if (y < cur)      at.value = endMonth;
+    else if (y > cur) at.value = -1;
+  }
+}
+
 function renderImport(container) {
   const prefs = Object.keys(KENPO_RATES || {});
   container.innerHTML = `
@@ -766,7 +776,13 @@ function renderImport(container) {
           財務大将の「月次推移表」→「CSV出力」でエクスポートしたファイルを選択してください。BS（貸借対照表）とPL（損益計算書）の両方をインポートできます。
         </div>
 
-        <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+          <div class="form-group" style="margin:0">
+            <label>インポート先年度</label>
+            <select id="import_target_year" class="form-input" onchange="syncImportYear(this.value)">
+              ${(()=>{const cur=window.App?.currentYear||new Date().getFullYear();return[cur+1,cur,cur-1,cur-2,cur-3].map(y=>`<option value="${y}"${y===cur?' selected':''}>${y}年度</option>`).join('')})()}
+            </select>
+          </div>
           <div class="form-group" style="margin:0">
             <label>期首月（決算年度の開始月）</label>
             <select id="import_start_month" class="form-input">
@@ -809,6 +825,14 @@ function renderImport(container) {
       </div>
     </div>`;
   setTimeout(renderImportHistory, 0);
+  // 初期表示時に過去年度が選択済みなら実績確定を自動設定
+  const initYear = parseInt(document.getElementById('import_target_year')?.value);
+  const nowYear  = window.App?.currentYear || new Date().getFullYear();
+  if (initYear && initYear < nowYear) {
+    const sm = parseInt(document.getElementById('import_start_month')?.value || 4);
+    const at = document.getElementById('import_actual_through');
+    if (at) at.value = (sm - 2 + 12) % 12;
+  }
 }
 
 function setImportSource(src, el) {
@@ -991,12 +1015,7 @@ function runImportPreview() {
       <div class="wf-note">単位：千円</div>
 
       <div class="import-actions">
-        <div>
-          <label style="font-size:12px;font-weight:600;color:var(--gray-600)">インポート先年度：</label>
-          <select id="import_target_year" class="form-input" style="width:120px;display:inline-block">
-            ${getImportYearOptions()}
-          </select>
-        </div>
+        <div style="font-size:12px;color:var(--text-muted)">インポート先年度：<strong>${parseInt(document.getElementById('import_target_year')?.value) || window.App?.currentYear || new Date().getFullYear()}年度</strong></div>
         <button class="btn-solid" onclick="executeImport()">この内容でインポート</button>
         <button class="btn-outline" onclick="document.getElementById('import_file_input').click()">別のファイル</button>
       </div>
@@ -1029,7 +1048,7 @@ function executeImport() {
   const company = window.App?.currentCompany;
   if (!company) { alert('会社を選択してください'); return; }
 
-  const year      = parseInt(document.getElementById('import_target_year')?.value || new Date().getFullYear());
+  const year      = parseInt(document.getElementById('import_target_year')?.value) || window.App?.currentYear || new Date().getFullYear();
   const startMonth = result.startMonth || 4;
 
   // 実績確定月（暦月インデックス 0-11、-1=なし）
@@ -1058,12 +1077,13 @@ function executeImport() {
       if (!budget.actualRows[id]) budget.actualRows[id] = new Array(13).fill(0);
       vals.forEach(function(v, i) {
         if (i < 12 && i <= throughFiscalIdx) budget.actualRows[id][i] = v;
+        if (i === 12) budget.actualRows[id][12] = v; // 決算整理列
       });
     } else {
       // 実績なし → 全月を budget.rows に上書き（初回インポートや予算取込）
       if (!budget.rows[id]) budget.rows[id] = new Array(13).fill(0);
       vals.forEach(function(v, i) {
-        if (i < 12) budget.rows[id][i] = v;
+        if (i <= 12) budget.rows[id][i] = v; // 月次(0-11) + 決算整理(12)
       });
     }
   });
@@ -1086,9 +1106,11 @@ function executeImport() {
 
   saveBudget(budget);
 
+  // 年度セレクトを更新（新しい年度が追加された場合に反映）
+  renderYearSelect(getYearsForCompany(company.id));
+  // 当期インポートの場合のみ currentBudget を更新
   if (year === window.App.currentYear) {
     window.App.currentBudget = budget;
-    renderYearSelect(getYearsForCompany(company.id));
   }
 
   const mapped = Object.keys(result.rows).length;
