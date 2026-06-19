@@ -940,13 +940,9 @@ function renderKichuSocialIns(container, budget, company) {
   var saved = JSON.parse(localStorage.getItem(lsKey) || '{}');
 
   var defaultComp  = saved.monthlyComp  || (company.execComp || 500000);
-  var defaultPref  = saved.pref         || (company.prefecture ? company.prefecture.replace(/[都道府県]$/, '') : '東京');
+  var companyPref  = company.prefecture ? company.prefecture.replace(/[都道府県]$/, '') : '東京';
   var defaultKaigo = saved.kaigo != null ? saved.kaigo : true;
   var defaultBonus = saved.bonusAmt     || 0;
-
-  var prefOptions = Object.keys(KENPO).map(function(p) {
-    return '<option value="' + p + '"' + (p === defaultPref ? ' selected' : '') + '>' + p + '</option>';
-  }).join('');
 
   container.innerHTML = `
     <div class="kichu-doc-title">${escHtml(company.name)} — 社会保険試算</div>
@@ -958,12 +954,6 @@ function renderKichuSocialIns(container, budget, company) {
         <div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">役員報酬（月額・円）</label>
           <input type="number" id="si_comp" value="${defaultComp}" step="10000" class="form-input" style="width:100%" oninput="calcSocialInsUI()">
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">都道府県（協会けんぽ）</label>
-          <select id="si_pref" class="form-input" style="width:100%" onchange="calcSocialInsUI()">
-            ${prefOptions}
-          </select>
         </div>
         <div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">介護保険対象（40〜64歳）</label>
@@ -992,11 +982,11 @@ function renderKichuSocialIns(container, budget, company) {
   // 初期計算
   window.calcSocialInsUI = function() {
     var comp  = parseFloat(document.getElementById('si_comp')?.value  || 0);
-    var pref  = document.getElementById('si_pref')?.value  || '東京';
+    var pref  = companyPref;
     var kaigo = document.getElementById('si_kaigo')?.value === '1';
     var bonus = parseFloat(document.getElementById('si_bonus')?.value || 0);
 
-    localStorage.setItem(lsKey, JSON.stringify({ monthlyComp:comp, pref, kaigo, bonusAmt:bonus }));
+    localStorage.setItem(lsKey, JSON.stringify({ monthlyComp:comp, kaigo, bonusAmt:bonus }));
 
     var r = calcSocialIns(comp, pref, kaigo, bonus);
     var fmtR = function(v) { return Math.round(v).toLocaleString('ja-JP') + '円'; };
@@ -1095,11 +1085,6 @@ function renderKichuSocialIns(container, budget, company) {
   };
 
   window.calcSocialInsUI();
-  // 都道府県の初期値を設定
-  if (document.getElementById('si_pref')) {
-    document.getElementById('si_pref').value = defaultPref;
-    window.calcSocialInsUI();
-  }
 }
 
 // ===== ⑥ 前期比較表 =====

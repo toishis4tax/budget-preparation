@@ -183,22 +183,14 @@ function renderWelfare(container) {
   _wfEmployees = _wfCompanyId ? loadWelfareEmployees(_wfCompanyId) : [];
   if (!_wfEmployees.length) _wfEmployees = [newEmployee()];
 
-  const prefs = Object.keys(KENPO_RATES);
-  const prefOptions = prefs.map(p =>
-    `<option value="${p}"${p === pref ? ' selected' : ''}>${p}</option>`
-  ).join('');
-
   container.innerHTML = `
     <div class="sim-panel">
       <div class="flex-between" style="margin-bottom:16px">
         <div>
           <h2 class="section-title">法定福利費計算</h2>
-          <p class="section-sub">複数従業員・複数賞与対応　会社負担額の月次シミュレーション</p>
+          <p class="section-sub">複数従業員・複数賞与対応　会社負担額の月次シミュレーション（${pref}）</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <label style="font-size:12px;color:var(--text-muted)">協会けんぽ都道府県</label>
-          <select id="wf_pref" class="form-input" style="width:120px;font-size:12px"
-            onchange="_wfRender()">${prefOptions}</select>
           <button class="btn-solid" onclick="_wfAddEmployee()">＋ 従業員追加</button>
           <button class="btn-outline" onclick="_wfApplyToBudget()" title="予算の法定福利費行に反映">📊 予算へ反映</button>
         </div>
@@ -286,7 +278,7 @@ function _wfRenderEmployees() {
       </div>`).join('');
 
     const annualBonus = (emp.bonuses || []).reduce((s, b) => s + (b.amount || 0), 0);
-    const pref = document.getElementById('wf_pref')?.value || window.App?.currentCompany?.prefecture || '東京都';
+    const pref = window.App?.currentCompany?.prefecture || '東京都';
     const si   = calcSocialInsurance(emp.salary || 0, annualBonus, emp.age || 35, pref);
 
     return `
@@ -359,7 +351,7 @@ function _wfRenderTable() {
   const tfoot    = document.getElementById('wf_tfoot');
   if (!theadRow || !tbody || !tfoot) return;
 
-  const pref       = document.getElementById('wf_pref')?.value || window.App?.currentCompany?.prefecture || '東京都';
+  const pref       = window.App?.currentCompany?.prefecture || '東京都';
   const startMonth = window.App?.currentBudget?.startMonth || 4;
   const months     = getMonthLabels(startMonth);
 
@@ -466,7 +458,7 @@ function _wfApplyToBudget() {
   const budget = window.App?.currentBudget;
   if (!budget) { alert('予算データがありません'); return; }
 
-  const pref       = document.getElementById('wf_pref')?.value || window.App?.currentCompany?.prefecture || '東京都';
+  const pref       = window.App?.currentCompany?.prefecture || '東京都';
   const startMonth = budget.startMonth || 4;
 
   const { regularSI, bonusSI, bonusSalary } = _wfCalcBreakdown(pref, startMonth);
