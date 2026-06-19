@@ -252,14 +252,49 @@ function runTaxSim() {
       </div>`;
   }
 
+  // 計算内訳テキスト生成
+  const sub = s => `<div style="font-size:10px;color:var(--text-muted);margin-top:1px">${s}</div>`;
+  const pct = v => (v * 100).toFixed(1) + '%';
+  const fmtM = v => (v / 10000).toFixed(0) + '万';
+
+  let corpDetail;
+  if (small) {
+    if (taxableIncome <= THRESHOLD_800) {
+      corpDetail = `課税所得 ${fmtM(taxableIncome)} × ${pct(TAX_RATES.corp.small_low)}`;
+    } else {
+      corpDetail = `800万 × ${pct(TAX_RATES.corp.small_low)} ＋ ${fmtM(taxableIncome - THRESHOLD_800)} × ${pct(TAX_RATES.corp.small_high)}`;
+    }
+  } else {
+    corpDetail = `課税所得 ${fmtM(taxableIncome)} × ${pct(TAX_RATES.corp.large)}（大法人）`;
+  }
+
+  const localCorpDetail = `法人税 ${fmt(taxes.corp)} × ${pct(TAX_RATES.local_corp)}`;
+
+  const perCapita = small ? TAX_RATES.inhabitant.per_capita_small : TAX_RATES.inhabitant.per_capita_large;
+  const inhabDetail = `均等割 ${perCapita.toLocaleString()}円 ＋ 法人税割（道府県${pct(TAX_RATES.inhabitant.pref.small)} ＋ 市町村${pct(TAX_RATES.inhabitant.city.small)}）`;
+
+  let bizDetail;
+  if (small) {
+    if (taxableIncome <= THRESHOLD_400) {
+      bizDetail = `${fmtM(taxableIncome)} × ${pct(TAX_RATES.business.small_low)}`;
+    } else if (taxableIncome <= THRESHOLD_800) {
+      bizDetail = `400万×${pct(TAX_RATES.business.small_low)} ＋ ${fmtM(taxableIncome-THRESHOLD_400)}×${pct(TAX_RATES.business.small_mid)}`;
+    } else {
+      bizDetail = `400万×${pct(TAX_RATES.business.small_low)} ＋ 400万×${pct(TAX_RATES.business.small_mid)} ＋ ${fmtM(taxableIncome-THRESHOLD_800)}×${pct(TAX_RATES.business.small_high)}`;
+    }
+  } else {
+    bizDetail = `課税所得 ${fmtM(taxableIncome)} × ${pct(TAX_RATES.business.small_high)}（外形非対象）`;
+  }
+  const specialDetail = `事業税 ${fmt(taxes.business)} × ${pct(TAX_RATES.business.special)}`;
+
   const tbody = document.getElementById('tax_tbody');
   if (!tbody) return;
   tbody.innerHTML = `
-    <tr><td>法人税</td><td class="num">${fmt(taxes.corp)}</td></tr>
-    <tr><td>地方法人税</td><td class="num">${fmt(taxes.localCorp)}</td></tr>
-    <tr><td>法人住民税</td><td class="num">${fmt(taxes.inhabitant)}</td></tr>
-    <tr><td>法人事業税</td><td class="num">${fmt(taxes.business)}</td></tr>
-    <tr><td>特別法人事業税</td><td class="num">${fmt(taxes.special)}</td></tr>
+    <tr><td>法人税${sub(corpDetail)}</td><td class="num">${fmt(taxes.corp)}</td></tr>
+    <tr><td>地方法人税${sub(localCorpDetail)}</td><td class="num">${fmt(taxes.localCorp)}</td></tr>
+    <tr><td>法人住民税${sub(inhabDetail)}</td><td class="num">${fmt(taxes.inhabitant)}</td></tr>
+    <tr><td>法人事業税${sub(bizDetail)}</td><td class="num">${fmt(taxes.business)}</td></tr>
+    <tr><td>特別法人事業税${sub(specialDetail)}</td><td class="num">${fmt(taxes.special)}</td></tr>
     <tr class="total-row"><td><strong>税額合計</strong></td><td class="num"><strong>${fmt(taxes.total)}</strong></td></tr>
   `;
 
