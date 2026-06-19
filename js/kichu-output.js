@@ -939,10 +939,11 @@ function renderKichuSocialIns(container, budget, company) {
   var lsKey = 'socialins_' + (company.id||'') + '_' + curYear;
   var saved = JSON.parse(localStorage.getItem(lsKey) || '{}');
 
-  var defaultComp  = saved.monthlyComp  || (company.execComp || 500000);
-  var companyPref  = company.prefecture ? company.prefecture.replace(/[都道府県]$/, '') : '東京';
-  var defaultKaigo = saved.kaigo != null ? saved.kaigo : true;
-  var defaultBonus = saved.bonusAmt     || 0;
+  var defaultComp   = saved.monthlyComp   || (company.execComp || 500000);
+  var companyPref   = company.prefecture ? company.prefecture.replace(/[都道府県]$/, '') : '東京';
+  var defaultKaigo  = saved.kaigo != null ? saved.kaigo : true;
+  var defaultBonus  = saved.bonusAmt      || 0;
+  var defaultTimes  = saved.bonusTimes    || 1;
 
   container.innerHTML = `
     <div class="kichu-doc-title">${escHtml(company.name)} — 社会保険試算</div>
@@ -966,6 +967,13 @@ function renderKichuSocialIns(container, budget, company) {
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">決算賞与予定額（円）</label>
           <input type="number" id="si_bonus" value="${defaultBonus}" step="10000" class="form-input" style="width:100%" oninput="calcSocialInsUI()">
         </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">賞与支払回数</label>
+          <select id="si_bonus_times" class="form-input" style="width:100%" onchange="calcSocialInsUI()">
+            <option value="1" ${defaultTimes===1?'selected':''}>1回</option>
+            <option value="2" ${defaultTimes===2?'selected':''}>2回（÷2 ずつ）</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -981,14 +989,53 @@ function renderKichuSocialIns(container, budget, company) {
 
   // 初期計算
   window.calcSocialInsUI = function() {
-    var comp  = parseFloat(document.getElementById('si_comp')?.value  || 0);
-    var pref  = companyPref;
-    var kaigo = document.getElementById('si_kaigo')?.value === '1';
-    var bonus = parseFloat(document.getElementById('si_bonus')?.value || 0);
+    var comp       = parseFloat(document.getElementById('si_comp')?.value  || 0);
+    var pref       = companyPref;
+    var kaigo      = document.getElementById('si_kaigo')?.value === '1';
+    var bonus      = parseFloat(document.getElementById('si_bonus')?.value || 0);
+    var bonusTimes = parseInt(document.getElementById('si_bonus_times')?.value || 1);
 
-    localStorage.setItem(lsKey, JSON.stringify({ monthlyComp:comp, kaigo, bonusAmt:bonus }));
+    localStorage.setItem(lsKey, JSON.stringify({ monthlyComp:comp, kaigo, bonusAmt:bonus, bonusTimes }));
 
-    var r = calcSocialIns(comp, pref, kaigo, bonus);
+    // 2回払いの場合: 1回あたりbonus/2で計算。
+    // 健保年間累計上限(573万)を考慮: 1回目の標準賞与額を引いた残りを2回目上限とする
+    var r;
+    if (bonusTimes === 2 && bonus > 0) {
+      var half = Math.floor(bonus / 2 / 1000) * 1000; // 1回あたり千円未満切捨て
+      var r1 = calcSocialIns(comp, pref, kaigo, half);
+      // 2回目の健保上限 = 5,730,000 - 1回目の標準賞与額
+      var kenpoCap2 = Math.max(0, 5730000 - r1.hyojunB);
+      var r2 = calcSocialIns(comp, pref, kaigo, half);
+      // 2回目の健保は残り枠で再計算
+      var kenpoRate2 = (KENPO[pref] || 10.00) / 100;
+      var kaigoRate2 = kaigo ? 0.016 : 0;
+      var hyojunB2Kenpo = Math.min(r2.hyojunB, kenpoCap2);
+      var hyojunB2Nenkin= Math.min(r2.hyojunB, 1500000);
+      var bonusKenpo2  = Math.floor(hyojunB2Kenpo * (kenpoRate2 + kaigoRate2) / 2) * 2;
+      var bonusNenkin2 = Math.floor(hyojunB2Nenkin * (0.183) / 2) * 2;
+      var bonusTotal2  = bonusKenpo2 + bonusNenkin2;
+      // 合算
+      r = {
+        hyojunM:      r1.hyojunM,
+        kenpoTotal:   r1.kenpoTotal,
+        kaigoTotal:   r1.kaigoTotal,
+        nenkinTotal:  r1.nenkinTotal,
+        monthlyTotal: r1.monthlyTotal,
+        companyM:     r1.companyM,
+        employeeM:    r1.employeeM,
+        hyojunB:      r1.hyojunB + r2.hyojunB,
+        bonusTotal:   r1.bonusTotal + bonusTotal2,
+        bonusCompany: (r1.bonusTotal + bonusTotal2) / 2,
+        bonusEmployee:(r1.bonusTotal + bonusTotal2) / 2,
+        annualCompany:  r1.companyM * 12 + (r1.bonusTotal + bonusTotal2) / 2,
+        annualEmployee: r1.employeeM * 12 + (r1.bonusTotal + bonusTotal2) / 2,
+        annualTotal:    r1.monthlyTotal * 12 + r1.bonusTotal + bonusTotal2,
+        _times: 2, _half: half, _r1: r1, _bonusTotal2: bonusTotal2,
+      };
+    } else {
+      r = calcSocialIns(comp, pref, kaigo, bonus);
+      r._times = 1;
+    }
     var fmtR = function(v) { return Math.round(v).toLocaleString('ja-JP') + '円'; };
     var fmtK = function(v) { return Math.round(v/1000).toLocaleString('ja-JP') + '千円'; };
 
@@ -1041,7 +1088,7 @@ function renderKichuSocialIns(container, budget, company) {
       </table>
 
       ${bonus > 0 ? `
-      <div class="kichu-section-title">決算賞与 ${bonus.toLocaleString()}円 の追加保険料</div>
+      <div class="kichu-section-title">決算賞与 ${bonus.toLocaleString()}円 の追加保険料（${bonusTimes}回払い${bonusTimes===2?' / 1回あたり'+r._half.toLocaleString()+'円':''}）</div>
       <table class="kichu-table" style="margin-bottom:16px">
         <thead>
           <tr>
@@ -1053,10 +1100,25 @@ function renderKichuSocialIns(container, budget, company) {
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td class="kichu-label">決算賞与の社会保険料</td>
+          ${bonusTimes === 2 ? `
+          <tr style="font-size:11px;color:#64748b">
+            <td class="kichu-label">1回目</td>
+            <td style="text-align:right">${fmtR(r._r1.hyojunB)}</td>
+            <td style="text-align:right">${fmtR(r._r1.bonusTotal)}</td>
+            <td style="text-align:right">${fmtR(r._r1.bonusCompany)}</td>
+            <td style="text-align:right">${fmtR(r._r1.bonusEmployee)}</td>
+          </tr>
+          <tr style="font-size:11px;color:#64748b">
+            <td class="kichu-label">2回目</td>
+            <td style="text-align:right">${fmtR(r._r1.hyojunB)}</td>
+            <td style="text-align:right">${fmtR(r._bonusTotal2)}</td>
+            <td style="text-align:right">${fmtR(r._bonusTotal2/2)}</td>
+            <td style="text-align:right">${fmtR(r._bonusTotal2/2)}</td>
+          </tr>` : ''}
+          <tr style="font-weight:700">
+            <td class="kichu-label">${bonusTimes===2?'合計':'決算賞与の社会保険料'}</td>
             <td style="text-align:right">${fmtR(r.hyojunB)}</td>
-            <td style="text-align:right;font-weight:700;color:#dc2626">${fmtR(r.bonusTotal)}</td>
+            <td style="text-align:right;color:#dc2626">${fmtR(r.bonusTotal)}</td>
             <td style="text-align:right">${fmtR(r.bonusCompany)}</td>
             <td style="text-align:right">${fmtR(r.bonusEmployee)}</td>
           </tr>
