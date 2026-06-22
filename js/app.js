@@ -87,9 +87,46 @@ function renderYearSelect(years) {
   if (!sel) return;
   const cur = new Date().getFullYear();
   const allYears = [...new Set([...years, cur, cur + 1, cur + 2])].sort((a, b) => b - a);
-  sel.innerHTML = allYears.map(y =>
-    `<option value="${y}" ${y === App.currentYear ? 'selected' : ''}>${y}年度</option>`
-  ).join('');
+  const cid = App.currentCompany?.id;
+  sel.innerHTML = allYears.map(y => {
+    const filled = cid && hasBudgetData(cid, y);
+    return `<option value="${y}" ${y === App.currentYear ? 'selected' : ''}>${y}年度${filled ? '' : '（未入力）'}</option>`;
+  }).join('');
+}
+
+// 「次年度を作成」: 当年度実績ベースで翌年度を生成し、その年度へ切替
+function createNextYear() {
+  const company = App.currentCompany;
+  if (!company) { alert('先に会社を選択してください'); return; }
+  const fromYear = App.currentYear;
+  const toYear   = fromYear + 1;
+
+  if (!hasBudgetData(company.id, fromYear)) {
+    alert(`${fromYear}年度にデータがありません。先に当年度の予算・実績を入力してから次年度を作成してください。`);
+    return;
+  }
+  if (hasBudgetData(company.id, toYear)) {
+    const ok = confirm(`${toYear}年度には既にデータがあります。\n${fromYear}年度の実績で上書きして作り直しますか？\n（OK=上書き / キャンセル=中止）`);
+    if (!ok) return;
+  } else {
+    const ok = confirm(
+      `${fromYear}年度の実績をベースに ${toYear}年度 を作成します。\n\n` +
+      `・勘定科目の構成を引き継ぎます\n` +
+      `・BSの期末残高を ${toYear}年度の期首残高として引き継ぎます\n` +
+      `・PL予算は ${fromYear}年度の実績で初期化します\n\n` +
+      `よろしいですか？`
+    );
+    if (!ok) return;
+  }
+
+  const nb = createNextYearBudget(company.id, fromYear);
+  if (!nb) { alert('作成に失敗しました'); return; }
+
+  App.currentYear   = toYear;
+  App.currentBudget = nb;
+  renderYearSelect(getYearsForCompany(company.id));
+  showPage(App.currentPage);
+  alert(`${toYear}年度を作成しました。\n${fromYear}年度の実績をベースに予算が初期化されています。`);
 }
 
 function loadBudget(companyId, year) {

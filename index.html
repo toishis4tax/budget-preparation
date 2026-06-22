@@ -118,6 +118,7 @@
     <select id="year_select" class="header-select">
       <option value="2025">2025年度</option>
     </select>
+    <button class="btn btn-sm" title="当年度の実績をベースに翌年度を作成します" onclick="createNextYear()">▶ 次年度を作成</button>
     <button class="btn btn-sm" onclick="openCompanyModal('')">＋会社追加</button>
     <button class="btn btn-sm" onclick="openCompanyModal(App.currentCompany?.id)">編集</button>
     <button class="btn btn-sm" style="border-color:rgba(255,100,100,.5);color:#ffaaaa" onclick="deleteCurrentCompany()">削除</button>
