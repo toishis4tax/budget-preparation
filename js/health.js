@@ -8,7 +8,9 @@ function renderHealthDiag(container, budget) {
 
   const company = window.App?.currentCompany;
   const capital = company?.capital || 10000000;
-  const metrics = calcHealthMetrics(budget.rows, capital);
+  const metrics = (budget.dynamicAccounts && budget.dynamicAccounts.length)
+    ? calcHealthMetricsDynamic(budget, capital)
+    : calcHealthMetrics(budget.rows, capital);
   const items = [
     { key: 'equity_ratio',     label: '自己資本比率',       value: metrics.equity_ratio,     unit: '%',   fmt: v => v.toFixed(1) },
     { key: 'current_ratio',    label: '流動比率',           value: metrics.current_ratio,    unit: '%',   fmt: v => v.toFixed(1) },

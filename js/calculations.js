@@ -195,6 +195,54 @@ function calcHealthMetrics(rows, capital) {
   return metrics;
 }
 
+// 財務健康診断（動的科目＋実績対応版）
+//  BS: 最終実績月（無ければ期末=11月）の残高、PL: 12か月合計（調整列除く）
+function calcHealthMetricsDynamic(budget, capital) {
+  const av    = calcAllValuesDynamic(budget);
+  const accts = budget.dynamicAccounts || [];
+  const cols  = budget.actualCols || [];
+  let closeIdx = -1;
+  for (let i = 0; i < 12; i++) if (cols[i]) closeIdx = i;
+  if (closeIdx < 0) closeIdx = 11;
+
+  const arr   = id => av[id] || new Array(13).fill(0);
+  const last  = id => arr(id)[closeIdx] || 0;
+  const total = id => arr(id).slice(0, 12).reduce((a, b) => a + b, 0);
+
+  // 葉科目（input）を名前で合算：BSは残高(last)、PLは年計(total)
+  const leafSum = (re, mode) => accts
+    .filter(a => a.type === 'input' && re.test(a.name || ''))
+    .reduce((s, a) => s + (mode === 'last' ? last(a.id) : total(a.id)), 0);
+  // 親科目（indent<=1）を名前で合算（人件費の二重計上回避）
+  const parentTotal = (re) => accts
+    .filter(a => a.section?.startsWith('pl') && a.type !== 'section' && (a.indent ?? 1) <= 1 && re.test(a.name || ''))
+    .reduce((s, a) => s + total(a.id), 0);
+
+  const totalAssets   = last('calc_total_assets') || last('sec_cur_asset') + last('sec_fix_asset');
+  const totalEquity   = last('sec_equity');
+  const currentAssets = last('sec_cur_asset');
+  const currentLiab   = last('sec_cur_liab');
+  const cash          = leafSum(/現金|預金/, 'last');
+  const ar            = leafSum(/売掛|受取手形/, 'last');
+  const sales         = total('sec_revenue');
+  const ordProfit     = total('calc_ord');
+  const salary        = parentTotal(/給与|給料|賃金|役員報酬|役員賞与|賞与|法定福利|福利厚生|厚生費|福利費|雑給|人件費|退職|手当/);
+  const depr          = leafSum(/減価償却/, 'total');
+  const interest      = leafSum(/支払利息|支払利息割引料/, 'total');
+  const loans         = leafSum(/借入金/, 'last');
+
+  const ebitda = ordProfit + depr + interest;
+  return {
+    equity_ratio:     totalAssets ? (totalEquity / totalAssets * 100) : 0,
+    current_ratio:    currentLiab ? (currentAssets / currentLiab * 100) : 0,
+    quick_ratio:      currentLiab ? ((cash + ar) / currentLiab * 100) : 0,
+    op_margin:        sales ? (ordProfit / sales * 100) : 0,
+    labor_ratio:      sales ? (salary / sales * 100) : 0,
+    ebitda,
+    loan_month_ratio: sales ? (loans / (sales / 12)) : 0,
+  };
+}
+
 function gradeMetric(key, value) {
   const grades = {
     equity_ratio:     [40, 30, 20, 10],

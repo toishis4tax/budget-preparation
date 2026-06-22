@@ -868,7 +868,8 @@ function renderPhase3Home(container, budget, company) {
         <div class="home-card-title">🚀 クイックアクション</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px">
           <button class="btn-solid" style="background:#10b981" onclick="showPage('import')">📤 確定値を取込む</button>
-          <button class="btn-outline" onclick="showPage('simulation')">📊 3期比較PL/BS</button>
+          <button class="btn-outline" onclick="showPage('simulation')">📐 単年度PL/BS</button>
+          <button class="btn-outline" onclick="showPage('bizanalysis')">📊 3期比較PL/BS</button>
           <button class="btn-outline" onclick="showPage('fiveyear')">📅 5か年計画</button>
         </div>
       </div>
