@@ -17,7 +17,7 @@ function renderHealthDiag(container, budget) {
     { key: 'quick_ratio',      label: '当座比率',           value: metrics.quick_ratio,      unit: '%',   fmt: v => v.toFixed(1) },
     { key: 'op_margin',        label: '売上高経常利益率',   value: metrics.op_margin,        unit: '%',   fmt: v => v.toFixed(1) },
     { key: 'labor_ratio',      label: '労働分配率',         value: metrics.labor_ratio,      unit: '%',   fmt: v => v.toFixed(1) },
-    { key: 'ebitda',           label: 'EBITDA',             value: metrics.ebitda,           unit: '円',  fmt: v => fmt(v) },
+    { key: 'ebitda',           label: 'EBITDA',             value: metrics.ebitda,           unit: '',    fmt: v => fmt(v) },
     { key: 'loan_month_ratio', label: '借入金月商倍率',     value: metrics.loan_month_ratio, unit: 'か月', fmt: v => v.toFixed(1) },
   ];
 
