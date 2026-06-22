@@ -99,6 +99,8 @@ function migrateBudgetIds(budget) {
   };
   budget.rows = remap(budget.rows);
   budget.actualRows = remap(budget.actualRows);
+  // 消費税課税区分も勘定科目IDがキー → 付け替える（rev_* 等の非科目キーはそのまま）
+  if (budget.ctaxClassification) budget.ctaxClassification = remap(budget.ctaxClassification);
   budget.idsV = 2;
   return true;
 }
@@ -178,6 +180,9 @@ function createNextYearBudget(companyId, fromYear) {
     carriedFrom: fromYear,
     updatedAt: Date.now(),
   };
+  // 消費税課税区分・顧問先売上科目を引き継ぐ（同一IDなので付け替え不要）
+  if (src.ctaxClassification) newBudget.ctaxClassification = clone(src.ctaxClassification);
+  if (src.revenueAccounts)    newBudget.revenueAccounts    = clone(src.revenueAccounts);
   saveBudget(newBudget);
   return newBudget;
 }
