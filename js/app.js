@@ -122,11 +122,18 @@ function createNextYear() {
   const nb = createNextYearBudget(company.id, fromYear);
   if (!nb) { alert('作成に失敗しました'); return; }
 
+  // 税理士法人：顧問先売上・課税設定も翌年度へ引き継ぐ
+  let revMsg = '';
+  if (company.industry === 'tax_accountant' && typeof carryRevenueToNextYear === 'function') {
+    const n = carryRevenueToNextYear(company.id, fromYear);
+    revMsg = `\n顧問先売上：${n}件を引き継ぎました`;
+  }
+
   App.currentYear   = toYear;
   App.currentBudget = nb;
   renderYearSelect(getYearsForCompany(company.id));
   showPage(App.currentPage);
-  alert(`${toYear}年度を作成しました。\n${fromYear}年度の実績をベースに予算が初期化されています。`);
+  alert(`${toYear}年度を作成しました。\n${fromYear}年度の実績をベースに予算が初期化されています。${revMsg}`);
 }
 
 function loadBudget(companyId, year) {

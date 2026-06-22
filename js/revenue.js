@@ -20,6 +20,25 @@ function saveRevenueClients(companyId, year, clients) {
   } catch {}
 }
 
+// 顧問先売上・課税設定を翌年度へ引き継ぐ
+//  - 顧問先リスト（契約条件・報酬）をそのままコピー
+//  - 翌年度に解約済みの顧問先は除外（契約開始/終了ロジックで月次0だが一覧も整理）
+//  - 課税設定もコピー
+function carryRevenueToNextYear(companyId, fromYear) {
+  const toYear  = fromYear + 1;
+  const clients = loadRevenueClients(companyId, fromYear);
+
+  const kept = clients.filter(c => {
+    const end = c.contractEnd;
+    if (!end || !end.year || !end.month) return true;        // 継続中は残す
+    return end.year >= toYear;                                // 翌年度以降に解約 → 残す（前年度までに解約済みは除外）
+  }).map(c => JSON.parse(JSON.stringify(c)));
+
+  saveRevenueClients(companyId, toYear, kept);
+  saveRevCtaxSettings(companyId, toYear, loadRevCtaxSettings(companyId, fromYear));
+  return kept.length;
+}
+
 // 課税設定（売上区分ごと）
 const REV_CTAX_KEY = 'revenue_ctax_v1';
 function loadRevCtaxSettings(companyId, year) {
