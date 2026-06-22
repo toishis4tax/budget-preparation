@@ -132,6 +132,7 @@ function createNextYear() {
   App.currentYear   = toYear;
   App.currentBudget = nb;
   renderYearSelect(getYearsForCompany(company.id));
+  updateCarryBadge();
   showPage(App.currentPage);
   alert(`${toYear}年度を作成しました。\n${fromYear}年度の実績をベースに予算が初期化されています。${revMsg}`);
 }
@@ -143,6 +144,20 @@ function loadBudget(companyId, year) {
     saveBudget(budget);
   }
   App.currentBudget = budget;
+  updateCarryBadge();
+}
+
+// 引き継ぎ元バッジ（例：2025年度実績から作成）
+function updateCarryBadge() {
+  const el = document.getElementById('carry_badge');
+  if (!el) return;
+  const from = App.currentBudget?.carriedFrom;
+  if (from) {
+    el.textContent = `${from}年度実績から作成`;
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+  }
 }
 
 function openCompanyModal(editId) {

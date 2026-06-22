@@ -100,17 +100,29 @@ function createNextYearBudget(companyId, fromYear) {
   (src.dynamicAccounts || []).forEach(a => { accById[a.id] = a; });
   const isBS = id => accById[id]?.section?.startsWith('bs');
 
+  const closeIdx = lastActual >= 0 ? lastActual : 11;
   const newRows = {};
   ids.forEach(id => {
     if (isBS(id)) {
       // 期末残高（最終実績月。無ければ期末=11月）を期首残高として全月へ
-      const closeIdx = lastActual >= 0 ? lastActual : 11;
-      const closing  = confirmed[id][closeIdx] || 0;
+      const closing = confirmed[id][closeIdx] || 0;
       newRows[id] = new Array(12).fill(closing);
     } else {
       newRows[id] = confirmed[id].slice();
     }
   });
+
+  // 繰越利益剰余金の期首残高 = 期末残高 + 当期純利益
+  //  （推移表では当期純利益が剰余金に未振替のため、翌期首に足し込む）
+  try {
+    const retained = (src.dynamicAccounts || []).find(a =>
+      a.section?.startsWith('bs') && /繰越利益剰余金|利益剰余金/.test(a.name || ''));
+    if (retained && newRows[retained.id] && typeof calcAllValuesDynamic === 'function') {
+      const av  = calcAllValuesDynamic(src);
+      const net = (av['calc_net'] || []).slice(0, 12).reduce((s, v) => s + (v || 0), 0);
+      if (net) newRows[retained.id] = newRows[retained.id].map(v => v + net);
+    }
+  } catch (e) { /* calc不可時はフラット引継ぎのまま */ }
 
   const newBudget = {
     companyId,
