@@ -40,7 +40,9 @@ function deleteCompany(id) {
 // 予算
 function getBudget(companyId, year) {
   const data = loadData();
-  return data.budgets.find(b => b.companyId === companyId && b.year === year) || null;
+  const b = data.budgets.find(b => b.companyId === companyId && b.year === year) || null;
+  if (b && migrateBudgetIds(b)) saveData(data); // 旧IDを安定IDへ移行して永続化
+  return b;
 }
 
 function saveBudget(budget) {
@@ -58,6 +60,47 @@ function getYearsForCompany(companyId) {
     .filter(b => b.companyId === companyId)
     .map(b => b.year)
     .sort((a, b) => b - a);
+}
+
+// 科目名＋プレフィックス由来の安定ID（連番ではなく内容で決まる）
+//  used: 同一パース内の衝突回避用 Set（任意）
+function stableAcctId(prefix, name, used) {
+  const s = String(name || '').replace(/\s+/g, '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) >>> 0;
+  let id = `${prefix}_${h.toString(36)}`;
+  if (used) { while (used.has(id)) id += 'x'; used.add(id); }
+  return id;
+}
+
+// 旧来の連番ID（p1,b2…）を安定IDへ移行する（1度きり・冪等）
+function migrateBudgetIds(budget) {
+  if (!budget || budget.idsV === 2) return false;
+  const accts = budget.dynamicAccounts;
+  if (!accts || !accts.length) { budget.idsV = 2; return true; }
+  const OLD = /^[pb]\d+$/;
+  if (!accts.some(a => OLD.test(a.id))) { budget.idsV = 2; return true; }
+
+  // 固定ID（sec_*/calc_*/wf_*など）は使用済みとして衝突回避
+  const used = new Set(accts.filter(a => !OLD.test(a.id)).map(a => a.id));
+  const map = {};
+  accts.forEach(a => { if (OLD.test(a.id)) map[a.id] = stableAcctId(a.id[0], a.name, used); });
+
+  accts.forEach(a => {
+    if (map[a.id]) a.id = map[a.id];
+    if (a.parentId && map[a.parentId]) a.parentId = map[a.parentId];
+    if (a.formula) a.formula = a.formula.replace(/\b[pb]\d+\b/g, m => map[m] || m);
+  });
+  const remap = obj => {
+    if (!obj) return obj;
+    const out = {};
+    Object.keys(obj).forEach(k => { out[map[k] || k] = obj[k]; });
+    return out;
+  };
+  budget.rows = remap(budget.rows);
+  budget.actualRows = remap(budget.actualRows);
+  budget.idsV = 2;
+  return true;
 }
 
 // その会社で実際にデータが存在する年度か

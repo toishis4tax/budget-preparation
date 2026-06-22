@@ -345,7 +345,8 @@ function parseMjsMonthlySmart(data, startMonth) {
   let secInfo = null, curParent = null, ctr = 0;
   const seenSecs = new Set();
   const nameToId = {}; // 科目名 → ID（強制グルーピング参照用）
-  const mkId = prefix => `${prefix}${++ctr}`;
+  const usedIds = new Set();
+  const mkId = (prefix, name) => stableAcctId(prefix, name, usedIds);
 
   for (let ri = headerRowIdx + 1; ri < data.length; ri++) {
     const row = data[ri];
@@ -379,7 +380,7 @@ function parseMjsMonthlySmart(data, startMonth) {
       if (forcedParentId) {
         // 値ゼロでもスキップしない（親計算に影響するため）
         const pfx = secInfo?.section?.startsWith('bs') ? 'b' : 'p';
-        const sid = mkId(pfx);
+        const sid = mkId(pfx, c1r);
         accts.push({
           id: sid, name: c1r, type: 'input',
           indent: 2, parentId: forcedParentId,
@@ -393,7 +394,7 @@ function parseMjsMonthlySmart(data, startMonth) {
       }
       if (!vals.some(v => v !== 0)) { curParent = null; continue; }
       const pfx = secInfo?.section?.startsWith('bs') ? 'b' : 'p';
-      const aid = mkId(pfx);
+      const aid = mkId(pfx, c1r);
       const isParent = hasSubs.has(c1r);
       nameToId[c1r] = aid; // 後続のFORCE_SUB_OF参照用
       accts.push({
@@ -412,7 +413,7 @@ function parseMjsMonthlySmart(data, startMonth) {
       const vals = getVals(row);
       if (!vals.some(v => v !== 0)) continue;
       const pfx = secInfo?.section?.startsWith('bs') ? 'b' : 'p';
-      const sid = mkId(pfx);
+      const sid = mkId(pfx, c2r.trim());
       accts.push({
         id: sid, name: c2r.trim(), type: 'input',
         indent: 2, parentId: curParent.id,
@@ -546,8 +547,8 @@ function parseMirokuMonthlySmart(data, startMonth) {
   };
 
   const accts = [], rows = {};
-  let ctr = 0;
-  const mkId = prefix => `${prefix}${++ctr}`;
+  const usedIds = new Set();
+  const mkId = (prefix, name) => stableAcctId(prefix, name, usedIds);
   const seenSecs = new Set();
 
   const ensureSection = (secId, sections) => {
@@ -606,7 +607,7 @@ function parseMirokuMonthlySmart(data, startMonth) {
       }
 
       const sInfo = PL_SECTIONS[plSection];
-      const aid = mkId('p');
+      const aid = mkId('p', nameTrim);
       if (isIndented && plLastParent) {
         accts.push({ id: aid, name: nameTrim, type: 'input', indent: 2, parentId: plLastParent.id, section: sInfo?.section || 'pl', sign: sInfo?.sign ?? 1 });
       } else {
@@ -649,7 +650,7 @@ function parseMirokuMonthlySmart(data, startMonth) {
         continue;
       }
 
-      const aid = mkId('b');
+      const aid = mkId('b', nameTrim);
       if (isIndented && bsLastParent) {
         const pa = { id: aid, name: nameTrim, type: 'input', indent: 2, parentId: bsLastParent.id, section: null, sign: 1 };
         bsPending.push(pa);
