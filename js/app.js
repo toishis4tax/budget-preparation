@@ -300,6 +300,7 @@ function showPage(page) {
     case 'taxsummary':     renderTaxSummary(container);                   break;
     case 'forecastreport': renderForecastReport(container);               break;
     case 'bizanalysis': renderBizAnalysis(container);                     break;
+    case 'summarypl':   renderSummaryPL(container);                       break;
     case 'summarybs':   renderSummaryBS(container);                       break;
     default:           container.innerHTML = '<div class="no-data">ページが見つかりません</div>';
   }
