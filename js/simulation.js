@@ -360,7 +360,7 @@ function renderCashFlow(container, budget) {
   container.innerHTML = `
     <div class="sim-panel">
       <h2 class="section-title">キャッシュフロー予測</h2>
-      <p class="section-sub">営業CF（利益＋減価償却）＋ 財務CF（借入返済・新規借入）＋ 税金支払</p>
+      <p class="section-sub">営業CF（利益＋減価償却）＋ 財務CF（借入返済・新規借入）＋ 法人税支払　※消費税はパススルー（計上せず）</p>
 
       <div class="sim-grid">
         <div class="card-h">
@@ -387,19 +387,13 @@ function renderCashFlow(container, budget) {
           </div>
 
           <div class="tax-block-label" style="margin-top:12px">前期申告納税（期首第2月に支出）</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <div class="form-group" style="margin:0">
-              <label>前期法人税等 確定申告（円）</label>
-              <input type="number" id="cf_prev_corp" value="0" step="10000" class="form-input" oninput="runCashFlow()">
-            </div>
-            <div class="form-group" style="margin:0">
-              <label>前期消費税等 確定申告（円）</label>
-              <input type="number" id="cf_prev_ctax" value="0" step="10000" class="form-input" oninput="runCashFlow()">
-            </div>
+          <div class="form-group">
+            <label>前期法人税等 確定申告（円）</label>
+            <input type="number" id="cf_prev_corp" value="0" step="10000" class="form-input" oninput="runCashFlow()">
           </div>
           <div style="font-size:10px;color:var(--text-muted);margin-top:3px">→ ${monthLabels[1]}（第2月）に計上</div>
 
-          <div class="tax-block-label" style="margin-top:12px">当期中間納付</div>
+          <div class="tax-block-label" style="margin-top:12px">当期中間納付（法人税）</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <div class="form-group" style="margin:0">
               <label>法人税 中間申告（年1回・円）</label>
@@ -411,23 +405,10 @@ function renderCashFlow(container, budget) {
                 ${monthLabels.map((m,i)=>`<option value="${i}" ${i===4?'selected':''}>${m}</option>`).join('')}
               </select>
             </div>
-            <div class="form-group" style="margin:0">
-              <label>消費税 中間回数</label>
-              <select id="cf_ctax_times" class="form-input" onchange="updateCtaxMonthFields(); runCashFlow()">
-                <option value="0">0回（中間なし）</option>
-                <option value="1">年1回</option>
-                <option value="3">年3回</option>
-                <option value="11">年11回</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0">
-              <label>1回あたり金額（円）</label>
-              <input type="number" id="cf_ctax_amt" value="${ctaxPrepaid}" step="10000" class="form-input" oninput="runCashFlow()">
-            </div>
           </div>
-          <div id="cf_ctax_months_wrap" style="margin-top:6px;font-size:11px;color:#2563eb;padding:4px 0"></div>
           <div style="margin-top:10px;font-size:10px;color:var(--text-muted)">
-            ※当期確定申告分（法人税${Math.round(Math.max(0,corpTax-prepaid1)/1000).toLocaleString()}千円）は翌期のため含みません
+            ※当期確定申告分（法人税${Math.round(Math.max(0,corpTax-prepaid1)/1000).toLocaleString()}千円）は翌期のため含みません<br>
+            ※消費税は仮受（預り）と仮払が相殺されるため資金繰りには計上していません（パススルー）
           </div>
         </div>
 
@@ -454,11 +435,8 @@ function renderCashFlow(container, budget) {
     newLoan:    prev.newLoan    ?? 0,
     invest:     prev.invest     ?? 0,
     prevCorp:   prev.prevCorp   ?? 0,
-    prevCtax:   prev.prevCtax   ?? 0,
     tax1Amt:    prev.tax1Amt    ?? prepaid1,
     tax1Month:  prev.tax1Month  ?? 4,
-    ctaxTimes:  prev.ctaxTimes  ?? 0,
-    ctaxAmt:    prev.ctaxAmt    ?? ctaxPrepaid,
     _cfKey,
   };
   // 保存済み入力値をDOMに復元
@@ -469,45 +447,9 @@ function renderCashFlow(container, budget) {
   setV('cf_new_loan',   s.newLoan);
   setV('cf_invest',     s.invest);
   setV('cf_prev_corp',  s.prevCorp);
-  setV('cf_prev_ctax',  s.prevCtax);
   setV('cf_tax1_amt',   s.tax1Amt);
   setV('cf_tax1_month', s.tax1Month);
-  setV('cf_ctax_times', s.ctaxTimes);
-  setV('cf_ctax_amt',   s.ctaxAmt);
   runCashFlow();
-  updateCtaxMonthFields();
-}
-
-// 消費税中間納付月（配列index）を返す。fiscalMonthから自動計算
-function _ctaxPayMonths(times) {
-  const budget  = window.App?.currentBudget;
-  const company = window.App?.currentCompany;
-  const fiscal  = company?.fiscalMonth || budget?.startMonth && (((budget.startMonth - 2 + 12) % 12) + 1) || 3;
-  const start   = budget?.startMonth || 4;
-  // 月→配列index変換
-  const toIdx = month => ((month - start + 12) % 12);
-  const addM  = (base, add) => ((base - 1 + add) % 12) + 1;
-
-  if (times === 1)  return [toIdx(addM(fiscal, 8))];
-  if (times === 3)  return [toIdx(addM(fiscal, 5)), toIdx(addM(fiscal, 8)), toIdx(addM(fiscal, 11))];
-  if (times === 11) return Array.from({length:11}, (_, i) => toIdx(addM(fiscal, 3 + i)));
-  return [];
-}
-
-// 消費税納付月ラベルを更新表示
-function updateCtaxMonthFields() {
-  const times = parseInt(document.getElementById('cf_ctax_times')?.value || 0);
-  const wrap  = document.getElementById('cf_ctax_months_wrap');
-  if (!wrap) return;
-  const months = _ctaxPayMonths(times);
-  const budget = window.App?.currentBudget;
-  const start  = budget?.startMonth || 4;
-  const toLabel = idx => {
-    const m = ((start - 1 + idx) % 12) + 1;
-    return m + '月';
-  };
-  if (times === 0) { wrap.textContent = ''; return; }
-  wrap.textContent = '納付月：' + months.map(toLabel).join(' ／ ');
 }
 
 function runCashFlow() {
@@ -522,27 +464,22 @@ function runCashFlow() {
   const newLoan   = parseFloat(document.getElementById('cf_new_loan')?.value   || 0) / 12;
   const invest    = parseFloat(document.getElementById('cf_invest')?.value     || 0) / 12;
   const prevCorp  = parseFloat(document.getElementById('cf_prev_corp')?.value  || 0);
-  const prevCtax  = parseFloat(document.getElementById('cf_prev_ctax')?.value  || 0);
   const tax1Amt   = parseFloat(document.getElementById('cf_tax1_amt')?.value   || 0);
   const tax1Month = parseInt(document.getElementById('cf_tax1_month')?.value   ?? 4);
-  const ctaxAmt    = parseFloat(document.getElementById('cf_ctax_amt')?.value  || 0);
-  const ctaxTimes  = parseInt(document.getElementById('cf_ctax_times')?.value  || 0);
 
-  // 入力値を保存（window + localStorage）
+  // 入力値を保存（window + localStorage）。消費税はパススルーのため保持しない
   Object.assign(state, {
     openCash, loanRepay, newLoan: newLoan*12, invest: invest*12,
-    prevCorp, prevCtax, tax1Amt, tax1Month, ctaxTimes, ctaxAmt,
+    prevCorp, tax1Amt, tax1Month,
   });
   if (state._cfKey) {
     try {
       localStorage.setItem(state._cfKey, JSON.stringify({
         openCash, loanRepay, newLoan: newLoan*12, invest: invest*12,
-        prevCorp, prevCtax, tax1Amt, tax1Month, ctaxTimes, ctaxAmt,
+        prevCorp, tax1Amt, tax1Month,
       }));
     } catch {}
   }
-  const ctaxMonths = _ctaxPayMonths(ctaxTimes);
-
   // 営業利益・減価償却
   const hasDynamic = !!(budget.dynamicAccounts?.length);
   const netArr = hasDynamic
@@ -552,16 +489,15 @@ function runCashFlow() {
   let cash = openCash;
   const rows = [];
 
-  // 前期申告納税: 第2月（index 1）
-  const prevTaxTotal = prevCorp + prevCtax;
+  // 前期申告納税: 第2月（index 1）※法人税のみ。消費税はパススルー（仮受と仮払が相殺されCF影響ほぼ0のため計上しない）
+  const prevTaxTotal = prevCorp;
 
   for (let m = 0; m < 12; m++) {
     const isActual  = actualCols ? actualCols[m] : false;
     const opCF      = (netArr[m] || 0) + (deprArr[m] || 0);
     const finCF     = newLoan - loanRepay - invest;
     const taxCF     = -(m === 1 ? prevTaxTotal : 0)
-                      -(m === tax1Month ? tax1Amt : 0)
-                      -(ctaxMonths.includes(m) ? ctaxAmt : 0);
+                      -(m === tax1Month ? tax1Amt : 0);
     const netCF     = opCF + finCF + taxCF;
     const openM     = cash;
     cash += netCF;
