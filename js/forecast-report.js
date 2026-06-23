@@ -80,14 +80,12 @@ function renderForecastReport(container) {
   const grossArr  = getArr('calc_gross', 'gross_profit');
   const laborArr  = getLaborArr();
   const ordArr    = getArr('calc_ord', 'ord_profit');
-  const netArr    = getArr('calc_net', 'net_profit');
   const pretaxArr = getArr('calc_pretax', 'pretax_profit');
 
   const aS = sumAct(salesArr),  fS = sumFcst(salesArr),  tS = aS + fS;
   const aG = sumAct(grossArr),  fG = sumFcst(grossArr),  tG = aG + fG;
   const aL = sumAct(laborArr),  fL = sumFcst(laborArr),  tL = aL + fL;
   const aO = sumAct(ordArr),    fO = sumFcst(ordArr),    tO = aO + fO;
-  const aN = sumAct(netArr),    fN = sumFcst(netArr),    tN = aN + fN;
   const landPretax = sumAct(pretaxArr) + sumFcst(pretaxArr);
 
   // 前期
@@ -110,6 +108,15 @@ function renderForecastReport(container) {
   // 税額
   const tax     = _frCalcDetailedTax(landPretax, capital);
   const prevTax = _frCalcDetailedTax(pPretax, capital);
+
+  // 税引後当期純利益 = 税引前 − 予測法人税等（消費税は当期純利益に影響しないため除く）
+  // ※PLに法人税科目を計上していなくても、予測税額を差し引いて正しく表示する
+  const corpTaxTotal     = tax     ? (tax.corp     + tax.localCorp     + tax.pref     + tax.city     + tax.business     + tax.special)     : 0;
+  const prevCorpTaxTotal = prevTax ? (prevTax.corp + prevTax.localCorp + prevTax.pref + prevTax.city + prevTax.business + prevTax.special) : 0;
+  const aN2 = sumAct(pretaxArr);                              // 実績(A)：税引前実績（実績月は税未計上のため税引前＝税引後）
+  const tN2 = landPretax - corpTaxTotal;                      // 当期決算予測(A+B)：通期税引前 − 予測法人税等
+  const fN2 = tN2 - aN2;                                      // 未経過月(B)：差分（予測税額を含む）
+  const pN2 = (pPretax != null) ? (pPretax - prevCorpTaxTotal) : null; // 前期
   // 消費税：簡易課税届出ありなら③簡易課税計算、なければ②科目別簡易計算
   const useKani  = !!(company?.kanijukazei);
   let ctaxAmt, prevCtaxAmt;
@@ -194,7 +201,7 @@ function renderForecastReport(container) {
           ${frpRow('(2) 限界利益', `限界利益率 ${pct(tG,tS)}`, K(aG), K(fG), K(tG), K(pG), pct(tG,tS), pct(pG,pS), neg(tG))}
           ${frpRow('(3) 人 件 費', `労働分配率 ${pct(tL,tG||1)}`, K(aL), K(fL), K(tL), K(pL), pct(tL,tG||1), pct(pL,pG||1), '')}
           ${frpRow('(4) 経 常 利 益', `売上高経常利益率 ${pct(tO,tS)}`, K(aO), K(fO), K(tO), K(pO), pct(tO,tS), pct(pO,pS), neg(tO))}
-          ${frpRow('(5) 税引後当期純利益', `前年比 ${yoy(tN,pN)}`, K(aN), K(fN), K(tN), K(pN), yoy(tN,pN), '', neg(tN))}
+          ${frpRow('(5) 税引後当期純利益', `前年比 ${yoy(tN2,pN2)}`, K(aN2), K(fN2), K(tN2), K(pN2), yoy(tN2,pN2), '', neg(tN2))}
         </tbody>
       </table>
       <div class="frp-table-note">単位：千円</div>
