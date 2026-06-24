@@ -44,20 +44,41 @@ function renderForecastReport(container) {
   const fcstRange = fcstIdxs.length > 0
     ? `${calM(fcstIdxs[0])}月〜${calM(fcstIdxs[fcstIdxs.length - 1])}月` : '—';
 
-  const av      = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows || {});
-  const sumAct  = arr => actIdxs.reduce((s, i) => s + (arr?.[i] || 0), 0);
-  const sumFcst = arr => fcstIdxs.reduce((s, i) => s + (arr?.[i] || 0), 0);
+  const mergedRows = budget.dynamicAccounts ? getMergedRows(budget) : (budget.rows || {});
+  const av      = budget.dynamicAccounts
+    ? calcAllValuesDynamic({ ...budget, rows: mergedRows })
+    : calcAllValues(mergedRows);
+  // 決算整理仕訳(index 12): 全月実績確定済みなら実績(A)に、そうでなければ未経過月(B)に加算
+  const isYearComplete = actIdxs.length === 12;
+  const sumAct  = arr => actIdxs.reduce((s, i) => s + (arr?.[i] || 0), 0) + (isYearComplete  ? (arr?.[12] || 0) : 0);
+  const sumFcst = arr => fcstIdxs.reduce((s, i) => s + (arr?.[i] || 0), 0) + (!isYearComplete ? (arr?.[12] || 0) : 0);
 
   const getArr = (...keys) => {
     for (const k of keys) { const a = av[k]; if (a?.some(v => v !== 0)) return a; }
     return new Array(12).fill(0);
   };
 
-  // 人件費: 動的科目の場合は名前で探す、静的の場合はsga_salary
+  // 人件費: 販売費及び一般管理費セクションの直接子（勘定科目レベル）から労務費関連を集計
   const getLaborArr = () => {
     if (budget.dynamicAccounts) {
       const LABOR_RE = /給与|給料|賃金|役員報酬|役員賞与|賞与|法定福利|福利厚生|厚生費|福利費|雑給|人件費|退職|手当/;
-      // 親科目（indent<=1）のみ対象。補助科目（indent>=2）は親に集計済みなので除外し二重計上を防ぐ
+      const sgaSection = budget.dynamicAccounts.find(a =>
+        a.id === 'sec_sga' || (a.type === 'section' && /販売費|一般管理費/.test(a.name || ''))
+      );
+      if (sgaSection) {
+        const laborAccs = budget.dynamicAccounts.filter(a =>
+          a.parentId === sgaSection.id && LABOR_RE.test(a.name || '')
+        );
+        if (laborAccs.length > 0) {
+          const sum = new Array(13).fill(0);
+          laborAccs.forEach(a => {
+            const vals = av[a.id] || [];
+            vals.slice(0, 13).forEach((v, i) => { sum[i] += Math.abs(v || 0); });
+          });
+          if (sum.some(v => v !== 0)) return sum;
+        }
+      }
+      // フォールバック: indent<=1 の労務費科目を集計
       const matched = budget.dynamicAccounts.filter(a =>
         a.section?.startsWith('pl') &&
         a.type !== 'section' &&
@@ -65,10 +86,10 @@ function renderForecastReport(container) {
         LABOR_RE.test(a.name)
       );
       if (matched.length > 0) {
-        const sum = new Array(12).fill(0);
+        const sum = new Array(13).fill(0);
         matched.forEach(a => {
           const vals = av[a.id] || [];
-          vals.slice(0, 12).forEach((v, i) => { sum[i] += v || 0; });
+          vals.slice(0, 13).forEach((v, i) => { sum[i] += Math.abs(v || 0); });
         });
         if (sum.some(v => v !== 0)) return sum;
       }
@@ -95,7 +116,7 @@ function renderForecastReport(container) {
     : null;
   const pSum = (...keys) => {
     if (!prevAv) return null;
-    for (const k of keys) { const a = prevAv[k]; if (a?.some(v => v !== 0)) return a.slice(0,12).reduce((s,v)=>s+v,0); }
+    for (const k of keys) { const a = prevAv[k]; if (a?.some(v => v !== 0)) return a.slice(0,13).reduce((s,v)=>s+v,0); }
     return null;
   };
   const pS = pSum('sec_revenue','sales');

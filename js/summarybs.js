@@ -67,10 +67,10 @@ function summarizeBS(budget) {
 // 「他の〜」を残差にするため、限界利益・固定費合計・経常利益は必ず整合する。
 function summarizePL(budget) {
   if (!budget || !budget.dynamicAccounts || !budget.dynamicAccounts.length) return null;
-  const av    = calcAllValuesDynamic(budget);
+  const av    = calcAllValuesDynamic({ ...budget, rows: getMergedRows(budget) });
   const accts = budget.dynamicAccounts;
   const byId  = {}; accts.forEach(a => byId[a.id] = a);
-  const sum   = id => (av[id] || []).slice(0, 12).reduce((s, v) => s + v, 0);
+  const sum   = id => (av[id] || []).slice(0, 13).reduce((s, v) => s + v, 0);
 
   // 親をたどって所属セクション（sec_cogs/sec_sga等）を特定
   const secOf = id => {
