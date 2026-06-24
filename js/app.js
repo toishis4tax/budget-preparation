@@ -302,6 +302,7 @@ function showPage(page) {
     case 'bizanalysis': renderBizAnalysis(container);                     break;
     case 'summarypl':   renderSummaryPL(container);                       break;
     case 'summarybs':   renderSummaryBS(container);                       break;
+    case 'bepanalysis': renderBEPAnalysis(container);                     break;
     default:           container.innerHTML = '<div class="no-data">ページが見つかりません</div>';
   }
 }
