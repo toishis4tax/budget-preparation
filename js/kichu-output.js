@@ -844,18 +844,16 @@ function renderKichuExecComp(container, budget, company) {
 function renderKichuSocialIns(container, budget, company) {
   var curYear = window.App ? window.App.currentYear : new Date().getFullYear();
 
-  // 協会けんぽ料率2024年度（%）
-  var KENPO = {
-    '北海道':10.21,'青森':9.70,'岩手':9.72,'宮城':10.04,'秋田':10.04,'山形':10.04,
-    '福島':9.68,'茨城':9.74,'栃木':9.84,'群馬':9.76,'埼玉':9.87,'千葉':9.87,
-    '東京':9.98,'神奈川':10.02,'新潟':9.35,'富山':9.99,'石川':10.09,'福井':10.08,
-    '山梨':9.84,'長野':9.49,'静岡':9.78,'愛知':10.01,'三重':9.99,'滋賀':9.99,
-    '京都':10.18,'大阪':10.29,'兵庫':10.18,'奈良':10.22,'和歌山':10.01,
-    '鳥取':9.87,'島根':10.01,'岡山':10.17,'広島':10.00,'山口':9.99,
-    '徳島':10.28,'香川':10.27,'愛媛':10.04,'高知':9.98,'福岡':10.32,
-    '佐賀':10.41,'長崎':10.22,'熊本':10.24,'大分':10.10,'宮崎':10.15,
-    '鹿児島':10.24,'沖縄':9.09,
-  };
+  // 健康保険料率は welfare.js の共有 KENPO_RATES（令和7年度）から取得（都道府県名は「東京」等の短縮形でも照合）
+  function _kichuHealthRate(prefStripped) {
+    if (typeof KENPO_RATES !== 'undefined') {
+      for (var k in KENPO_RATES) {
+        if (k.replace(/[都道府県]$/, '') === prefStripped) return KENPO_RATES[k].health;
+      }
+    }
+    return 0.10;
+  }
+  var _kichuKaigoRate = (typeof KAIGO_RATE_R07 !== 'undefined') ? KAIGO_RATE_R07 : 0.0159;
 
   // 標準報酬月額表（円）
   var HYOJUN_M = [88000,98000,104000,110000,118000,126000,134000,142000,
@@ -873,8 +871,8 @@ function renderKichuSocialIns(container, budget, company) {
   // 計算関数
   function calcSocialIns(monthlyComp, pref, kaigo, bonusAmt) {
     var prefKey = pref ? pref.replace(/[都道府県]$/, '') : pref; // '東京都'→'東京'
-    var kenpoRate = (KENPO[prefKey] || 10.00) / 100;
-    var kaigoRate = kaigo ? 0.016 : 0;
+    var kenpoRate = _kichuHealthRate(prefKey);
+    var kaigoRate = kaigo ? _kichuKaigoRate : 0;
     var nenkinRate = 0.183;
 
     var hyojunM = getHyojunM(monthlyComp);
@@ -957,7 +955,7 @@ function renderKichuSocialIns(container, budget, company) {
     </div>
 
     <div style="font-size:10px;color:#64748b;border-top:1px solid var(--border);padding-top:10px;margin-top:8px">
-      ※ 協会けんぽ2024年度料率を使用。組合健保・個別健保の場合は料率が異なります。<br>
+      ※ 協会けんぽ令和7年度(2025)料率を使用。組合健保・個別健保の場合は料率が異なります。<br>
       ※ 厚生年金保険料は18.3%固定。賞与の健保上限573万円/年、厚生年金上限150万円/回。
     </div>
   `;
@@ -982,8 +980,8 @@ function renderKichuSocialIns(container, budget, company) {
       var kenpoCap2 = Math.max(0, 5730000 - r1.hyojunB);
       var r2 = calcSocialIns(comp, pref, kaigo, half);
       // 2回目の健保は残り枠で再計算
-      var kenpoRate2 = (KENPO[pref] || 10.00) / 100;
-      var kaigoRate2 = kaigo ? 0.016 : 0;
+      var kenpoRate2 = _kichuHealthRate(pref);
+      var kaigoRate2 = kaigo ? _kichuKaigoRate : 0;
       var hyojunB2Kenpo = Math.min(r2.hyojunB, kenpoCap2);
       var hyojunB2Nenkin= Math.min(r2.hyojunB, 1500000);
       var bonusKenpo2  = Math.floor(hyojunB2Kenpo * (kenpoRate2 + kaigoRate2) / 2) * 2;
@@ -1014,7 +1012,7 @@ function renderKichuSocialIns(container, budget, company) {
     var fmtR = function(v) { return Math.round(v).toLocaleString('ja-JP') + '円'; };
     var fmtK = function(v) { return Math.round(v/1000).toLocaleString('ja-JP') + '千円'; };
 
-    var kenpoRate = (KENPO[pref] || 10.00).toFixed(2);
+    var kenpoRate = (_kichuHealthRate(pref) * 100).toFixed(2);
 
     var resultEl = document.getElementById('si_result');
     if (!resultEl) return;
@@ -1040,7 +1038,7 @@ function renderKichuSocialIns(container, budget, company) {
           </tr>
           ${kaigo ? `<tr>
             <td class="kichu-label">介護保険</td>
-            <td style="text-align:center">1.60%</td>
+            <td style="text-align:center">${(_kichuKaigoRate*100).toFixed(2)}%</td>
             <td style="text-align:right">${fmtR(r.kaigoTotal)}</td>
             <td style="text-align:right">${fmtR(r.kaigoTotal/2)}</td>
             <td style="text-align:right">${fmtR(r.kaigoTotal/2)}</td>

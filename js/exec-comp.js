@@ -112,7 +112,7 @@ function _execSave() {
 
 // 役員1人の月次法定福利費（カレンダー月配列、index0=1月）
 function _execCalcOfficerMonthly(officer, pref) {
-  const rates    = (typeof KENPO_RATES !== 'undefined' ? KENPO_RATES : {})[pref] || { health: 0.0982, care: 0.0182 };
+  const rates    = (typeof KENPO_RATES !== 'undefined' ? (KENPO_RATES[pref] || KENPO_RATES['東京都']) : null) || { health: 0.0991, care: 0.0159 };
   const careFlag = (officer.age || 50) >= 40 && (officer.age || 50) < 65;
   const stdP = Math.min(officer.monthly || 0, PENSION_MAX_STD);
   const stdH = Math.min(officer.monthly || 0, HEALTH_MAX_STD);
@@ -861,7 +861,7 @@ function runSICalc() {
 
   renderSIBonusList();
 
-  const rates    = (typeof KENPO_RATES !== 'undefined' ? KENPO_RATES : {})[pref] || { health: 0.0982, care: 0.0182 };
+  const rates    = (typeof KENPO_RATES !== 'undefined' ? (KENPO_RATES[pref] || KENPO_RATES['東京都']) : null) || { health: 0.0991, care: 0.0159 };
   const careFlag = age >= 40 && age < 65;
   const stdP     = Math.min(salary, PENSION_MAX_STD);
   const stdH     = Math.min(salary, HEALTH_MAX_STD);
@@ -945,7 +945,7 @@ function calcZeroOut() {
   function _bonusWelfare(bonus, monthly, age, p) {
     if (bonusTimes === 2 && bonus > 0) {
       const half = Math.floor(bonus / 2 / 1000) * 1000;
-      const rates    = (typeof KENPO_RATES !== 'undefined' ? KENPO_RATES : {})[p] || KENPO_RATES?.['東京都'] || { health: 0.0998, care: 0.016 };
+      const rates    = (typeof KENPO_RATES !== 'undefined' ? KENPO_RATES : {})[p] || KENPO_RATES?.['東京都'] || { health: 0.0991, care: 0.0159 };
       const careFlag = age >= 40 && age < 65;
       const BONUS_CAP_H = 5730000, BONUS_CAP_P = 1500000;
       const KOSEI = 0.183, KODOMO = 0.0036;
