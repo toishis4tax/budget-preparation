@@ -853,7 +853,7 @@ function renderKichuSocialIns(container, budget, company) {
     }
     return 0.10;
   }
-  var _kichuKaigoRate = (typeof KAIGO_RATE_R07 !== 'undefined') ? KAIGO_RATE_R07 : 0.0159;
+  var _kichuKaigoRate = (typeof KAIGO_RATE !== 'undefined') ? KAIGO_RATE : 0.0162;
 
   // 標準報酬月額表（円）
   var HYOJUN_M = [88000,98000,104000,110000,118000,126000,134000,142000,
@@ -955,7 +955,7 @@ function renderKichuSocialIns(container, budget, company) {
     </div>
 
     <div style="font-size:10px;color:#64748b;border-top:1px solid var(--border);padding-top:10px;margin-top:8px">
-      ※ 協会けんぽ令和7年度(2025)料率を使用。組合健保・個別健保の場合は料率が異なります。<br>
+      ※ 協会けんぽ令和8年度(2026)料率を使用。組合健保・個別健保の場合は料率が異なります。<br>
       ※ 厚生年金保険料は18.3%固定。賞与の健保上限573万円/年、厚生年金上限150万円/回。
     </div>
   `;
