@@ -116,11 +116,13 @@ function _execCalcOfficerMonthly(officer, pref) {
   const careFlag = (officer.age || 50) >= 40 && (officer.age || 50) < 65;
   const stdP = Math.min(officer.monthly || 0, PENSION_MAX_STD);
   const stdH = Math.min(officer.monthly || 0, HEALTH_MAX_STD);
+  const SHIEN = (typeof SHIENKIN_RATE !== 'undefined') ? SHIENKIN_RATE : 0.0023;
   const healthC  = Math.floor(stdH * rates.health / 2);
   const careC    = careFlag ? Math.floor(stdH * rates.care / 2) : 0;
   const pensionC = Math.floor(stdP * KOSEI_RATE / 2);
   const kodomoC  = Math.floor(stdP * KODOMO_RATE);
-  const monthlySI = healthC + careC + pensionC + kodomoC;
+  const shienC   = Math.floor(stdH * SHIEN / 2);  // 子ども・子育て支援金
+  const monthlySI = healthC + careC + pensionC + kodomoC + shienC;
   const result = Array(12).fill(monthlySI);
   // 健保は年度累計573万円上限のため支給月順に累計管理（保険年度=4月〜3月）
   let healthCumulative = 0;
@@ -138,7 +140,8 @@ function _execCalcOfficerMonthly(officer, pref) {
     result[m] += Math.floor(sbH * rates.health / 2) +
                  (careFlag ? Math.floor(sbH * rates.care / 2) : 0) +
                  Math.floor(sbP * KOSEI_RATE / 2) +
-                 Math.floor(sbP * KODOMO_RATE);
+                 Math.floor(sbP * KODOMO_RATE) +
+                 Math.floor(sbH * SHIEN / 2);  // 子ども・子育て支援金
   });
   return result;
 }
@@ -866,11 +869,13 @@ function runSICalc() {
   const stdP     = Math.min(salary, PENSION_MAX_STD);
   const stdH     = Math.min(salary, HEALTH_MAX_STD);
 
+  const SHIEN    = (typeof SHIENKIN_RATE !== 'undefined') ? SHIENKIN_RATE : 0.0023;
   const healthC  = Math.floor(stdH * rates.health / 2);
   const careC    = careFlag ? Math.floor(stdH * rates.care / 2) : 0;
   const pensionC = Math.floor(stdP * KOSEI_RATE / 2);
   const kodomoC  = Math.floor(stdP * KODOMO_RATE);
-  const monthlySI = healthC + careC + pensionC + kodomoC;
+  const shienC   = Math.floor(stdH * SHIEN / 2);  // 子ども・子育て支援金
+  const monthlySI = healthC + careC + pensionC + kodomoC + shienC;
 
   // 賞与月別（健保は年度累計573万円上限、4月〜3月の保険年度順で処理）
   const sortedSIBonuses = [..._siBonuses.filter(b=>b.amount)]
@@ -883,7 +888,8 @@ function runSICalc() {
     const sbP = Math.min(b.amount, BONUS_MAX_PENSION);
     siHealthCumulative += b.amount;
     const total = Math.floor(sbH*rates.health/2) + (careFlag?Math.floor(sbH*rates.care/2):0)
-                + Math.floor(sbP*KOSEI_RATE/2) + Math.floor(sbP*KODOMO_RATE);
+                + Math.floor(sbP*KOSEI_RATE/2) + Math.floor(sbP*KODOMO_RATE)
+                + Math.floor(sbH*SHIEN/2);  // 子ども・子育て支援金
     bonusSIMap.set(b, total);
   });
 
@@ -908,6 +914,7 @@ function runSICalc() {
         ${careFlag ? `<tr><td>介護保険（${(rates.care*100).toFixed(3)}%・折半）</td><td class="num">${Math.round(careC).toLocaleString()}/月</td></tr>` : ''}
         <tr><td>厚生年金（${(KOSEI_RATE*100).toFixed(3)}%・折半）</td><td class="num">${Math.round(pensionC).toLocaleString()}/月</td></tr>
         <tr><td>子ども・子育て拠出金（${(KODOMO_RATE*100).toFixed(3)}%）</td><td class="num">${Math.round(kodomoC).toLocaleString()}/月</td></tr>
+        <tr><td>子ども・子育て支援金（${(SHIEN*100).toFixed(2)}%・折半）</td><td class="num">${Math.round(shienC).toLocaleString()}/月</td></tr>
         <tr class="total-row"><td><strong>月額法定福利費</strong></td><td class="num"><strong>${Math.round(monthlySI).toLocaleString()}</strong></td></tr>
         <tr class="total-row"><td><strong>月額 × 12ヶ月</strong></td><td class="num"><strong>${Math.round(monthlySI*12).toLocaleString()}</strong></td></tr>
         ${bonusRows}
@@ -948,17 +955,17 @@ function calcZeroOut() {
       const rates    = (typeof KENPO_RATES !== 'undefined' ? KENPO_RATES : {})[p] || KENPO_RATES?.['東京都'] || { health: 0.0985, care: 0.0162 };
       const careFlag = age >= 40 && age < 65;
       const BONUS_CAP_H = 5730000, BONUS_CAP_P = 1500000;
-      const KOSEI = 0.183, KODOMO = 0.0036;
+      const KOSEI = 0.183, KODOMO = 0.0036, SHIEN = (typeof SHIENKIN_RATE !== 'undefined') ? SHIENKIN_RATE : 0.0023;
       // 1回目
       const h1 = Math.min(half, BONUS_CAP_H);
       const p1 = Math.min(half, BONUS_CAP_P);
       const w1 = Math.floor(h1 * rates.health / 2) + (careFlag ? Math.floor(h1 * rates.care / 2) : 0)
-               + Math.floor(p1 * KOSEI / 2) + Math.floor(p1 * KODOMO);
+               + Math.floor(p1 * KOSEI / 2) + Math.floor(p1 * KODOMO) + Math.floor(h1 * SHIEN / 2);
       // 2回目: 健保は累計上限の残り分のみ
       const h2 = Math.min(half, Math.max(0, BONUS_CAP_H - half));
       const p2 = Math.min(half, BONUS_CAP_P);
       const w2 = Math.floor(h2 * rates.health / 2) + (careFlag ? Math.floor(h2 * rates.care / 2) : 0)
-               + Math.floor(p2 * KOSEI / 2) + Math.floor(p2 * KODOMO);
+               + Math.floor(p2 * KOSEI / 2) + Math.floor(p2 * KODOMO) + Math.floor(h2 * SHIEN / 2);
       return w1 + w2;
     }
     return calcSocialInsurance(monthly, bonus, age, p).annual

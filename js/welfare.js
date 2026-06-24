@@ -56,6 +56,7 @@ const KENPO_RATES = {
 
 const KOSEI_RATE     = 0.183;
 const KODOMO_RATE    = 0.0036;
+const SHIENKIN_RATE  = 0.0023;  // 子ども・子育て支援金（令和8年4月分〜・全国一律・労使折半・健保と同じ標準報酬ベース）
 const PENSION_MAX_STD  = 650000;   // 月額標準報酬上限
 const HEALTH_MAX_STD   = 1390000;  // 月額標準報酬上限
 const BONUS_MAX_PENSION = 1500000; // 賞与標準賞与額上限（1回の支給につき）
@@ -72,6 +73,7 @@ function calcSocialInsurance(salary, bonusAnnual, age, pref) {
   const careCompany    = careFlag ? Math.floor(stdHealth * rates.care / 2) : 0;
   const pensionCompany = Math.floor(stdPension * KOSEI_RATE / 2);
   const kodomo         = Math.floor(stdPension * KODOMO_RATE);
+  const shienCompany   = Math.floor(stdHealth * SHIENKIN_RATE / 2);  // 子ども・子育て支援金（折半・健保ベース）
 
   // 健保：年度累計573万円上限、厚年：1回150万円上限（概算として1回払い想定）
   const stdBonusHealth   = Math.min(bonusAnnual, BONUS_MAX_HEALTH);
@@ -80,14 +82,15 @@ function calcSocialInsurance(salary, bonusAnnual, age, pref) {
   const bonusCareComp    = careFlag ? Math.floor(stdBonusHealth * rates.care / 2) : 0;
   const bonusPensionComp = Math.floor(stdBonusPension * KOSEI_RATE / 2);
   const bonusKodomoComp  = Math.floor(stdBonusPension * KODOMO_RATE);
+  const bonusShienComp   = Math.floor(stdBonusHealth * SHIENKIN_RATE / 2);
 
-  const monthlyCompany = healthCompany + careCompany + pensionCompany + kodomo;
-  const bonusCompany   = bonusHealthComp + bonusCareComp + bonusPensionComp + bonusKodomoComp;
+  const monthlyCompany = healthCompany + careCompany + pensionCompany + kodomo + shienCompany;
+  const bonusCompany   = bonusHealthComp + bonusCareComp + bonusPensionComp + bonusKodomoComp + bonusShienComp;
   const annualCompany  = monthlyCompany * 12 + bonusCompany;
 
-  // 個人（本人）負担：子ども・子育て拠出金は全額事業主負担のため除外。それ以外は労使折半（≒会社負担と同額）
-  const personalMonthly = healthCompany + careCompany + pensionCompany;
-  const bonusPersonal   = bonusHealthComp + bonusCareComp + bonusPensionComp;
+  // 個人（本人）負担：子ども・子育て拠出金は全額事業主負担のため除外。支援金・健保等は労使折半（≒会社負担と同額）
+  const personalMonthly = healthCompany + careCompany + pensionCompany + shienCompany;
+  const bonusPersonal   = bonusHealthComp + bonusCareComp + bonusPensionComp + bonusShienComp;
   const personalAnnual  = personalMonthly * 12 + bonusPersonal;
 
   return {
@@ -147,7 +150,8 @@ function calcEmpMonthly(emp, pref) {
   const careComp    = careFlag ? Math.floor(stdHealth  * rates.care   / 2) : 0;
   const pensionComp = Math.floor(stdPension * KOSEI_RATE / 2);
   const kodomoComp  = Math.floor(stdPension * KODOMO_RATE);
-  const monthlySI   = healthComp + careComp + pensionComp + kodomoComp;
+  const shienComp   = Math.floor(stdHealth  * SHIENKIN_RATE / 2);  // 子ども・子育て支援金
+  const monthlySI   = healthComp + careComp + pensionComp + kodomoComp + shienComp;
 
   // インデックス0=1月 〜 11=12月
   const result = Array(12).fill(monthlySI);
@@ -169,7 +173,8 @@ function calcEmpMonthly(emp, pref) {
     const bC  = careFlag ? Math.floor(stdBH * rates.care / 2) : 0;
     const bP  = Math.floor(stdBP * KOSEI_RATE / 2);
     const bK  = Math.floor(stdBP * KODOMO_RATE);
-    result[m] += bH + bC + bP + bK;
+    const bS  = Math.floor(stdBH * SHIENKIN_RATE / 2);  // 子ども・子育て支援金
+    result[m] += bH + bC + bP + bK + bS;
   });
 
   return result; // index 0=1月

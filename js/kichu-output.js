@@ -854,6 +854,7 @@ function renderKichuSocialIns(container, budget, company) {
     return 0.10;
   }
   var _kichuKaigoRate = (typeof KAIGO_RATE !== 'undefined') ? KAIGO_RATE : 0.0162;
+  var _kichuShienRate = (typeof SHIENKIN_RATE !== 'undefined') ? SHIENKIN_RATE : 0.0023;
 
   // 標準報酬月額表（円）
   var HYOJUN_M = [88000,98000,104000,110000,118000,126000,134000,142000,
@@ -874,6 +875,7 @@ function renderKichuSocialIns(container, budget, company) {
     var kenpoRate = _kichuHealthRate(prefKey);
     var kaigoRate = kaigo ? _kichuKaigoRate : 0;
     var nenkinRate = 0.183;
+    var shienRate  = (typeof SHIENKIN_RATE !== 'undefined') ? SHIENKIN_RATE : 0.0023; // 子ども・子育て支援金
 
     var hyojunM = getHyojunM(monthlyComp);
 
@@ -881,7 +883,8 @@ function renderKichuSocialIns(container, budget, company) {
     var kenpoTotal   = Math.floor(hyojunM * kenpoRate / 2) * 2;  // 労使折半後の合計
     var kaigoTotal   = Math.floor(hyojunM * kaigoRate / 2) * 2;
     var nenkinTotal  = Math.floor(hyojunM * nenkinRate / 2) * 2;
-    var monthlyTotal = kenpoTotal + kaigoTotal + nenkinTotal;
+    var shienTotal   = Math.floor(hyojunM * shienRate / 2) * 2;
+    var monthlyTotal = kenpoTotal + kaigoTotal + nenkinTotal + shienTotal;
     var companyM     = monthlyTotal / 2;
     var employeeM    = monthlyTotal / 2;
 
@@ -890,7 +893,7 @@ function renderKichuSocialIns(container, budget, company) {
     // 健保上限: 年間5,730,000、厚生年金上限: 1回1,500,000
     var hyojunBKenpo = Math.min(hyojunB, 5730000);
     var hyojunBNenkin= Math.min(hyojunB, 1500000);
-    var bonusKenpo   = Math.floor(hyojunBKenpo * (kenpoRate + kaigoRate) / 2) * 2;
+    var bonusKenpo   = Math.floor(hyojunBKenpo * (kenpoRate + kaigoRate + shienRate) / 2) * 2;
     var bonusNenkin  = Math.floor(hyojunBNenkin * nenkinRate / 2) * 2;
     var bonusTotal   = bonusKenpo + bonusNenkin;
     var bonusCompany = bonusTotal / 2;
@@ -902,7 +905,7 @@ function renderKichuSocialIns(container, budget, company) {
     var annualTotal    = annualCompany + annualEmployee;
 
     return {
-      hyojunM, kenpoTotal, kaigoTotal, nenkinTotal, monthlyTotal,
+      hyojunM, kenpoTotal, kaigoTotal, nenkinTotal, shienTotal, monthlyTotal,
       companyM, employeeM,
       hyojunB, bonusTotal, bonusCompany, bonusEmployee,
       annualCompany, annualEmployee, annualTotal,
@@ -956,7 +959,7 @@ function renderKichuSocialIns(container, budget, company) {
 
     <div style="font-size:10px;color:#64748b;border-top:1px solid var(--border);padding-top:10px;margin-top:8px">
       ※ 協会けんぽ令和8年度(2026)料率を使用。組合健保・個別健保の場合は料率が異なります。<br>
-      ※ 厚生年金保険料は18.3%固定。賞与の健保上限573万円/年、厚生年金上限150万円/回。
+      ※ 厚生年金保険料は18.3%固定。子ども・子育て支援金は令和8年4月分〜0.23%（労使折半・健保と同じ標準報酬ベース）。賞与の健保上限573万円/年、厚生年金上限150万円/回。
     </div>
   `;
 
@@ -982,9 +985,10 @@ function renderKichuSocialIns(container, budget, company) {
       // 2回目の健保は残り枠で再計算
       var kenpoRate2 = _kichuHealthRate(pref);
       var kaigoRate2 = kaigo ? _kichuKaigoRate : 0;
+      var shienRate2 = (typeof SHIENKIN_RATE !== 'undefined') ? SHIENKIN_RATE : 0.0023;
       var hyojunB2Kenpo = Math.min(r2.hyojunB, kenpoCap2);
       var hyojunB2Nenkin= Math.min(r2.hyojunB, 1500000);
-      var bonusKenpo2  = Math.floor(hyojunB2Kenpo * (kenpoRate2 + kaigoRate2) / 2) * 2;
+      var bonusKenpo2  = Math.floor(hyojunB2Kenpo * (kenpoRate2 + kaigoRate2 + shienRate2) / 2) * 2;
       var bonusNenkin2 = Math.floor(hyojunB2Nenkin * (0.183) / 2) * 2;
       var bonusTotal2  = bonusKenpo2 + bonusNenkin2;
       // 合算
@@ -1049,6 +1053,13 @@ function renderKichuSocialIns(container, budget, company) {
             <td style="text-align:right">${fmtR(r.nenkinTotal)}</td>
             <td style="text-align:right">${fmtR(r.nenkinTotal/2)}</td>
             <td style="text-align:right">${fmtR(r.nenkinTotal/2)}</td>
+          </tr>
+          <tr>
+            <td class="kichu-label">子ども・子育て支援金</td>
+            <td style="text-align:center">${(_kichuShienRate*100).toFixed(2)}%</td>
+            <td style="text-align:right">${fmtR(r.shienTotal||0)}</td>
+            <td style="text-align:right">${fmtR((r.shienTotal||0)/2)}</td>
+            <td style="text-align:right">${fmtR((r.shienTotal||0)/2)}</td>
           </tr>
           <tr style="font-weight:700;background:rgba(59,130,246,.05)">
             <td class="kichu-label">月額合計</td>
