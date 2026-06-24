@@ -303,7 +303,7 @@ function renderExecComp(container, budget) {
 
       <!-- 比較テーブル -->
       <div class="card-h" id="exec_compare_panel">
-        <h3>📊 月額別 トータル最適化（法人税×個人税・社保）</h3>
+        <h3>📊 月額×賞与の最適配分（総額固定・社会保険を最小化）</h3>
         <div id="exec_compare_content"></div>
       </div>
 
@@ -534,54 +534,66 @@ function renderExecCompareTable(officer, pref, capital, pretax) {
   const el = document.getElementById('exec_compare_content');
   if (!el || !officer) return;
 
-  const bonus = _execTotalBonus(officer);
-  const steps = [0, 300000, 500000, 800000, 1000000, 1200000, 1500000, 1800000, 2000000];
+  const age   = officer.age || 50;
+  const total = (officer.monthly || 0) * 12 + _execTotalBonus(officer); // 年間役員報酬 総額（この額を固定）
+  if (total <= 0) {
+    el.innerHTML = '<div class="no-data-small">役員設定に月額報酬・役員賞与を入力すると、総額を固定したまま「月額と賞与の最適配分」を試算します。</div>';
+    return;
+  }
 
-  // 各月額ステップで「会社＋個人の手残り」と「国等への流出」を計算
-  const calc = steps.map(m => {
-    const s = calcExecScenario(m, bonus, officer.age || 50, pref, capital);
-    const adjustedPretax = pretax - s.companyTotal;          // 報酬控除後の会社利益
+  // 年間総額を固定し、月額（×12）と賞与の配分だけを変える
+  const maxM = total / 12;
+  const cand = [];
+  for (let i = 0; i <= 10; i++) cand.push(Math.round(maxM * i / 10 / 10000) * 10000);
+  cand.push(Math.round((officer.monthly || 0) / 10000) * 10000); // 現在の配分
+  const months = [...new Set(cand)].filter(m => m >= 0 && m * 12 <= total + 1).sort((a, b) => a - b);
+
+  const calc = months.map(m => {
+    const bonus = Math.max(0, total - 12 * m);
+    const s = calcExecScenario(m, bonus, age, pref, capital);
+    const adjustedPretax = pretax - s.companyTotal;
     const corpTax = calcAllTax(Math.max(0, adjustedPretax), capital).total;
-    const companyAfter = adjustedPretax - corpTax;           // 会社の税引後利益（内部留保）
-    const personalTax  = s.incomeTax + s.residentTax;
-    const outflow = s.companySI + corpTax + s.personalSI + personalTax; // 国等への流出計
-    const retained = companyAfter + s.takeHome;              // 手残り（会社＋個人）= pretax − outflow
-    return { m, s, corpTax, companyAfter, personalTax, outflow, retained };
+    const personalTax = s.incomeTax + s.residentTax;
+    const totalSI  = s.companySI + s.personalSI;            // 社会保険合計（会社＋個人）
+    const retained = (adjustedPretax - corpTax) + s.takeHome; // 手残り（会社税引後＋個人手取り）
+    return { m, bonus, s, corpTax, personalTax, totalSI, retained };
   });
 
-  // 手残り最大（＝流出最小）が最適
+  // 総額固定では所得税・法人税はほぼ一定 → 社会保険合計が最小（＝手残り最大）の配分が最適
   const maxRetained = Math.max(...calc.map(c => c.retained));
+  const minSI = Math.min(...calc.map(c => c.totalSI));
 
   const rows = calc.map(c => {
-    const isCurrent = officer.monthly === c.m;
+    const isCurrent = Math.round((officer.monthly || 0) / 10000) * 10000 === c.m;
     const isOptimal = c.retained === maxRetained;
     const cls = isOptimal ? 'opt-best' : (isCurrent ? 'highlight' : '');
     const badges = `${isOptimal ? '<span class="optimal-badge" style="background:#16a34a">最適</span>' : ''}${isCurrent ? '<span class="optimal-badge">現在</span>' : ''}`;
     return `<tr class="${cls}">
       <td>${fmt(c.m)}/月${badges}</td>
-      <td class="num">${fmt(c.s.annual)}</td>
-      <td class="num" style="color:var(--danger)">${fmt(c.corpTax)}</td>
-      <td class="num" style="color:var(--primary)">${fmt(c.personalTax + c.s.personalSI)}</td>
-      <td class="num" style="font-weight:700">${fmt(c.outflow)}</td>
+      <td class="num">${fmt(c.bonus)}</td>
+      <td class="num" style="color:var(--danger)">${fmt(c.s.companySI)}</td>
+      <td class="num" style="color:var(--primary)">${fmt(c.s.personalSI)}</td>
+      <td class="num" style="font-weight:700${c.totalSI===minSI?';color:#16a34a':''}">${fmt(c.totalSI)}</td>
       <td class="num" style="color:var(--green);font-weight:800">${fmt(c.retained)}</td>
     </tr>`;
   }).join('');
 
   el.innerHTML = `
     <div class="opt-explain" style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;line-height:1.7">
-      <strong>📌 この表の見方</strong><br>
-      役員報酬を<strong>上げる</strong>と会社の利益が減り<strong>法人税は↓</strong>、一方で個人の<strong>所得税・住民税・社会保険は↑</strong>。
-      両者の綱引きで、<strong style="color:#16a34a">「手残り（会社の税引後利益＋役員の手取り）」が最大＝国等への流出が最小</strong>になる月額が<strong>最適</strong>です（緑行）。
+      <strong>📌 年間役員報酬 総額 ${fmt(total)} を固定して、月額と賞与の配分を最適化</strong><br>
+      総額が同じなら<strong>法人税・所得税はほぼ変わりません</strong>。差が出るのは<strong style="color:#16a34a">社会保険料</strong>です。
+      厚生年金は<strong>月額65万円／賞与150万円（1回）</strong>、健康保険は<strong>賞与年573万円</strong>で頭打ちになるため、
+      上限を超える分を賞与に寄せると社会保険料が下がり、<strong style="color:#16a34a">手残りが最大</strong>になります（緑行＝最適配分）。
     </div>
     <div class="table-scroll">
     <table class="comp-table">
       <thead>
         <tr>
-          <th>役員月額</th>
-          <th>役員年収</th>
-          <th>法人税等</th>
-          <th>個人税・社保</th>
-          <th>国等への流出計</th>
+          <th>月額報酬</th>
+          <th>役員賞与（年）</th>
+          <th>会社社保</th>
+          <th>個人社保</th>
+          <th>社会保険計</th>
           <th>手残り（会社＋個人）</th>
         </tr>
       </thead>
@@ -589,9 +601,9 @@ function renderExecCompareTable(officer, pref, capital, pretax) {
     </table>
     </div>
     <div class="wf-note">
-      ※ 税引前利益 ${fmt(pretax)} を前提に試算。役員賞与 ${fmt(bonus)}/年（事前確定届出＝損金算入を前提）<br>
-      ※ 法人税等＝控除後利益への法人税・地方法人税・住民税・事業税の概算。個人税・社保＝所得税(復興税込)＋住民税＋本人負担社会保険<br>
-      ※ 手残り ＝ 税引前利益 −（法人税等＋会社負担社保＋個人税・社保）。最も大きい月額が最適です
+      ※ 年間総額 ${fmt(total)}（月額×12＋賞与）を固定。賞与は1回払い・事前確定届出（損金算入）を前提<br>
+      ※ 厚年上限：標準報酬月額65万／賞与150万円・回、健保上限：賞与573万円/年。社会保険料が下がると将来の年金額も下がる点に留意<br>
+      ※ 過大な賞与・低すぎる月額は「不相当に高額」「定期同額外」として否認リスクがあるため、税理士と要確認
     </div>
     <style>
       .comp-table .opt-best td { background:#dcfce7 !important; }
