@@ -1,16 +1,18 @@
 ﻿// 役員報酬・役員賞与 最適化シミュレーター
 
+// 給与所得控除（令和2年分以降）
+function calcSalaryDeduction(annualSalary) {
+  if      (annualSalary <= 1_625_000) return 550_000;
+  else if (annualSalary <= 1_800_000) return Math.floor(annualSalary * 0.4) - 100_000;
+  else if (annualSalary <= 3_600_000) return Math.floor(annualSalary * 0.3) + 80_000;
+  else if (annualSalary <= 6_600_000) return Math.floor(annualSalary * 0.2) + 440_000;
+  else if (annualSalary <= 8_500_000) return Math.floor(annualSalary * 0.1) + 1_100_000;
+  else                                return 1_950_000;
+}
+
 // 所得税簡易計算（給与所得控除後・基礎控除48万円適用）
 function calcIncomeTax(annualSalary) {
-  // 給与所得控除
-  let deduction;
-  if      (annualSalary <= 1_625_000) deduction = 550_000;
-  else if (annualSalary <= 1_800_000) deduction = Math.floor(annualSalary * 0.4);
-  else if (annualSalary <= 3_600_000) deduction = Math.floor(annualSalary * 0.3) + 180_000;
-  else if (annualSalary <= 6_600_000) deduction = Math.floor(annualSalary * 0.2) + 540_000;
-  else if (annualSalary <= 8_500_000) deduction = Math.floor(annualSalary * 0.1) + 1_200_000;
-  else                                deduction = 1_950_000;
-
+  const deduction = calcSalaryDeduction(annualSalary);
   const taxable = Math.max(0, annualSalary - deduction - 480_000); // 基礎控除
   // 所得税率（超過累進）
   const BRACKETS = [
@@ -30,11 +32,12 @@ function calcIncomeTax(annualSalary) {
   return Math.max(0, Math.round(tax * 1.021));
 }
 
-// 住民税概算（所得の約10%）
+// 住民税概算（所得割10%＋均等割。給与所得控除は所得税と共通、基礎控除43万円）
 function calcResidentTax(annualSalary) {
-  const deduction = Math.min(annualSalary * 0.3 + 180_000, 1_950_000);
-  const taxable = Math.max(0, annualSalary - deduction - 430_000);
-  return Math.round(taxable * 0.10);
+  const deduction = calcSalaryDeduction(annualSalary);
+  const taxable = Math.max(0, annualSalary - deduction - 430_000); // 住民税の基礎控除43万
+  if (taxable <= 0) return 0;
+  return Math.round(taxable * 0.10) + 5_000; // 所得割10% ＋ 均等割（概算5,000円）
 }
 
 // 個人社会保険料（本人負担）
@@ -48,8 +51,8 @@ function calcPersonalSI(monthlySalary, bonusAnnual, age, pref) {
 function calcExecScenario(monthlySalary, bonusAnnual, age, pref, capital) {
   const annual      = monthlySalary * 12 + bonusAnnual;
   const si          = calcSocialInsurance(monthlySalary, bonusAnnual, age, pref);
-  const companyTotal = annual + si.annual; // 会社トータルコスト
-  const personalSI   = si.monthly * 12 + (bonusAnnual > 0 ? si.annual - si.monthly * 12 : 0);
+  const companyTotal = annual + si.annual; // 会社トータルコスト（役員報酬＋会社負担社保）
+  const personalSI   = si.personalAnnual;  // 本人負担社保（子ども・子育て拠出金を除く）
   const incomeTax    = calcIncomeTax(annual);
   const residentTax  = calcResidentTax(annual);
   const takeHome     = annual - personalSI - incomeTax - residentTax;
@@ -278,7 +281,7 @@ function renderExecComp(container, budget) {
             <label>役員賞与（会社全体・年間）</label>
             <input type="number" id="ec_total_bonus" value="0" step="100000" class="form-input"
               oninput="updateExecCalc()">
-            <div class="text-sm text-muted mt-1">役員賞与は損金不算入のため法人税に影響しません（定期同額外）</div>
+            <div class="text-sm text-muted mt-1">※ 役員賞与は「事前確定届出給与」を前提に損金算入として試算します（届出なしは損金不算入）</div>
           </div>
         </div>
 
@@ -297,7 +300,7 @@ function renderExecComp(container, budget) {
 
       <!-- 比較テーブル -->
       <div class="card-h" id="exec_compare_panel">
-        <h3>📊 月額別比較表</h3>
+        <h3>📊 月額別 トータル最適化（法人税×個人税・社保）</h3>
         <div id="exec_compare_content"></div>
       </div>
 
@@ -528,46 +531,69 @@ function renderExecCompareTable(officer, pref, capital, pretax) {
   const el = document.getElementById('exec_compare_content');
   if (!el || !officer) return;
 
+  const bonus = _execTotalBonus(officer);
   const steps = [0, 300000, 500000, 800000, 1000000, 1200000, 1500000, 1800000, 2000000];
-  const rows = steps.map(m => {
-    const s = calcExecScenario(m, _execTotalBonus(officer), officer.age || 50, pref, capital);
-    const highlight = officer.monthly === m;
-    return `<tr class="${highlight ? 'highlight' : ''}">
-      <td>${fmt(m)}/月${highlight ? '<span class="optimal-badge">現在</span>' : ''}</td>
-      <td class="num">${fmt(s.annual)}</td>
-      <td class="num" style="color:var(--danger)">${fmt(s.companySI)}</td>
-      <td class="num">${fmt(s.companyTotal)}</td>
-      <td class="num" style="color:var(--primary)">${fmt(s.personalSI)}</td>
-      <td class="num">${fmt(s.incomeTax)}</td>
-      <td class="num">${fmt(s.residentTax)}</td>
-      <td class="num" style="color:var(--green);font-weight:700">${fmt(s.takeHome)}</td>
-      <td class="num">${s.effectiveRate.toFixed(1)}%</td>
+
+  // 各月額ステップで「会社＋個人の手残り」と「国等への流出」を計算
+  const calc = steps.map(m => {
+    const s = calcExecScenario(m, bonus, officer.age || 50, pref, capital);
+    const adjustedPretax = pretax - s.companyTotal;          // 報酬控除後の会社利益
+    const corpTax = calcAllTax(Math.max(0, adjustedPretax), capital).total;
+    const companyAfter = adjustedPretax - corpTax;           // 会社の税引後利益（内部留保）
+    const personalTax  = s.incomeTax + s.residentTax;
+    const outflow = s.companySI + corpTax + s.personalSI + personalTax; // 国等への流出計
+    const retained = companyAfter + s.takeHome;              // 手残り（会社＋個人）= pretax − outflow
+    return { m, s, corpTax, companyAfter, personalTax, outflow, retained };
+  });
+
+  // 手残り最大（＝流出最小）が最適
+  const maxRetained = Math.max(...calc.map(c => c.retained));
+
+  const rows = calc.map(c => {
+    const isCurrent = officer.monthly === c.m;
+    const isOptimal = c.retained === maxRetained;
+    const cls = isOptimal ? 'opt-best' : (isCurrent ? 'highlight' : '');
+    const badges = `${isOptimal ? '<span class="optimal-badge" style="background:#16a34a">最適</span>' : ''}${isCurrent ? '<span class="optimal-badge">現在</span>' : ''}`;
+    return `<tr class="${cls}">
+      <td>${fmt(c.m)}/月${badges}</td>
+      <td class="num">${fmt(c.s.annual)}</td>
+      <td class="num" style="color:var(--danger)">${fmt(c.corpTax)}</td>
+      <td class="num" style="color:var(--primary)">${fmt(c.personalTax + c.s.personalSI)}</td>
+      <td class="num" style="font-weight:700">${fmt(c.outflow)}</td>
+      <td class="num" style="color:var(--green);font-weight:800">${fmt(c.retained)}</td>
     </tr>`;
   }).join('');
 
   el.innerHTML = `
+    <div class="opt-explain" style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;line-height:1.7">
+      <strong>📌 この表の見方</strong><br>
+      役員報酬を<strong>上げる</strong>と会社の利益が減り<strong>法人税は↓</strong>、一方で個人の<strong>所得税・住民税・社会保険は↑</strong>。
+      両者の綱引きで、<strong style="color:#16a34a">「手残り（会社の税引後利益＋役員の手取り）」が最大＝国等への流出が最小</strong>になる月額が<strong>最適</strong>です（緑行）。
+    </div>
     <div class="table-scroll">
     <table class="comp-table">
       <thead>
         <tr>
-          <th>月額報酬</th>
-          <th>年収</th>
-          <th>会社社会保険</th>
-          <th>会社総コスト</th>
-          <th>個人社会保険</th>
-          <th>所得税</th>
-          <th>住民税</th>
-          <th>手取り（概算）</th>
-          <th>負担率</th>
+          <th>役員月額</th>
+          <th>役員年収</th>
+          <th>法人税等</th>
+          <th>個人税・社保</th>
+          <th>国等への流出計</th>
+          <th>手残り（会社＋個人）</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
     </div>
     <div class="wf-note">
-      ※ 所得税は給与所得控除・基礎控除(48万円)適用後の概算値（復興特別所得税2.1%含む）<br>
-      ※ 住民税は所得の約10%の概算値 ／ 役員賞与：${fmt(_execTotalBonus(officer))}/年（設定値）
-    </div>`;
+      ※ 税引前利益 ${fmt(pretax)} を前提に試算。役員賞与 ${fmt(bonus)}/年（事前確定届出＝損金算入を前提）<br>
+      ※ 法人税等＝控除後利益への法人税・地方法人税・住民税・事業税の概算。個人税・社保＝所得税(復興税込)＋住民税＋本人負担社会保険<br>
+      ※ 手残り ＝ 税引前利益 −（法人税等＋会社負担社保＋個人税・社保）。最も大きい月額が最適です
+    </div>
+    <style>
+      .comp-table .opt-best td { background:#dcfce7 !important; }
+      .comp-table .opt-best td:last-child { color:#15803d; }
+    </style>`;
 }
 
 // 予算へ反映

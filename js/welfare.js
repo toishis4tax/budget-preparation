@@ -1,52 +1,56 @@
 // 法定福利費計算（複数従業員・複数賞与対応）
 
+// 令和7年度（2025年3月分〜）協会けんぽ 健康保険料率。介護保険料率は全国一律 1.59%
+// 出典: 全国健康保険協会 https://www.kyoukaikenpo.or.jp/about/business/insurance_rate/rate_prefectures/r07/
+const KAIGO_RATE_R07 = 0.0159;
 const KENPO_RATES = {
-  '北海道': { health: 0.1030, care: 0.0182 },
-  '青森県': { health: 0.0988, care: 0.0182 },
-  '岩手県': { health: 0.0994, care: 0.0182 },
-  '宮城県': { health: 0.1009, care: 0.0182 },
-  '秋田県': { health: 0.1010, care: 0.0182 },
-  '山形県': { health: 0.0999, care: 0.0182 },
-  '福島県': { health: 0.0965, care: 0.0182 },
-  '茨城県': { health: 0.0975, care: 0.0182 },
-  '栃木県': { health: 0.0979, care: 0.0182 },
-  '群馬県': { health: 0.0979, care: 0.0182 },
-  '埼玉県': { health: 0.0978, care: 0.0182 },
-  '千葉県': { health: 0.0974, care: 0.0182 },
-  '東京都': { health: 0.0982, care: 0.0182 },
-  '神奈川県': { health: 0.0985, care: 0.0182 },
-  '新潟県': { health: 0.0957, care: 0.0182 },
-  '富山県': { health: 0.0959, care: 0.0182 },
-  '石川県': { health: 0.0957, care: 0.0182 },
-  '福井県': { health: 0.0951, care: 0.0182 },
-  '山梨県': { health: 0.0977, care: 0.0182 },
-  '長野県': { health: 0.0956, care: 0.0182 },
-  '静岡県': { health: 0.0973, care: 0.0182 },
-  '愛知県': { health: 0.0988, care: 0.0182 },
-  '三重県': { health: 0.0971, care: 0.0182 },
-  '滋賀県': { health: 0.0969, care: 0.0182 },
-  '京都府': { health: 0.1008, care: 0.0182 },
-  '大阪府': { health: 0.1008, care: 0.0182 },
-  '兵庫県': { health: 0.1001, care: 0.0182 },
-  '奈良県': { health: 0.0988, care: 0.0182 },
-  '和歌山県': { health: 0.0951, care: 0.0182 },
-  '鳥取県': { health: 0.0961, care: 0.0182 },
-  '島根県': { health: 0.0953, care: 0.0182 },
-  '岡山県': { health: 0.1007, care: 0.0182 },
-  '広島県': { health: 0.0995, care: 0.0182 },
-  '山口県': { health: 0.0997, care: 0.0182 },
-  '徳島県': { health: 0.1009, care: 0.0182 },
-  '香川県': { health: 0.1019, care: 0.0182 },
-  '愛媛県': { health: 0.1006, care: 0.0182 },
-  '高知県': { health: 0.1027, care: 0.0182 },
-  '福岡県': { health: 0.1029, care: 0.0182 },
-  '佐賀県': { health: 0.1033, care: 0.0182 },
-  '長崎県': { health: 0.1000, care: 0.0182 },
-  '熊本県': { health: 0.1000, care: 0.0182 },
-  '大分県': { health: 0.1007, care: 0.0182 },
-  '宮崎県': { health: 0.0987, care: 0.0182 },
-  '鹿児島県': { health: 0.1000, care: 0.0182 },
-  '沖縄県': { health: 0.0956, care: 0.0182 },
+  '北海道': { health: 0.1031, care: KAIGO_RATE_R07 },
+  '青森県': { health: 0.0985, care: KAIGO_RATE_R07 },
+  '岩手県': { health: 0.0962, care: KAIGO_RATE_R07 },
+  '宮城県': { health: 0.1011, care: KAIGO_RATE_R07 },
+  '秋田県': { health: 0.1001, care: KAIGO_RATE_R07 },
+  '山形県': { health: 0.0975, care: KAIGO_RATE_R07 },
+  '福島県': { health: 0.0962, care: KAIGO_RATE_R07 },
+  '茨城県': { health: 0.0967, care: KAIGO_RATE_R07 },
+  '栃木県': { health: 0.0982, care: KAIGO_RATE_R07 },
+  '群馬県': { health: 0.0977, care: KAIGO_RATE_R07 },
+  '埼玉県': { health: 0.0976, care: KAIGO_RATE_R07 },
+  '千葉県': { health: 0.0979, care: KAIGO_RATE_R07 },
+  '東京都': { health: 0.0991, care: KAIGO_RATE_R07 },
+  '神奈川県': { health: 0.0992, care: KAIGO_RATE_R07 },
+  '新潟県': { health: 0.0955, care: KAIGO_RATE_R07 },
+  '富山県': { health: 0.0965, care: KAIGO_RATE_R07 },
+  '石川県': { health: 0.0988, care: KAIGO_RATE_R07 },
+  '福井県': { health: 0.0994, care: KAIGO_RATE_R07 },
+  '山梨県': { health: 0.0989, care: KAIGO_RATE_R07 },
+  '長野県': { health: 0.0969, care: KAIGO_RATE_R07 },
+  '岐阜県': { health: 0.0993, care: KAIGO_RATE_R07 },
+  '静岡県': { health: 0.0980, care: KAIGO_RATE_R07 },
+  '愛知県': { health: 0.1003, care: KAIGO_RATE_R07 },
+  '三重県': { health: 0.0999, care: KAIGO_RATE_R07 },
+  '滋賀県': { health: 0.0997, care: KAIGO_RATE_R07 },
+  '京都府': { health: 0.1003, care: KAIGO_RATE_R07 },
+  '大阪府': { health: 0.1024, care: KAIGO_RATE_R07 },
+  '兵庫県': { health: 0.1016, care: KAIGO_RATE_R07 },
+  '奈良県': { health: 0.1002, care: KAIGO_RATE_R07 },
+  '和歌山県': { health: 0.1019, care: KAIGO_RATE_R07 },
+  '鳥取県': { health: 0.0993, care: KAIGO_RATE_R07 },
+  '島根県': { health: 0.0994, care: KAIGO_RATE_R07 },
+  '岡山県': { health: 0.1017, care: KAIGO_RATE_R07 },
+  '広島県': { health: 0.0997, care: KAIGO_RATE_R07 },
+  '山口県': { health: 0.1036, care: KAIGO_RATE_R07 },
+  '徳島県': { health: 0.1047, care: KAIGO_RATE_R07 },
+  '香川県': { health: 0.1021, care: KAIGO_RATE_R07 },
+  '愛媛県': { health: 0.1018, care: KAIGO_RATE_R07 },
+  '高知県': { health: 0.1013, care: KAIGO_RATE_R07 },
+  '福岡県': { health: 0.1031, care: KAIGO_RATE_R07 },
+  '佐賀県': { health: 0.1078, care: KAIGO_RATE_R07 },
+  '長崎県': { health: 0.1041, care: KAIGO_RATE_R07 },
+  '熊本県': { health: 0.1012, care: KAIGO_RATE_R07 },
+  '大分県': { health: 0.1025, care: KAIGO_RATE_R07 },
+  '宮崎県': { health: 0.1009, care: KAIGO_RATE_R07 },
+  '鹿児島県': { health: 0.1031, care: KAIGO_RATE_R07 },
+  '沖縄県': { health: 0.0944, care: KAIGO_RATE_R07 },
 };
 
 const KOSEI_RATE     = 0.183;
@@ -80,6 +84,11 @@ function calcSocialInsurance(salary, bonusAnnual, age, pref) {
   const bonusCompany   = bonusHealthComp + bonusCareComp + bonusPensionComp + bonusKodomoComp;
   const annualCompany  = monthlyCompany * 12 + bonusCompany;
 
+  // 個人（本人）負担：子ども・子育て拠出金は全額事業主負担のため除外。それ以外は労使折半（≒会社負担と同額）
+  const personalMonthly = healthCompany + careCompany + pensionCompany;
+  const bonusPersonal   = bonusHealthComp + bonusCareComp + bonusPensionComp;
+  const personalAnnual  = personalMonthly * 12 + bonusPersonal;
+
   return {
     health:  { rate: rates.health, monthly: healthCompany },
     care:    { rate: rates.care,   monthly: careCompany, applicable: careFlag },
@@ -87,6 +96,8 @@ function calcSocialInsurance(salary, bonusAnnual, age, pref) {
     kodomo:  { rate: KODOMO_RATE,  monthly: kodomo },
     monthly: monthlyCompany,
     annual:  annualCompany,
+    personalMonthly,
+    personalAnnual,
   };
 }
 
