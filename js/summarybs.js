@@ -1,126 +1,82 @@
-// 要約貸借対照表（3期比較）
-// 推移表の生科目を、セクション小計＋科目名マッチ＋残差（他の〜）で標準フォーマットに集約する。
-// 「他の〜」を残差で出すため、名前マッチが漏れても各小計・総資産は必ず一致する。
+// 要約貸借対照表・損益計算書（3期比較）
+// セクション直接子アプローチ: parentId で勘定科目レベルを特定し、
+// calcAllValuesDynamic の集計済み値を使う（二重計上なし・漏れなし）
 
-function summarizeBS(budget) {
-  if (!budget || !budget.dynamicAccounts || !budget.dynamicAccounts.length) return null;
-  const av    = calcAllValuesDynamic(budget);
-  const accts = budget.dynamicAccounts;
-  const cols  = budget.actualCols || [];
-  let closeIdx = -1;
-  for (let i = 0; i < 12; i++) if (cols[i]) closeIdx = i;
-  if (closeIdx < 0) closeIdx = 11;
+// ===== 共通ユーティリティ =====
 
-  const bal  = id => (av[id] || [])[closeIdx] || 0;
-  // 末端科目（input）のみを名前で合算（親子の二重計上を回避）
-  const leaf = (sec, re) => accts
-    .filter(a => a.type === 'input' && a.section === sec && re.test(a.name || ''))
-    .reduce((s, a) => s + bal(a.id), 0);
-
-  const curAsset = bal('sec_cur_asset');
-  const fixAsset = bal('sec_fix_asset');
-  const curLiab  = bal('sec_cur_liab');
-  const fixLiab  = bal('sec_fix_liab');
-  const equity   = bal('sec_equity');
-
-  const cash      = leaf('bs_asset', /現金|預金/);
-  const ar        = leaf('bs_asset', /売掛金|受取手形|電子記録債権|売上債権/);
-  const inv       = leaf('bs_asset', /商品|製品|仕掛品|半製品|原材料|貯蔵品|棚卸/);
-  const land      = leaf('bs_asset', /土地/);
-  const depr      = leaf('bs_asset', /建物|構築物|機械|装置|車両|運搬具|工具|器具|備品|船舶|航空機|リース資産/);
-  const deprAccum = leaf('bs_asset', /減価償却累計額/);
-
-  const payable   = leaf('bs_liab', /買掛金|支払手形|電子記録債務|買入債務/);
-  const shortLoan = leaf('bs_liab', /短期借入金/);
-  const longLoan  = leaf('bs_liab', /長期借入金/);
-
-  const valDiff   = leaf('bs_equity', /評価・換算差額|評価差額|繰延ヘッジ|為替換算|新株予約権/);
-
-  const totalAssets = bal('calc_total_assets') || (curAsset + fixAsset);
-  const totalLiab   = bal('calc_total_liab')   || (curLiab + fixLiab);
-
-  return {
-    // 資産
-    cash, ar, inv,
-    otherCurAsset: curAsset - cash - ar - inv,
-    curAsset,
-    land, depr, deprAccum,
-    otherFixAsset: fixAsset - land - depr - deprAccum,
-    fixAsset,
-    totalAssets,
-    // 負債
-    payable, shortLoan,
-    otherCurLiab: curLiab - payable - shortLoan,
-    curLiab,
-    longLoan,
-    otherFixLiab: fixLiab - longLoan,
-    fixLiab,
-    totalLiab,
-    // 純資産
-    shareholderEq: equity - valDiff,
-    valDiff,
-    equity,
-  };
+function _sbsSecOf(byId, id) {
+  let a = byId[id], g = 0;
+  while (a && g++ < 20) {
+    if (!a.parentId) return a.id;
+    const p = byId[a.parentId];
+    if (!p) return a.parentId;
+    if (p.type === 'section') return p.id;
+    a = p;
+  }
+  return null;
 }
 
-// 要約損益計算書（変動損益計算書）。変動費=売上原価, 固定費=販管費+営業外費用-営業外収益。
-// 「他の〜」を残差にするため、限界利益・固定費合計・経常利益は必ず整合する。
+function _sbsFindSec(accts, id, re) {
+  return accts.find(a => a.id === id) ||
+         accts.find(a => a.type === 'section' && re && re.test(a.name || ''));
+}
+
+// セクションの直接子（勘定科目レベル）の中から正規表現でマッチして合算
+// av[a.id] には子科目の集計値が含まれるため二重計上しない
+function _sbsSumChildren(accts, av, secId, re, transform) {
+  const fn = transform || (v => v);
+  return accts
+    .filter(a => a.parentId === secId && re.test(a.name || ''))
+    .reduce((s, a) => s + fn((av[a.id] || []).slice(0, 13).reduce((t, v) => t + (v || 0), 0)), 0);
+}
+
+// ===== 要約損益計算書 =====
 function summarizePL(budget) {
   if (!budget || !budget.dynamicAccounts || !budget.dynamicAccounts.length) return null;
   const av    = calcAllValuesDynamic({ ...budget, rows: getMergedRows(budget) });
   const accts = budget.dynamicAccounts;
-  const byId  = {}; accts.forEach(a => byId[a.id] = a);
-  const sum   = id => (av[id] || []).slice(0, 13).reduce((s, v) => s + v, 0);
+  const sum13 = id => (av[id] || []).slice(0, 13).reduce((s, v) => s + (v || 0), 0);
+  const sc    = (secId, re) => _sbsSumChildren(accts, av, secId, re);
 
-  // 親をたどって所属セクション（sec_cogs/sec_sga等）を特定
-  const secOf = id => {
-    let a = byId[id], g = 0;
-    while (a && g++ < 20) {
-      if (!a.parentId) return a.id;
-      const p = byId[a.parentId];
-      if (!p) return a.parentId;
-      if (p.type === 'section') return p.id;
-      a = p;
-    }
-    return null;
-  };
-  const leaf = (secId, re) => accts
-    .filter(a => a.type === 'input' && secOf(a.id) === secId && re.test(a.name || ''))
-    .reduce((s, a) => s + sum(a.id), 0);
-  const PL_LABOR_RE = /給与|給料|賃金|役員報酬|役員賞与|賞与|法定福利|福利厚生|厚生費|福利費|雑給|人件費|退職|手当/;
-  const parentSga = re => accts
-    .filter(a => a.type !== 'section' && (a.indent ?? 1) <= 1 && secOf(a.id) === 'sec_sga' && re.test(a.name || ''))
-    .reduce((s, a) => s + sum(a.id), 0);
+  const revSec     = _sbsFindSec(accts, 'sec_revenue',    /売上|収入/);
+  const cogsSec    = _sbsFindSec(accts, 'sec_cogs',       /売上原価|仕入原価/);
+  const sgaSec     = _sbsFindSec(accts, 'sec_sga',        /販売費|一般管理費/);
+  const nonOpIncSec = _sbsFindSec(accts, 'sec_non_op_inc', /営業外収益/);
+  const nonOpExpSec = _sbsFindSec(accts, 'sec_non_op_exp', /営業外費用/);
 
-  const sales    = sum('sec_revenue');
-  const cogs     = sum('sec_cogs');
-  const sga      = sum('sec_sga');
-  const nonOpInc = sum('sec_non_op_inc');
-  const nonOpExp = sum('sec_non_op_exp');
-  const ord      = sum('calc_ord');
-  const pretax   = sum('calc_pretax');
-  const net      = sum('calc_net');
+  const sales    = sum13('sec_revenue')    || (revSec     ? sum13(revSec.id)     : 0);
+  const cogs     = sum13('sec_cogs')       || (cogsSec    ? sum13(cogsSec.id)    : 0);
+  const sga      = sum13('sec_sga')        || (sgaSec     ? sum13(sgaSec.id)     : 0);
+  const nonOpInc = sum13('sec_non_op_inc') || (nonOpIncSec ? sum13(nonOpIncSec.id) : 0);
+  const nonOpExp = sum13('sec_non_op_exp') || (nonOpExpSec ? sum13(nonOpExpSec.id) : 0);
+  const ord      = sum13('calc_ord');
+  const pretax   = sum13('calc_pretax');
+  const net      = sum13('calc_net');
+
+  const cogsId = cogsSec?.id || 'sec_cogs';
+  const sgaId  = sgaSec?.id  || 'sec_sga';
 
   // 変動費の内訳
-  const purchase  = leaf('sec_cogs', /仕入/);
-  const outsource = leaf('sec_cogs', /外注/);
+  const purchase  = sc(cogsId, /仕入/);
+  const outsource = sc(cogsId, /外注/);
   const otherVar  = cogs - purchase - outsource;
   const marginal  = sales - cogs;
 
-  // 人件費の内訳（販管費の親科目）
-  const labor    = parentSga(PL_LABOR_RE);
-  const execComp = parentSga(/役員報酬|役員賞与/);
-  const welfare  = parentSga(/法定福利|福利厚生|厚生費|福利費/);
-  const wages    = parentSga(/給料|給与|賃金|賞与|雑給/) - parentSga(/役員賞与/); // 役員賞与の二重計上を控除
+  // 人件費の内訳（SGAの直接子）
+  const LABOR_RE  = /給与|給料|賃金|役員報酬|役員賞与|賞与|法定福利|福利厚生|厚生費|福利費|雑給|人件費|退職|手当/;
+  const labor     = sc(sgaId, LABOR_RE);
+  const execComp  = sc(sgaId, /役員報酬/);
+  const welfare   = sc(sgaId, /法定福利|福利厚生|厚生費|福利費/);
+  const wages     = sc(sgaId, /給料|給与|賃金|賞与|雑給/) - sc(sgaId, /役員賞与/);
   const otherLabor = labor - execComp - welfare - wages;
 
-  // 設備費
-  const depr   = leaf('sec_sga', /減価償却/);
-  const rent   = leaf('sec_sga', /地代|家賃|賃借料|リース料/);
-  const insRep = leaf('sec_sga', /保険料|修繕/);
+  // 設備費（SGAの直接子）
+  const depr   = sc(sgaId, /減価償却/);
+  const rent   = sc(sgaId, /地代|家賃|賃借料|リース料/);
+  const insRep = sc(sgaId, /保険料|修繕/);
   const equip  = depr + rent + insRep;
 
-  const otherFixedSga = sga - labor - equip; // 他の販売管理費（残差）
+  const otherFixedSga = sga - labor - equip;
   const fixedTotal    = sga + nonOpExp - nonOpInc;
 
   return {
@@ -133,6 +89,90 @@ function summarizePL(budget) {
   };
 }
 
+// ===== 要約貸借対照表 =====
+function summarizeBS(budget) {
+  if (!budget || !budget.dynamicAccounts || !budget.dynamicAccounts.length) return null;
+  const av    = calcAllValuesDynamic({ ...budget, rows: getMergedRows(budget) });
+  const accts = budget.dynamicAccounts;
+  const byId  = {}; accts.forEach(a => byId[a.id] = a);
+
+  const cols = budget.actualCols || [];
+  let closeIdx = -1;
+  for (let i = 0; i < 12; i++) if (cols[i]) closeIdx = i;
+  if (closeIdx < 0) closeIdx = 11;
+
+  const bal = id => (av[id] || [])[closeIdx] || 0;
+
+  // セクション直接子から名前マッチして残高合算
+  const sc = (secId, re) => accts
+    .filter(a => a.parentId === secId && re.test(a.name || ''))
+    .reduce((s, a) => s + bal(a.id), 0);
+
+  // フォールバック: input科目を secOf で特定して合算
+  const scDeep = (secId, re) => {
+    const direct = sc(secId, re);
+    if (direct !== 0) return direct;
+    return accts
+      .filter(a => (a.type === 'input' || a.type === 'rev_display') &&
+                   _sbsSecOf(byId, a.id) === secId && re.test(a.name || ''))
+      .reduce((s, a) => s + bal(a.id), 0);
+  };
+
+  const curAssetSec = _sbsFindSec(accts, 'sec_cur_asset', /流動資産/);
+  const fixAssetSec = _sbsFindSec(accts, 'sec_fix_asset', /固定資産|繰延資産/);
+  const curLiabSec  = _sbsFindSec(accts, 'sec_cur_liab',  /流動負債/);
+  const fixLiabSec  = _sbsFindSec(accts, 'sec_fix_liab',  /固定負債/);
+  const equitySec   = _sbsFindSec(accts, 'sec_equity',    /純資産|資本/);
+
+  const curAssetId = curAssetSec?.id || 'sec_cur_asset';
+  const fixAssetId = fixAssetSec?.id || 'sec_fix_asset';
+  const curLiabId  = curLiabSec?.id  || 'sec_cur_liab';
+  const fixLiabId  = fixLiabSec?.id  || 'sec_fix_liab';
+  const equityId   = equitySec?.id   || 'sec_equity';
+
+  const curAsset = bal('sec_cur_asset') || bal(curAssetId);
+  const fixAsset = bal('sec_fix_asset') || bal(fixAssetId);
+  const curLiab  = bal('sec_cur_liab')  || bal(curLiabId);
+  const fixLiab  = bal('sec_fix_liab')  || bal(fixLiabId);
+  const equity   = bal('sec_equity')    || bal(equityId);
+
+  const cash      = scDeep(curAssetId, /現金|預金/);
+  const ar        = scDeep(curAssetId, /売掛金|受取手形|電子記録債権|売上債権/);
+  const inv       = scDeep(curAssetId, /商品|製品|仕掛品|半製品|原材料|貯蔵品|棚卸/);
+  const land      = scDeep(fixAssetId, /土地/);
+  const depr      = scDeep(fixAssetId, /建物|構築物|機械|装置|車両|運搬具|工具|器具|備品|船舶|航空機|リース資産/);
+  const deprAccum = scDeep(fixAssetId, /減価償却累計額/);
+
+  const payable   = scDeep(curLiabId, /買掛金|支払手形|電子記録債務|買入債務/);
+  const shortLoan = scDeep(curLiabId, /短期借入金/);
+  const longLoan  = scDeep(fixLiabId, /長期借入金/);
+  const valDiff   = scDeep(equityId,  /評価・換算差額|評価差額|繰延ヘッジ|為替換算|新株予約権/);
+
+  const totalAssets = bal('calc_total_assets') || (curAsset + fixAsset);
+  const totalLiab   = bal('calc_total_liab')   || (curLiab + fixLiab);
+
+  return {
+    cash, ar, inv,
+    otherCurAsset: curAsset - cash - ar - inv,
+    curAsset,
+    land, depr, deprAccum,
+    otherFixAsset: fixAsset - land - depr - deprAccum,
+    fixAsset,
+    totalAssets,
+    payable, shortLoan,
+    otherCurLiab: curLiab - payable - shortLoan,
+    curLiab,
+    longLoan,
+    otherFixLiab: fixLiab - longLoan,
+    fixLiab,
+    totalLiab,
+    shareholderEq: equity - valDiff,
+    valDiff,
+    equity,
+  };
+}
+
+// ===== 表示: 要約PL =====
 function renderSummaryPL(container) {
   const company = window.App?.currentCompany;
   const curYear = window.App?.currentYear || new Date().getFullYear();
@@ -161,7 +201,6 @@ function renderSummaryPL(container) {
   const fmtK = v => (v == null ? '—' : K(v).toLocaleString('ja-JP'));
   const fmtPct = (v, base) => (v == null || !base ? '—' : (v / base * 100).toFixed(1));
 
-  // 通常行: 各期 [金額, 対売上%]
   const row = (label, key, opts = {}) => {
     const cells = data.map(d => {
       if (!d) return `<td class="num">—</td><td class="num sbs-pct">—</td>`;
@@ -171,7 +210,6 @@ function renderSummaryPL(container) {
     const cls = (opts.subtotal ? 'sbs-subtotal' : '') + (opts.total ? ' sbs-total' : '') + (opts.indent ? ' sbs-indent' : '');
     return `<tr class="${cls.trim()}"><td class="sbs-label">${label}</td>${cells}</tr>`;
   };
-  // 比率行: 各期、fn(d, 前期d)→% を表示（金額セルは空）
   const ratioRow = (label, fn) => {
     const cells = data.map((d, i) => {
       const r = d ? fn(d, data[i - 1]) : null;
@@ -249,6 +287,7 @@ function renderSummaryPL(container) {
     </style>`;
 }
 
+// ===== 表示: 要約BS =====
 function renderSummaryBS(container) {
   const company = window.App?.currentCompany;
   const curYear = window.App?.currentYear || new Date().getFullYear();
@@ -268,9 +307,8 @@ function renderSummaryBS(container) {
     return;
   }
 
-  // 期ラベル（◯年◯月期）
   const colHead = years.map((y, i) => {
-    const endYear = y + 1; // 4月始まり前提：年度yの期末は翌暦年のfiscalMonth
+    const endYear = y + 1;
     const tag = i === 0 ? '3年前実績' : i === 1 ? '2年前実績' : '前期実績';
     return `<th colspan="2" class="sbs-yhead">${tag}<br><span style="font-weight:400">（${endYear}年${fiscalMonth}月期）</span></th>`;
   }).join('');
@@ -279,7 +317,6 @@ function renderSummaryBS(container) {
   const fmtK = v => (v == null ? '—' : K(v).toLocaleString('ja-JP'));
   const fmtPct = (v, base) => (v == null || !base ? '—' : (v / base * 100).toFixed(1));
 
-  // 行: 各期の [金額, 対総資産%]
   const row = (label, key, opts = {}) => {
     const cells = data.map(d => {
       if (!d) return `<td class="num">—</td><td class="num sbs-pct">—</td>`;
