@@ -11,7 +11,6 @@ function renderHealthDiag(container, budget) {
   const metrics = (budget.dynamicAccounts && budget.dynamicAccounts.length)
     ? calcHealthMetricsDynamic(budget, capital)
     : calcHealthMetrics(budget.rows, capital);
-  const items = [
   const _fmtPct = v => (v == null || isNaN(v)) ? '—' : v.toFixed(1);
   const _fmtNum = v => (v == null || isNaN(v)) ? '—' : fmt(v);
   const items = [
