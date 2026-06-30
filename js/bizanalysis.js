@@ -137,8 +137,8 @@ function renderBizAnalysis(container) {
   };
 
   // ===== 分析行ヘルパー =====
-  const anaRow = (label, v2, v1, v0, decimals, suffix) => `<tr>
-    <td>${label}</td>
+  const anaRow = (label, v2, v1, v0, decimals, suffix, formula) => `<tr>
+    <td>${label}${formula ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px;line-height:1.4">${formula}</div>` : ''}</td>
     <td class="num">${fmtV(v2, decimals, suffix)}</td>
     <td class="num">${fmtV(v1, decimals, suffix)}</td>
     <td class="num">${fmtV(v0, decimals, suffix)}</td>
@@ -202,19 +202,19 @@ function renderBizAnalysis(container) {
               </tr>
             </thead>
             <tbody>
-              ${anaRow('対前年売上高比率（%）', null, salesGrowthPrev != null ? salesGrowthPrev : null, salesGrowthCur != null ? salesGrowthCur : null, 1, '%')}
+              ${anaRow('対前年売上高比率（%）', null, salesGrowthPrev != null ? salesGrowthPrev : null, salesGrowthCur != null ? salesGrowthCur : null, 1, '%', '（当期売上 − 前期売上）÷ 前期売上')}
               ${anaRow('限界利益率（%）',
                 mPrev2 ? pct(mPrev2.marginRate) : null,
                 mPrev  ? pct(mPrev.marginRate)  : null,
                 mCur   ? pct(mCur.marginRate)   : null,
-                1, '%')}
-              ${anaRow('売上高経常利益率（%）', ordRatePrev2, ordRatePrev, ordRateCur, 1, '%')}
-              ${anaRow('固定費増加率（%）', null, fixedGrowthPrev, fixedGrowthCur, 1, '%')}
+                1, '%', '限界利益 ÷ 売上高')}
+              ${anaRow('売上高経常利益率（%）', ordRatePrev2, ordRatePrev, ordRateCur, 1, '%', '経常利益 ÷ 売上高')}
+              ${anaRow('固定費増加率（%）', null, fixedGrowthPrev, fixedGrowthCur, 1, '%', '（当期固定費 − 前期固定費）÷ 前期固定費')}
               ${anaRow('損益分岐点売上高（千円）',
                 mPrev2 ? K(mPrev2.breakEven) : null,
                 mPrev  ? K(mPrev.breakEven)  : null,
                 mCur   ? K(mCur.breakEven)   : null,
-                null, '')}
+                null, '', '固定費 ÷ 限界利益率')}
             </tbody>
           </table>
         </div>
@@ -240,15 +240,15 @@ function renderBizAnalysis(container) {
                 mPrev2 ? K(mPrev2.cf) : null,
                 mPrev  ? K(mPrev.cf)  : null,
                 mCur   ? K(mCur.cf)   : null,
-                null, '')}
-              ${anaRow('1人当り売上高（千円）',   perEmpSalesPrev2, perEmpSalesPrev, perEmpSalesCur, null, '')}
-              ${anaRow('1人当り限界利益（千円）', perEmpMargPrev2,  perEmpMargPrev,  perEmpMargCur,  null, '')}
-              ${anaRow('1人当り経常利益（千円）', perEmpOrdPrev2,   perEmpOrdPrev,   perEmpOrdCur,   null, '')}
+                null, '', '税引前利益 × 66.2%（簡易CF）')}
+              ${anaRow('1人当り売上高（千円）',   perEmpSalesPrev2, perEmpSalesPrev, perEmpSalesCur, null, '', '売上高 ÷ 従業員数')}
+              ${anaRow('1人当り限界利益（千円）', perEmpMargPrev2,  perEmpMargPrev,  perEmpMargCur,  null, '', '限界利益 ÷ 従業員数')}
+              ${anaRow('1人当り経常利益（千円）', perEmpOrdPrev2,   perEmpOrdPrev,   perEmpOrdCur,   null, '', '経常利益 ÷ 従業員数')}
               ${anaRow('平均従業員数（人）',
                 mPrev2?.employees || null,
                 mPrev?.employees  || null,
                 mCur?.employees   || null,
-                null, '')}
+                null, '', '会社設定より')}
             </tbody>
           </table>
         </div>
@@ -274,17 +274,17 @@ function renderBizAnalysis(container) {
                 mPrev2?.currentRatio   || null,
                 mPrev?.currentRatio    || null,
                 mCur?.currentRatio     || null,
-                1, '%')}
+                1, '%', '流動資産 ÷ 流動負債')}
               ${anaRow('借入金対月商倍率（倍）',
                 mPrev2?.debtMonthRatio || null,
                 mPrev?.debtMonthRatio  || null,
                 mCur?.debtMonthRatio   || null,
-                1, '倍')}
+                1, '倍', '借入金残高 ÷ 月商（売上高 ÷ 12）')}
               ${anaRow('自己資本比率（%）',
                 mPrev2?.equityRatio    || null,
                 mPrev?.equityRatio     || null,
                 mCur?.equityRatio      || null,
-                1, '%')}
+                1, '%', '自己資本 ÷ 総資産')}
             </tbody>
           </table>
         </div>

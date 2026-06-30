@@ -191,6 +191,15 @@ function calcHealthMetrics(rows, capital) {
     labor_ratio:       sales        ? (sga_salary / sales * 100) : 0,
     ebitda,
     loan_month_ratio:  sales > 0    ? ((longLoan + shortLoan) / (sales / 12)) : 0,
+    _detail: {
+      equity_ratio:     { num: totalEquity,          den: totalAssets,           numLabel: '自己資本',   denLabel: '総資産' },
+      current_ratio:    { num: currentAssets,        den: currentLiab,           numLabel: '流動資産',   denLabel: '流動負債' },
+      quick_ratio:      { num: cash + ar,             den: currentLiab,           numLabel: '現金+売掛金', denLabel: '流動負債' },
+      op_margin:        { num: ordProfit,             den: sales,                 numLabel: '経常利益',   denLabel: '売上高' },
+      labor_ratio:      { num: sga_salary,            den: sales,                 numLabel: '人件費',     denLabel: '売上高' },
+      ebitda:           { num: opProfit,              den: total('sga_depr'),     numLabel: '営業利益',   denLabel: '減価償却費', isSum: true },
+      loan_month_ratio: { num: longLoan + shortLoan,  den: sales / 12,            numLabel: '借入金残高', denLabel: '月商' },
+    },
   };
 
   return metrics;
@@ -248,6 +257,15 @@ function calcHealthMetricsDynamic(budget, capital) {
     labor_ratio:      sales ? (salary / sales * 100) : 0,
     ebitda,
     loan_month_ratio: sales > 0 ? (loans / (sales / 12)) : 0,
+    _detail: {
+      equity_ratio:     { num: totalEquity,   den: totalAssets,  numLabel: '自己資本',    denLabel: '総資産' },
+      current_ratio:    { num: currentAssets, den: currentLiab,  numLabel: '流動資産',    denLabel: '流動負債' },
+      quick_ratio:      { num: cash + ar,      den: currentLiab,  numLabel: '現金+売掛金', denLabel: '流動負債' },
+      op_margin:        { num: ordProfit,      den: sales,        numLabel: '経常利益',    denLabel: '売上高' },
+      labor_ratio:      { num: salary,         den: sales,        numLabel: '人件費',      denLabel: '売上高' },
+      ebitda:           { num: opProfit2,      den: depr,         numLabel: '営業利益',    denLabel: '減価償却費', isSum: true },
+      loan_month_ratio: { num: loans,          den: sales / 12,   numLabel: '借入金残高',  denLabel: '月商' },
+    },
   };
 }
 

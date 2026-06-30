@@ -13,6 +13,14 @@ function renderHealthDiag(container, budget) {
     : calcHealthMetrics(budget.rows, capital);
   const _fmtPct = v => (v == null || isNaN(v)) ? '—' : v.toFixed(1);
   const _fmtNum = v => (v == null || isNaN(v)) ? '—' : fmt(v);
+  const _fmtMan = v => (v == null || isNaN(v)) ? '—' : Math.round(v / 10000).toLocaleString() + '万円';
+  const detail = metrics._detail || {};
+  const formulaHtml = key => {
+    const d = detail[key];
+    if (!d) return '';
+    const op = d.isSum ? '+' : '÷';
+    return `<div style="font-size:10px;color:var(--text-muted);margin-top:2px;line-height:1.4">${d.numLabel} ${_fmtMan(d.num)} ${op} ${d.denLabel} ${_fmtMan(d.den)}</div>`;
+  };
   const items = [
     { key: 'equity_ratio',     label: '自己資本比率',       value: metrics.equity_ratio,     unit: '%',   fmt: _fmtPct },
     { key: 'current_ratio',    label: '流動比率',           value: metrics.current_ratio,    unit: '%',   fmt: _fmtPct },
@@ -31,7 +39,7 @@ function renderHealthDiag(container, budget) {
     const comment = (METRIC_COMMENTS[item.key]||{})[grade] || '';
     return `
       <tr>
-        <td>${item.label}</td>
+        <td>${item.label}${formulaHtml(item.key)}</td>
         <td class="num">${item.fmt(item.value)} ${item.unit}</td>
         <td><span class="grade-badge" style="background:${color}">${grade}</span></td>
         <td class="comment">${comment}</td>
