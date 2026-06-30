@@ -600,9 +600,9 @@ input[type=range]::-webkit-slider-thumb {
 .phase-kpi-val.neg { color: var(--rose); }
 .phase-output-btn { width: 100%; padding: 9px; border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity .12s; font-family: inherit; color: #fff; }
 .phase-output-btn:hover { opacity: .88; }
-.phase-blue  .phase-output-btn { background: var(--primary); }
-.phase-amber .phase-output-btn { background: #f59e0b; }
-.phase-green .phase-output-btn { background: #10b981; }
+.phase-blue  .phase-output-btn, .phase-output-btn.phase-blue  { background: var(--primary); }
+.phase-amber .phase-output-btn, .phase-output-btn.phase-amber { background: #f59e0b; }
+.phase-green .phase-output-btn, .phase-output-btn.phase-green { background: #10b981; }
 
 /* ===== 成果物 ===== */
 .output-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: var(--radius-sm); cursor: pointer; transition: background .1s; border: 1px solid var(--border); margin-bottom: 7px; }
