@@ -67,7 +67,7 @@ function renderBEPAnalysis(container) {
 
   // フォーマット
   const K    = v => v == null ? '—' : Math.round(v / 1000).toLocaleString('ja-JP');
-  const pct  = v => v == null ? '—' : v.toFixed(1) + '%';
+  const pct  = v => (v == null || isNaN(v)) ? '—' : v.toFixed(1) + '%';
   const yoy  = (c, p) => (p == null || p === 0) ? '—' : (c / p * 100).toFixed(1) + '%';
   const budR = (c, b) => (b == null || b === 0) ? '—' : (c / b * 100).toFixed(1) + '%';
 
@@ -196,7 +196,7 @@ function _bepDrawChart(cur, prev, bud, curLabel, prevLabel, fiscalMonth) {
   const ch = H - pad.t - pad.b;
 
   // スケール
-  const maxSales = Math.max(cur.sales, prev?.sales || 0, bud?.sales || 0, cur.bep || 0) * 1.15;
+  const maxSales = (Math.max(cur.sales, prev?.sales || 0, bud?.sales || 0, cur.bep || 0) * 1.15) || 1;
   const xS = v => pad.l + (v / maxSales) * cw;
   const yS = v => pad.t + ch - (v / maxSales) * ch;
 

@@ -12,13 +12,16 @@ function renderHealthDiag(container, budget) {
     ? calcHealthMetricsDynamic(budget, capital)
     : calcHealthMetrics(budget.rows, capital);
   const items = [
-    { key: 'equity_ratio',     label: '自己資本比率',       value: metrics.equity_ratio,     unit: '%',   fmt: v => v.toFixed(1) },
-    { key: 'current_ratio',    label: '流動比率',           value: metrics.current_ratio,    unit: '%',   fmt: v => v.toFixed(1) },
-    { key: 'quick_ratio',      label: '当座比率',           value: metrics.quick_ratio,      unit: '%',   fmt: v => v.toFixed(1) },
-    { key: 'op_margin',        label: '売上高経常利益率',   value: metrics.op_margin,        unit: '%',   fmt: v => v.toFixed(1) },
-    { key: 'labor_ratio',      label: '労働分配率',         value: metrics.labor_ratio,      unit: '%',   fmt: v => v.toFixed(1) },
-    { key: 'ebitda',           label: 'EBITDA',             value: metrics.ebitda,           unit: '',    fmt: v => fmt(v) },
-    { key: 'loan_month_ratio', label: '借入金月商倍率',     value: metrics.loan_month_ratio, unit: 'か月', fmt: v => v.toFixed(1) },
+  const _fmtPct = v => (v == null || isNaN(v)) ? '—' : v.toFixed(1);
+  const _fmtNum = v => (v == null || isNaN(v)) ? '—' : fmt(v);
+  const items = [
+    { key: 'equity_ratio',     label: '自己資本比率',       value: metrics.equity_ratio,     unit: '%',   fmt: _fmtPct },
+    { key: 'current_ratio',    label: '流動比率',           value: metrics.current_ratio,    unit: '%',   fmt: _fmtPct },
+    { key: 'quick_ratio',      label: '当座比率',           value: metrics.quick_ratio,      unit: '%',   fmt: _fmtPct },
+    { key: 'op_margin',        label: '売上高経常利益率',   value: metrics.op_margin,        unit: '%',   fmt: _fmtPct },
+    { key: 'labor_ratio',      label: '労働分配率',         value: metrics.labor_ratio,      unit: '%',   fmt: _fmtPct },
+    { key: 'ebitda',           label: 'EBITDA',             value: metrics.ebitda,           unit: '',    fmt: _fmtNum },
+    { key: 'loan_month_ratio', label: '借入金月商倍率',     value: metrics.loan_month_ratio, unit: 'か月', fmt: _fmtPct },
   ];
 
   const gradeColor = { A:'#10b981', B:'#3b82f6', C:'#f59e0b', D:'#f97316', E:'#ef4444' };

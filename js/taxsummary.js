@@ -224,7 +224,7 @@ function renderTaxSummary(container) {
 
 function updateTaxSum(key, value) {
   const company = window.App?.currentCompany;
-  const curYear = window.App?.currentYear;
+  const curYear = window.App?.currentYear || new Date().getFullYear();
   if (!company) return;
   const saved = loadTaxSummaryData(company.id, curYear);
   saved[key] = parseFloat(value) || 0;
@@ -234,7 +234,7 @@ function updateTaxSum(key, value) {
 
 function rerenderTaxSumCalc(saved) {
   const company = window.App?.currentCompany;
-  const curYear = window.App?.currentYear;
+  const curYear = window.App?.currentYear || new Date().getFullYear();
   const prevBudget = getBudget(company?.id, curYear - 1);
   const interim = calcInterimTax(prevBudget, company);
   const ctaxDivN = interim?.ctaxTimes === 11 ? 12 : interim?.ctaxTimes === 3 ? 4 : 2;

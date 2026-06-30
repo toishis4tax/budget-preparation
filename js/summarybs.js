@@ -198,8 +198,8 @@ function renderSummaryPL(container) {
   }).join('');
 
   const K = v => (v == null ? null : Math.round(v / 1000));
-  const fmtK = v => (v == null ? '—' : K(v).toLocaleString('ja-JP'));
-  const fmtPct = (v, base) => (v == null || !base ? '—' : (v / base * 100).toFixed(1));
+  const fmtK = v => (v == null || isNaN(v)) ? '—' : K(v).toLocaleString('ja-JP');
+  const fmtPct = (v, base) => (v == null || isNaN(v) || !base) ? '—' : (v / base * 100).toFixed(1);
 
   const row = (label, key, opts = {}) => {
     const cells = data.map(d => {
@@ -314,8 +314,8 @@ function renderSummaryBS(container) {
   }).join('');
 
   const K = v => (v == null ? null : Math.round(v / 1000));
-  const fmtK = v => (v == null ? '—' : K(v).toLocaleString('ja-JP'));
-  const fmtPct = (v, base) => (v == null || !base ? '—' : (v / base * 100).toFixed(1));
+  const fmtK = v => (v == null || isNaN(v)) ? '—' : K(v).toLocaleString('ja-JP');
+  const fmtPct = (v, base) => (v == null || isNaN(v) || !base) ? '—' : (v / base * 100).toFixed(1);
 
   const row = (label, key, opts = {}) => {
     const cells = data.map(d => {

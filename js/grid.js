@@ -297,7 +297,7 @@ function renderGridRows(budget, allVals, months) {
       (isHeader || isSection) ? 'header-row' : '',
       isSection    ? 'section-row'  : '',
       acc.bold     ? 'bold-row'    : '',
-      isInput      ? 'input-row'   : '',
+      (isInput || isRevDisp) ? 'input-row' : '',
       acc.tentative? 'tentative-row':'',
       _selectedRows.has(acc.id) ? 'selected-row' : '',
     ].filter(Boolean).join(' ');
@@ -364,7 +364,18 @@ function renderGridRows(budget, allVals, months) {
     const adjVal = vals[12] || 0;
 
     const monthCells = isRevDisp
-      ? monthVals.map((v, i) => `<td class="val-cell calc-val" style="text-align:right;background:#f0f9ff;color:#2563eb;font-size:12px">${v ? safeRound(v).toLocaleString() : '–'}</td>`).join('')
+      ? monthVals.map((v, colIdx) => `
+          <td class="val-cell${actualCols[colIdx]?' actual-col':''}" data-acc-id="${acc.id}" data-col="${colIdx}" style="background:#f0f9ff">
+            <input type="text"
+              class="cell-input${actualCols[colIdx]?' actual-input':''}"
+              style="color:#2563eb"
+              value="${v === 0 ? '' : safeRound(v).toLocaleString()}"
+              data-acc-id="${acc.id}"
+              data-col="${colIdx}"
+              data-raw="${v}"
+              autocomplete="off"
+              inputmode="numeric">
+          </td>`).join('')
       : isInput
         ? monthVals.map((v, colIdx) => `
             <td class="val-cell${actualCols[colIdx]?' actual-col':''}" data-acc-id="${acc.id}" data-col="${colIdx}">
@@ -383,10 +394,11 @@ function renderGridRows(budget, allVals, months) {
     let adjCell;
     if (isTaxRow) {
       adjCell = `<td class="val-cell adj-col" data-acc-id="${acc.id}" data-col="12"><a class="adj-tax-link" onclick="showPage('tax')">→法人税</a></td>`;
-    } else if (isInput) {
-      adjCell = `<td class="val-cell adj-col" data-acc-id="${acc.id}" data-col="12">
+    } else if (isInput || isRevDisp) {
+      adjCell = `<td class="val-cell adj-col" data-acc-id="${acc.id}" data-col="12" ${isRevDisp ? 'style="background:#f0f9ff"' : ''}>
         <input type="text"
           class="cell-input adj-input"
+          style="${isRevDisp ? 'color:#2563eb' : ''}"
           value="${adjVal === 0 ? '' : Math.round(adjVal).toLocaleString()}"
           data-acc-id="${acc.id}"
           data-col="12"
@@ -405,7 +417,7 @@ function renderGridRows(budget, allVals, months) {
       ? `<td class="remarks-col"><input type="text" class="remarks-input" value="${escHtml(budget.remarks[accId] || '')}" placeholder="摘要" data-acc-id="${accId}" onchange="updateRemark('${accId}', this.value)"></td>`
       : `<td class="remarks-col"></td>`;
     tr.innerHTML = nameCell + monthCells + adjCell +
-      (_gridMode !== 'bs' ? `<td class="total-col calc-val" ${totalStyle}>${total === 0 ? (isInput||isRevDisp?'':'–') : Math.round(total).toLocaleString()}</td>` : '') +
+      (_gridMode !== 'bs' ? `<td class="total-col calc-val" ${totalStyle}>${total === 0 ? (isInput||isRevDisp?'':'–') : safeRound(total).toLocaleString()}</td>` : '') +
       remarksCell;
     tbody.appendChild(tr);
   });
@@ -430,11 +442,11 @@ function refreshCalcRows() {
     if (!accId) return;
     const vals = allVals[accId] || new Array(13).fill(0);
     const cells = tr.querySelectorAll('td.val-cell');
-    cells.forEach((td, i) => { td.textContent = vals[i] === 0 ? '–' : Math.round(vals[i]).toLocaleString(); });
+    cells.forEach((td, i) => { const v = vals[i] ?? 0; td.textContent = v === 0 ? '–' : safeRound(v).toLocaleString(); });
     const totalTd = tr.querySelector('td.total-col');
     if (totalTd) {
-      const total = vals.reduce((a,b)=>a+b,0);
-      totalTd.textContent = total === 0 ? '–' : Math.round(total).toLocaleString();
+      const total = vals.reduce((a,b)=>a+(b ?? 0),0);
+      totalTd.textContent = total === 0 ? '–' : safeRound(total).toLocaleString();
     }
   });
 
@@ -442,9 +454,9 @@ function refreshCalcRows() {
     const accId = tr.dataset.accId;
     if (!accId) return;
     const vals = budget.rows[accId] || new Array(13).fill(0);
-    const total = vals.reduce((a,b)=>a+b,0);
+    const total = vals.reduce((a,b)=>a+(b ?? 0),0);
     const totalTd = tr.querySelector('td.total-col');
-    if (totalTd) totalTd.textContent = total === 0 ? '' : Math.round(total).toLocaleString();
+    if (totalTd) totalTd.textContent = total === 0 ? '' : safeRound(total).toLocaleString();
   });
 }
 

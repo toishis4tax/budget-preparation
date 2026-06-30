@@ -566,9 +566,9 @@ function renderPhase1Home(container, budget, company) {
 
   // CF現預金
   const cashAcc = budget?.dynamicAccounts?.find(a =>
-    a.section?.startsWith('bs') && a.name.replace(/\s/g,'').match(/現金|預金|現預金/)
+    a.section?.startsWith('bs') && (a.name || '').replace(/\s/g,'').match(/現金|預金|現預金/)
   );
-  const cashEnd = cashAcc ? (allVals[cashAcc.id] || [])[Math.min(actualThrough, 11)] || 0 : 0;
+  const cashEnd = cashAcc ? (allVals[cashAcc.id] || [])[actualThrough >= 0 ? Math.min(actualThrough, 11) : 11] || 0 : 0;
 
   // サマリーは千円統一（列ごとに単位が変わると加算が合わなくなるため）
   const fmtKpi = (v, isProfit) => {

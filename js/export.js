@@ -109,7 +109,7 @@ function exportExcel(budget) {
     return;
   }
 
-  XLSX.writeFile(wb, `月次予算_${compName}_${budget.year}年度.xlsx`);
+  XLSX.writeFile(wb, `月次予算_${compName}_${budget.year || '不明'}年度.xlsx`);
 }
 
 function downloadBlob(blob, filename) {

@@ -16,8 +16,8 @@ function extractBizMetrics(budget, company) {
     gross    = sum('calc_gross');
     sga      = sum('sec_sga');
     op       = sum('calc_op');
-    otherInc = sum('sec_other_inc');
-    otherExp = sum('sec_other_exp');
+    otherInc = sum('sec_non_op_inc');
+    otherExp = sum('sec_non_op_exp');
     ord      = sum('calc_ord');
     pretax   = sum('calc_pretax');
     net      = sum('calc_net');
@@ -82,7 +82,7 @@ function renderBizAnalysis(container) {
   const K = v => (v == null ? null : Math.round(v / 1000));
   const pct = v => (v == null ? null : (v * 100));
   const fmtV = (v, decimals, suffix) => {
-    if (v == null) return '<span class="biz-nodata">—</span>';
+    if (v == null || isNaN(v)) return '<span class="biz-nodata">—</span>';
     const n = decimals != null ? v.toFixed(decimals) : Math.round(v).toLocaleString('ja-JP');
     return n + (suffix || '');
   };
@@ -124,8 +124,8 @@ function renderBizAnalysis(container) {
     const v2 = getVal(mPrev2);
     const v1 = getVal(mPrev);
     const v0 = getVal(mCur);
-    const yoy1 = (v2 != null && v2 !== 0) ? ((v1 - v2) / Math.abs(v2) * 100).toFixed(1) + '%' : '—';
-    const yoy0 = (v1 != null && v1 !== 0) ? ((v0 - v1) / Math.abs(v1) * 100).toFixed(1) + '%' : '—';
+    const yoy1 = (v1 != null && v2 != null && v2 !== 0) ? ((v1 - v2) / Math.abs(v2) * 100).toFixed(1) + '%' : '—';
+    const yoy0 = (v0 != null && v1 != null && v1 !== 0) ? ((v0 - v1) / Math.abs(v1) * 100).toFixed(1) + '%' : '—';
     return `<tr>
       <td>${label}</td>
       <td class="num">${v2 != null ? Math.round(v2/1000).toLocaleString('ja-JP') : '—'}</td>

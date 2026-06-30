@@ -561,7 +561,7 @@ function runCashFlow() {
             <td class="num">${Math.round(rows.reduce((a,r)=>a+r.opCF,0)/1000).toLocaleString()}</td>
             <td class="num">${Math.round(rows.reduce((a,r)=>a+r.finCF,0)/1000).toLocaleString()}</td>
             <td class="num">${Math.round(rows.reduce((a,r)=>a+r.taxCF,0)/1000).toLocaleString()}</td>
-            <td class="num">${Math.round(rows[11].closeM/1000).toLocaleString()}</td>
+            <td class="num">${Math.round((rows.at(-1)?.closeM ?? 0)/1000).toLocaleString()}</td>
           </tr>
         </tfoot>
       </table>

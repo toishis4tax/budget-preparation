@@ -186,8 +186,8 @@ function renderForecastReport(container) {
   const totalPrev    = taxRows.reduce((s, r) => s + r.prev, 0);
 
   // フォーマット
-  const K    = v => v == null ? '—' : Math.round(v/1000).toLocaleString('ja-JP');
-  const pct  = (v, b) => (!b || b === 0) ? '' : `${(v/b*100).toFixed(1)}%`;
+  const K    = v => (v == null || isNaN(v)) ? '—' : Math.round(v/1000).toLocaleString('ja-JP');
+  const pct  = (v, b) => (v == null || isNaN(v) || !b) ? '' : `${(v/b*100).toFixed(1)}%`;
   const yoy  = (c, p) => (p == null || p === 0) ? '' : `${(c/p*100).toFixed(1)}%`;
   const neg  = v => v < 0 ? 'fr-neg' : '';
 

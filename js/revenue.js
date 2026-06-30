@@ -192,7 +192,7 @@ function _revOpenStepModal(ci) {
     : steps.map((s, si) => `
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:12px">
           <span style="color:#6b7280">${s.from.year}/${String(s.from.month).padStart(2,'0')}〜</span>
-          <b style="color:#1d4ed8">${Math.round(s.amount).toLocaleString()}円</b>
+          <b style="color:#1d4ed8">${Math.round(+s.amount || 0).toLocaleString()}円</b>
           <button onclick="_revDelStep(${ci},${si});_revOpenStepModal(${ci})"
             style="font-size:10px;padding:1px 6px;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:3px;cursor:pointer">削除</button>
         </div>`).join('');
@@ -315,11 +315,11 @@ function renderRevenue(container) {
         </div>
         <div class="stat-card" id="rev_stat_annual">
           <div class="stat-label">年間売上合計</div>
-          <div class="stat-value">${Math.round(grandTotal/1000).toLocaleString()}<span style="font-size:14px;font-weight:400">千円</span></div>
+          <div class="stat-value">${isFinite(grandTotal) ? Math.round(grandTotal/1000).toLocaleString() : '—'}<span style="font-size:14px;font-weight:400">千円</span></div>
         </div>
         <div class="stat-card" id="rev_stat_avg">
           <div class="stat-label">月平均売上</div>
-          <div class="stat-value">${Math.round(grandTotal/12/1000).toLocaleString()}<span style="font-size:14px;font-weight:400">千円</span></div>
+          <div class="stat-value">${isFinite(grandTotal) ? Math.round(grandTotal/12/1000).toLocaleString() : '—'}<span style="font-size:14px;font-weight:400">千円</span></div>
         </div>
         <div class="stat-card" id="rev_stat_retainer">
           <div class="stat-label">顧問料合計（月額）</div>
@@ -459,7 +459,7 @@ function renderRevTable(startMonth, months) {
       const style = isSpecial ? 'background:#fffbeb' : '';
       return `<td style="text-align:right;padding:4px 6px;font-size:11.5px;${style}">
         <div style="display:flex;flex-direction:column;align-items:flex-end">
-          <span>${v ? Math.round(v/1000).toLocaleString() : '–'}</span>
+          <span>${v !== 0 ? Math.round(v/1000).toLocaleString() : '–'}</span>
           ${isSpecial ? `<span style="font-size:9px;color:#d97706">+${Math.round((v-(c.retainer||0))/1000).toLocaleString()}</span>` : ''}
         </div>
       </td>`;

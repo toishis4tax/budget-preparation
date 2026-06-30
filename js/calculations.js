@@ -190,7 +190,7 @@ function calcHealthMetrics(rows, capital) {
     op_margin:         sales        ? (ordProfit / sales * 100) : 0,
     labor_ratio:       sales        ? (sga_salary / sales * 100) : 0,
     ebitda,
-    loan_month_ratio:  sales / 12   ? ((longLoan + shortLoan) / (sales / 12)) : 0,
+    loan_month_ratio:  sales > 0    ? ((longLoan + shortLoan) / (sales / 12)) : 0,
   };
 
   return metrics;
@@ -247,7 +247,7 @@ function calcHealthMetricsDynamic(budget, capital) {
     op_margin:        sales ? (ordProfit / sales * 100) : 0,
     labor_ratio:      sales ? (salary / sales * 100) : 0,
     ebitda,
-    loan_month_ratio: sales ? (loans / (sales / 12)) : 0,
+    loan_month_ratio: sales > 0 ? (loans / (sales / 12)) : 0,
   };
 }
 

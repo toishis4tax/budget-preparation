@@ -29,7 +29,8 @@ function _fbInit() {
   provider.setCustomParameters({ hd: '' }); // 任意ドメイン
 
   // ログインボタン
-  document.getElementById('fb-login-btn').onclick = () => {
+  const _loginBtn = document.getElementById('fb-login-btn');
+  if (_loginBtn) _loginBtn.onclick = () => {
     window._fbAuth.signInWithPopup(provider).catch(e => {
       document.getElementById('fb-login-err').textContent = 'ログインに失敗しました: ' + e.message;
     });

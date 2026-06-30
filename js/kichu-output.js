@@ -45,7 +45,8 @@ function showKichuOutput(type) {
 }
 
 function closeKichuOutput() {
-  document.getElementById('kichu_output_modal').style.display = 'none';
+  const _km = document.getElementById('kichu_output_modal');
+  if (_km) _km.style.display = 'none';
 }
 
 function renderKichuOutput(type, container) {
@@ -347,7 +348,7 @@ function renderKichuCashflow(container, budget, company) {
 
   var deprArr = (function() {
     if (hasDynamic) {
-      var deprAccs = budget.dynamicAccounts.filter(function(a){ return a.name.replace(/\s/g,'').match(/減価償却/) && a.type === 'input'; });
+      var deprAccs = budget.dynamicAccounts.filter(function(a){ return (a.name || '').replace(/\s/g,'').match(/減価償却/) && a.type === 'input'; });
       return Array.from({length:12}, function(_,i){ return deprAccs.reduce(function(s,a){ return s + ((allVals[a.id]||[])[i]||0); }, 0); });
     }
     return (budget.rows && budget.rows.sga_depr) || new Array(12).fill(0);

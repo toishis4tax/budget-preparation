@@ -50,8 +50,8 @@ function isSmall(capital) {
 }
 
 // 切捨てヘルパー
-const trunc100  = v => Math.floor(v / 100)  * 100;   // 100円未満切捨て（税額）
-const trunc1000 = v => Math.floor(v / 1000) * 1000;  // 1,000円未満切捨て（課税標準）
+const trunc100  = v => v <= 0 ? 0 : Math.floor(v / 100)  * 100;
+const trunc1000 = v => v <= 0 ? 0 : Math.floor(v / 1000) * 1000;
 
 function calcCorpTax(pretaxProfit, capital) {
   if (pretaxProfit <= 0) return 0;
@@ -501,14 +501,17 @@ function updateCtaxInterim(key, val) {
   const saved = loadTaxSummaryData(company.id, curYear);
   saved[key] = parseFloat(val) || 0;
   saveTaxSummaryData(company.id, curYear, saved);
-  // 表示を再計算
-  const ctaxEl  = document.getElementById('ctaxp_i_ctax_disp');
-  const lctaxEl = document.getElementById('ctaxp_i_localCtax_disp');
-  const s = loadTaxSummaryData(company.id, curYear);
-  const ctaxV  = parseFloat(s['i_ctax'])     || 0;
-  const lctaxV = parseFloat(s['i_localCtax'])|| 0;
-  if (ctaxEl)  ctaxEl.textContent  = (ctaxV  > 0 ? '▲' : '') + Math.abs(ctaxV).toLocaleString('ja-JP');
-  if (lctaxEl) lctaxEl.textContent = (lctaxV > 0 ? '▲' : '') + Math.abs(lctaxV).toLocaleString('ja-JP');
+  // 概算パネルを再描画して①②③の中間納付額・納付見込を更新
+  if (window._ctaxContainer) {
+    const inputCtax   = document.getElementById('ctaxp_i_ctax')?.value;
+    const inputLctax  = document.getElementById('ctaxp_i_localCtax')?.value;
+    renderCtaxJudge(window._ctaxContainer);
+    // 再描画後にフォーカスが外れるので入力値を復元
+    const elC = document.getElementById('ctaxp_i_ctax');
+    const elL = document.getElementById('ctaxp_i_localCtax');
+    if (elC && inputCtax  != null) elC.value  = inputCtax;
+    if (elL && inputLctax != null) elL.value  = inputLctax;
+  }
 }
 
 function renderCtaxJudge(container) {
@@ -559,7 +562,7 @@ function renderCtaxJudge(container) {
     // ① 試算表ベース コンテンツ
     const metodLabel = isHonzoku
       ? '本則課税'
-      : `簡易課税（第${ctaxEst.businessType}種・みなし${Math.round(ctaxEst.minasRate*100)}%）`;
+      : `簡易課税（第${ctaxEst.businessType}種・みなし${Math.round((ctaxEst.minasRate ?? 0)*100)}%）`;
 
     const bsContent = ctaxEst.method === 'kani' ? `
         <div class="tax-kpi-row"><span>売上高（年間試算）</span><span>${Math.round(ctaxEst.salesTotal/1000).toLocaleString()}千円</span></div>
