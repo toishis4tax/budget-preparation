@@ -90,11 +90,13 @@ function _execLoad() {
     if (saved?.officers?.length) {
       _execState.officers = saved.officers.map(o => ({
         ...o,
-        // migrate old single-bonus field to bonuses array
         bonuses: o.bonuses || (o.bonus
           ? [{ month: 6, amount: Math.round((o.bonus || 0) / 2) }, { month: 12, amount: Math.round((o.bonus || 0) / 2) }]
           : [{ month: 6, amount: 0 }, { month: 12, amount: 0 }]),
       }));
+    } else {
+      // この会社のデータなし → 必ずデフォルトにリセット（前の会社のデータを引き継がない）
+      _execState.officers = [{ name: '代表取締役', monthly: 800000, bonuses: [{ month: 6, amount: 0 }, { month: 12, amount: 0 }], age: 50 }];
     }
   } catch {}
 }

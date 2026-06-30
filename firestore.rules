@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ログイン済みユーザーのプロファイルを取得
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return userDoc().role == 'admin';
+    }
+
+    // 指定会社へのアクセス権チェック
+    function isAllowed(companyId) {
+      let u = userDoc();
+      return u.role == 'admin' || companyId in u.allowedCompanyIds;
+    }
+
+    // ===== ユーザーコレクション =====
+    match /users/{uid} {
+      // 初回ログイン時に自分のドキュメントを作成できる
+      allow create: if request.auth != null && request.auth.uid == uid;
+      // 自分のプロファイルは読める。管理者は全ユーザー読める
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      // ロール変更・許可会社変更は管理者のみ
+      allow update, delete: if request.auth != null && isAdmin();
+    }
+
+    // ===== 会社コレクション =====
+    match /companies/{companyId} {
+      allow read:  if request.auth != null && isAllowed(companyId);
+      allow write: if request.auth != null && isAllowed(companyId);
+    }
+
+    // ===== 予算コレクション（キー: companyId_year） =====
+    match /budgets/{budgetId} {
+      allow read:  if request.auth != null && isAllowed(resource.data.companyId);
+      allow write: if request.auth != null && isAllowed(request.resource.data.companyId);
+    }
+
+    // ===== 売上コレクション（キー: companyId_year） =====
+    match /revenues/{revenueId} {
+      allow read:  if request.auth != null && isAllowed(resource.data.companyId);
+      allow write: if request.auth != null && isAllowed(request.resource.data.companyId);
+    }
+  }
+}

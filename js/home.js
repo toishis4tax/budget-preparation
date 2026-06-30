@@ -121,7 +121,7 @@ function renderHome(container) {
     return `<button class="phase-output-btn" onclick="setPhase(${phaseNum});showOutputModal('${phase}')">📄 成果物を出力</button>`;
   };
 
-  const INDUSTRY_LABELS = { tax_accountant:'税理士・会計事務所', real_estate:'不動産業', retail:'小売業', service:'サービス業', construction:'建設業', manufacturing:'製造業', other:'その他' };
+  const INDUSTRY_LABELS = { tax_accountant:'税理士・会計事務所', medical:'医療・福祉', real_estate:'不動産業', construction:'建設業', retail:'小売・EC', beauty:'美容業', wholesale:'物販・卸売業', restaurant:'飲食業', it:'IT・ソフトウェア', transport:'運輸・物流', education:'教育・学習支援', manufacturing:'製造業', agriculture:'農業・林業', hotel:'宿泊・旅行', finance:'金融・保険', other:'一般業種' };
 
   container.innerHTML = `
     <div class="home-wrap">

@@ -489,14 +489,8 @@ function parseMirokuMonthlySmart(data, startMonth) {
     budgetCumCols.push(cumCols[m] ?? -1);
   }
 
-  // PL: 累計→月次変換（trailing zeros で負にならないよう保護）
-  const deCumulateSafe = cumVals => {
-    let lastNz = -1;
-    for (let i = cumVals.length - 1; i >= 0; i--) { if (cumVals[i] !== 0) { lastNz = i; break; } }
-    return cumVals.map((v, i) => i > lastNz ? 0 : (i === 0 ? v : v - cumVals[i - 1]));
-  };
-  // BS: 月末残高はそのまま使う（累計ではなく残高）
-  const getPlVals = row => deCumulateSafe(budgetCumCols.map(col => col >= 0 ? parseNum(row[col]) : 0));
+  // ミロクCSVの「累計推移/月」列は月次金額そのもの（累計ではない）
+  const getPlVals = row => budgetCumCols.map(col => col >= 0 ? parseNum(row[col]) : 0);
   const getBsVals = row => budgetCumCols.map(col => col >= 0 ? parseNum(row[col]) : 0);
 
   // PL セクション情報
@@ -571,12 +565,13 @@ function parseMirokuMonthlySmart(data, startMonth) {
     if (!row || !row.length) continue;
 
     const colType = String(row[0] || '').trim();
-    const colName = String(row[2] || '').trim().replace(/^"+|"+$/g, '');
+    const colNameRaw = String(row[2] || '').replace(/^"+|"+$/g, '');
+    const colName = colNameRaw.trim();
     if (!colType || !colName) continue;
 
-    const isIndented = colName.startsWith('　');
-    const nameTrim = colName.trim();
-    const hasBracket = /^【|^〔/.test(nameTrim);
+    const isIndented = colNameRaw !== colName;   // Bug(3): check leading space BEFORE trim
+    const nameTrim = colName;
+    const hasBracket = /^【|^〔|^（/.test(nameTrim);  // Bug(1): （有形固定資産）等の小計行もスキップ
 
     if (colType === '損益計算書') {
       if (hasBracket) {
@@ -600,11 +595,14 @@ function parseMirokuMonthlySmart(data, startMonth) {
         ensureSection(plSection, PL_SECTIONS);
       }
 
-      const vals = getPlVals(row);
+      let vals = getPlVals(row);
       if (!vals.some(v => v !== 0)) {
         if (!isIndented) plLastParent = null;
         continue;
       }
+
+      // 期末棚卸高は売上原価を減少させる（CSVではプラスで記録されているが符号を反転）
+      if (/期末.*棚卸|棚卸.*期末/.test(nameTrim)) vals = vals.map(v => -v);
 
       const sInfo = PL_SECTIONS[plSection];
       const aid = mkId('p', nameTrim);
@@ -668,12 +666,19 @@ function parseMirokuMonthlySmart(data, startMonth) {
   accts.forEach(a => { if (a.indent === 2) childParents.add(a.parentId); });
   accts.forEach(a => { if (childParents.has(a.id)) a.type = 'parent'; });
 
-  // 当期純利益の計算行を追加
+  // 当期純利益の計算行を追加（Bug(2): input/parent型の法人税科目を参照し、PL末尾に挿入）
   if (!accts.find(a => a.id === 'calc_net')) {
-    const corpTax = accts.find(a => a.type !== 'calculated' && a.name.replace(/\s+/g,'').includes('法人税'));
     const pretaxIdx = accts.findIndex(a => a.id === 'calc_pretax');
     if (pretaxIdx >= 0) {
-      const insAfter = corpTax ? accts.findIndex(a => a.id === corpTax.id) : pretaxIdx;
+      const corpTax = accts.find((a, idx) =>
+        idx > pretaxIdx && (a.type === 'input' || a.type === 'parent') &&
+        a.section === 'pl' && a.name.replace(/\s+/g,'').includes('法人税')
+      );
+      let insAfter = corpTax ? accts.findIndex(a => a.id === corpTax.id) : pretaxIdx;
+      for (let i = insAfter + 1; i < accts.length; i++) {
+        if (accts[i].section?.startsWith('bs')) break;
+        insAfter = i;
+      }
       const formula = corpTax ? `calc_pretax - ${corpTax.id}` : 'calc_pretax';
       accts.splice(insAfter + 1, 0, { id: 'calc_net', name: '当期純利益', type: 'calculated', indent: 0, section: 'pl', bold: true, formula });
     }
@@ -945,10 +950,10 @@ function parseCSV(text) {
     for (let i = 0; i < line.length; i++) {
       const c = line[i];
       if (c === '"') { inQuote = !inQuote; }
-      else if (c === ',' && !inQuote) { cells.push(cur.trim()); cur = ''; }
+      else if (c === ',' && !inQuote) { cells.push(cur.trimEnd()); cur = ''; }
       else { cur += c; }
     }
-    cells.push(cur.trim());
+    cells.push(cur.trimEnd());  // trimEnd: 先頭の全角スペース（ミロク補助科目インデント）を保持
     return cells;
   });
 }

@@ -65,7 +65,7 @@ function summarizePL(budget) {
   // 人件費の内訳（SGAの直接子）
   const LABOR_RE  = /給与|給料|賃金|役員報酬|役員賞与|賞与|法定福利|福利厚生|厚生費|福利費|雑給|人件費|退職|手当/;
   const labor     = sc(sgaId, LABOR_RE);
-  const execComp  = sc(sgaId, /役員報酬/);
+  const execComp  = sc(sgaId, /役員報酬/) + sc(sgaId, /役員賞与/);
   const welfare   = sc(sgaId, /法定福利|福利厚生|厚生費|福利費/);
   const wages     = sc(sgaId, /給料|給与|賃金|賞与|雑給/) - sc(sgaId, /役員賞与/);
   const otherLabor = labor - execComp - welfare - wages;
@@ -193,7 +193,7 @@ function renderSummaryPL(container) {
   }
 
   const colHead = years.map((y, i) => {
-    const tag = i === 0 ? '3年前実績' : i === 1 ? '2年前実績' : '前期実績';
+    const tag = i === 0 ? '3年前実績' : i === 1 ? '2年前実績' : '当期予算';
     return `<th colspan="2" class="sbs-yhead">${tag}<br><span style="font-weight:400">（${y + 1}年${fiscalMonth}月期）</span></th>`;
   }).join('');
 
@@ -309,7 +309,7 @@ function renderSummaryBS(container) {
 
   const colHead = years.map((y, i) => {
     const endYear = y + 1;
-    const tag = i === 0 ? '3年前実績' : i === 1 ? '2年前実績' : '前期実績';
+    const tag = i === 0 ? '3年前実績' : i === 1 ? '2年前実績' : '当期予算';
     return `<th colspan="2" class="sbs-yhead">${tag}<br><span style="font-weight:400">（${endYear}年${fiscalMonth}月期）</span></th>`;
   }).join('');
 

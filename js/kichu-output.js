@@ -288,22 +288,20 @@ function renderKichuMonthly(container, budget, company) {
 
 // ===== ② 資金繰り予測表 =====
 
-// 前期末現預金を取得（budgetPrev1のBS現金・預金科目から）
+// 前期末現預金を取得（BS現金・預金の全口座を合算）
 function _getPrevYearCash(budgetPrev1) {
-  if (!budgetPrev1) return null;
-  if (budgetPrev1.dynamicAccounts && budgetPrev1.dynamicAccounts.length) {
-    var cashAcc = budgetPrev1.dynamicAccounts.find(function(a) {
-      return a.cashGroup && a.section && a.section.startsWith('bs');
-    }) || budgetPrev1.dynamicAccounts.find(function(a) {
-      return a.name && a.name.replace(/\s/g,'').match(/現金|預金|現預金|信金|銀行|信用組合/) && a.section && a.section.startsWith('bs');
-    });
-    if (cashAcc) {
-      var src = budgetPrev1.actualRows || budgetPrev1.rows || {};
-      var v = (src[cashAcc.id] || [])[11]; // 期末月（index 11）のみ。途中月は拾わない
-      if (v) return v;
-    }
-  }
-  return null;
+  if (!budgetPrev1 || !budgetPrev1.dynamicAccounts || !budgetPrev1.dynamicAccounts.length) return null;
+  var av = calcAllValuesDynamic(budgetPrev1);
+  var CASH_RE = /現金|預金|信金|銀行|信用組合/;
+  var matching = budgetPrev1.dynamicAccounts.filter(function(a) {
+    return a.section && a.section.startsWith('bs') &&
+           a.type !== 'section' &&
+           CASH_RE.test((a.name || '').replace(/\s/g,''));
+  });
+  var matchingIds = new Set(matching.map(function(a){ return a.id; }));
+  var deduped = matching.filter(function(a){ return !matchingIds.has(a.parentId); });
+  var total = deduped.reduce(function(s, a){ return s + ((av[a.id] || [])[11] || 0); }, 0);
+  return total || null;
 }
 
 function renderKichuCashflow(container, budget, company) {

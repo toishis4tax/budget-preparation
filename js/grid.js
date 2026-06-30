@@ -9,6 +9,7 @@ let _selectedRows  = new Set();   // 選択中の行 (accId)
 let _selAnchor     = null;        // Shift選択のアンカー行 (accId)
 let _collapsedParents = new Set(); // 折りたたみ中の親 (accId)
 let _gridMode      = 'pl';        // 'pl' | 'bs'
+let _gridContainer = null;        // renderGrid時のコンテナ保持
 
 // ===== モード切替 =====
 function setGridMode(mode) {
@@ -16,6 +17,10 @@ function setGridMode(mode) {
   document.querySelectorAll('.grid-mode-tab').forEach(t =>
     t.classList.toggle('active', t.dataset.mode === mode)
   );
+  // 合計列ヘッダーの表示切替
+  document.querySelectorAll('.total-col').forEach(el => {
+    el.style.display = mode === 'bs' ? 'none' : '';
+  });
   _selectedRows.clear();
   const budget = window.App?.currentBudget;
   if (!budget) return;
@@ -174,6 +179,8 @@ function renderGrid(container, budget) {
     container.innerHTML = '<div class="no-data">会社と年度を選択してください。</div>';
     return;
   }
+  _gridMode = 'pl'; // ページ切替時は常にPLにリセット
+  _gridContainer = container;
 
   const months = getMonthLabels(budget.startMonth || 4);
   const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(getMergedRows(budget));
@@ -202,9 +209,12 @@ function renderGrid(container, budget) {
         </select>
         <input type="number" id="fill_value" value="0" step="0.1" class="toolbar-input" placeholder="値 or %">
         <button class="btn btn-sm btn-accent" onclick="applyFill()" title="選択行すべてに適用">適用</button>
+        <button class="btn btn-sm" onclick="applyFillAll()" title="全科目に横引きコピーを適用">全科目に横引き</button>
         <span class="toolbar-hint" id="fill_hint"></span>
       </div>
       <div class="toolbar-right">
+        <button class="btn btn-sm" onclick="fillFromPrevYear()" title="前期の実績値を予算列にコピー">前期実績を予算に</button>
+        <button class="btn btn-sm btn-outline" onclick="copyToNextYearPL()" title="当期の科目・金額を翌期入力画面へコピーして移動">📅 → 翌期へコピー</button>
         <button class="btn-solid btn-sm" onclick="showBudgetCompleteModal()" style="gap:5px">✅ 入力完了 →</button>
         <button class="btn btn-sm" onclick="exportExcel(window.App?.currentBudget)">📥 Excel出力</button>
       </div>
@@ -225,7 +235,7 @@ function renderGrid(container, budget) {
               </th>`;
             }).join('')}
             <th class="month-col adj-col" data-col="12">調整</th>
-            <th class="total-col">合計</th>
+            ${_gridMode !== 'bs' ? '<th class="total-col">合計</th>' : ''}
             <th class="remarks-col">摘要</th>
           </tr>
         </thead>
@@ -395,7 +405,7 @@ function renderGridRows(budget, allVals, months) {
       ? `<td class="remarks-col"><input type="text" class="remarks-input" value="${escHtml(budget.remarks[accId] || '')}" placeholder="摘要" data-acc-id="${accId}" onchange="updateRemark('${accId}', this.value)"></td>`
       : `<td class="remarks-col"></td>`;
     tr.innerHTML = nameCell + monthCells + adjCell +
-      `<td class="total-col calc-val" ${totalStyle}>${total === 0 ? (isInput||isRevDisp?'':'–') : Math.round(total).toLocaleString()}</td>` +
+      (_gridMode !== 'bs' ? `<td class="total-col calc-val" ${totalStyle}>${total === 0 ? (isInput||isRevDisp?'':'–') : Math.round(total).toLocaleString()}</td>` : '') +
       remarksCell;
     tbody.appendChild(tr);
   });
@@ -744,6 +754,96 @@ function applyFill() {
   refreshCalcRows();
 }
 
+// ===== 全科目横引き =====
+function applyFillAll() {
+  const budget = window.App?.currentBudget;
+  if (!budget) return;
+  const type  = document.getElementById('fill_type')?.value || 'copy';
+  const value = parseFloat(document.getElementById('fill_value')?.value || 0);
+  const actualCols = getActualCols(budget);
+  const accounts = getAccountsForMode(budget);
+  const targetIds = accounts.filter(a => a.type === 'input' || a.type === 'parent').map(a => a.id);
+
+  targetIds.forEach(accId => {
+    if (!budget.rows[accId]) budget.rows[accId] = new Array(12).fill(0);
+    const vals = budget.rows[accId];
+    // 最初の予算列（実績でない列）を起点にする
+    const startCol = actualCols.findIndex(v => !v);
+    if (startCol < 0) return;
+    switch (type) {
+      case 'copy':
+        for (let i = startCol + 1; i < 12; i++) if (!actualCols[i]) vals[i] = vals[startCol];
+        break;
+      case 'prev_month_pct':
+        for (let i = startCol + 1; i < 12; i++)
+          if (!actualCols[i]) vals[i] = Math.round(vals[i-1] * (1 + value / 100));
+        break;
+      case 'prev_year_pct':
+        for (let i = startCol; i < 12; i++)
+          if (!actualCols[i]) vals[i] = Math.round(vals[i] * (1 + value / 100));
+        break;
+      case 'fixed':
+        for (let i = startCol; i < 12; i++) if (!actualCols[i]) vals[i] = value;
+        break;
+      case 'bulk_delta':
+        for (let i = startCol; i < 12; i++) if (!actualCols[i]) vals[i] += value;
+        break;
+    }
+  });
+
+  saveBudget(budget);
+  const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(getMergedRows(budget));
+  renderGridRows(budget, allVals, getMonthLabels(budget.startMonth || 4));
+}
+
+// ===== 前期実績を予算にコピー =====
+function fillFromPrevYear() {
+  const budget = window.App?.currentBudget;
+  if (!budget) return;
+
+  const prevBudget = getBudget(budget.companyId, budget.year - 1);
+  if (!prevBudget) {
+    alert('前期（' + (budget.year - 1) + '年度）のデータが見つかりません。');
+    return;
+  }
+
+  // 前期の実績＋予算ブレンド値を取得
+  const prevVals = prevBudget.dynamicAccounts
+    ? calcAllValuesDynamic(prevBudget)
+    : calcAllValues(typeof getMergedRows === 'function' ? getMergedRows(prevBudget) : prevBudget.rows || {});
+
+  const actualCols = getActualCols(budget);
+
+  // 対象行：選択行があればそれのみ、なければ全input/parent行
+  const accounts = getAccountsForMode(budget);
+  let targetIds = _selectedRows.size > 0
+    ? [..._selectedRows]
+    : accounts.filter(a => a.type === 'input' || a.type === 'parent').map(a => a.id);
+
+  let copied = 0;
+  targetIds.forEach(accId => {
+    const prevArr = prevVals[accId];
+    if (!prevArr || !prevArr.some(v => v !== 0)) return;
+    if (!budget.rows[accId]) budget.rows[accId] = new Array(12).fill(0);
+    for (let i = 0; i < 12; i++) {
+      if (!actualCols[i]) {
+        budget.rows[accId][i] = Math.round(prevArr[i] || 0);
+      }
+    }
+    copied++;
+  });
+
+  if (copied === 0) {
+    alert('前期データと一致する科目が見つかりませんでした。');
+    return;
+  }
+
+  saveBudget(budget);
+  const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(getMergedRows(budget));
+  renderGridRows(budget, allVals, getMonthLabels(budget.startMonth || 4));
+  alert(copied + '科目の前期実績を予算にコピーしました。');
+}
+
 // ===== 科目名編集 =====
 function editAccName(span, accId) {
   const budget = window.App?.currentBudget;
@@ -1028,7 +1128,10 @@ function deleteSelectedRow(targetAccId) {
 }
 
 // ===== コンテキストメニュー =====
+let _ctxMenuAccId = null;
+
 function showContextMenu(x, y, accId) {
+  _ctxMenuAccId = accId;
   document.getElementById('ctx_menu')?.remove();
   const menu = document.createElement('div');
   menu.id = 'ctx_menu';
@@ -1045,12 +1148,21 @@ function showContextMenu(x, y, accId) {
     <div class="ctx-item" onclick="applyFillFromMenu('fixed')">一定額で全月埋める</div>
   `;
   document.body.appendChild(menu);
-  setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 0);
+  setTimeout(() => document.addEventListener('click', () => { menu.remove(); _ctxMenuAccId = null; }, { once: true }), 0);
 }
 
 function applyFillFromMenu(type) {
   document.getElementById('fill_type').value = type;
-  applyFill();
+  // コンテキストメニューからの呼び出しは右クリックでフォーカスが外れているため
+  // _ctxMenuAccId の行を対象にする
+  if (_ctxMenuAccId && _selectedRows.size === 0 &&
+      (!_selectedCell || _selectedCell.dataset.accId !== _ctxMenuAccId)) {
+    _selectedRows.add(_ctxMenuAccId);
+    applyFill();
+    _selectedRows.delete(_ctxMenuAccId);
+  } else {
+    applyFill();
+  }
 }
 
 // ===== 摘要更新 =====

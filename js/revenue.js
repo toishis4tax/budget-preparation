@@ -18,6 +18,7 @@ function saveRevenueClients(companyId, year, clients) {
     all[`${companyId}_${year}`] = clients;
     localStorage.setItem(REVENUE_KEY, JSON.stringify(all));
   } catch {}
+  if (typeof fbSaveRevenue === 'function') fbSaveRevenue(companyId, year, clients);
 }
 
 // 顧問先売上・課税設定を翌年度へ引き継ぐ
@@ -73,12 +74,29 @@ function newClient() {
     contractStart: { year: now.getFullYear(), month: now.getMonth() + 1 },
     contractEnd:   { year: '', month: '' },  // 解約年月（空なら継続）
     retainer: 0,
+    retainerSteps: [],  // [{from:{year,month}, amount:N}] 途中変更
     taxable: true,
     filingCalMonth: -1,
     settlementFee: 0,
     yearEndAdj: 0,
     consulting: {},
   };
+}
+
+// 指定カレンダー月の顧問料を取得（ステップ変更対応）
+function _getRetainerAt(client, calYear, calMonth) {
+  const steps = client.retainerSteps;
+  if (!steps || steps.length === 0) return client.retainer || 0;
+  const sorted = [...steps].sort((a, b) =>
+    (a.from.year * 100 + a.from.month) - (b.from.year * 100 + b.from.month)
+  );
+  let amount = client.retainer || 0;
+  for (const step of sorted) {
+    if (calYear * 100 + calMonth >= step.from.year * 100 + step.from.month) {
+      amount = step.amount;
+    }
+  }
+  return amount;
 }
 
 // 申告月を決算月から自動計算（法人+2、個人+3）
@@ -107,7 +125,7 @@ function calcClientMonthly(client, startMonth, budgetYear) {
       if (calYear * 100 + calMonth >= ce.year * 100 + ce.month) return 0;
     }
 
-    let total = client.retainer || 0;
+    let total = _getRetainerAt(client, calYear, calMonth);
 
     // 申告月に決算報酬
     if (client.filingCalMonth > 0 && calMonth === client.filingCalMonth) {
@@ -124,6 +142,128 @@ function calcClientMonthly(client, startMonth, budgetYear) {
 
     return total;
   });
+}
+
+// HTMLエスケープ（XSS防止）
+function _escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===== 顧問料ステップ UI =====
+
+function _renderRetainerCell(c, ci) {
+  const steps = c.retainerSteps || [];
+  const base = c.retainer || 0;
+  const badge = steps.length > 0
+    ? `<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border-radius:3px;padding:1px 4px;white-space:nowrap">${steps.length}件変更</span>`
+    : '';
+  return `
+    <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+      <input type="number" class="form-input" style="width:80px;font-size:12px;padding:3px 5px;text-align:right"
+        value="${base||''}" placeholder="0" step="1000"
+        oninput="_revClients[${ci}].retainer=Math.max(0,+this.value||0)"
+        onblur="_revRefresh()">
+      <button style="font-size:10px;padding:2px 6px;background:#eff6ff;border:1px solid #93c5fd;border-radius:4px;cursor:pointer;white-space:nowrap;color:#1d4ed8"
+        onclick="_revOpenStepModal(${ci})">±</button>
+      ${badge}
+    </div>`;
+}
+
+function _revOpenStepModal(ci) {
+  const c = _revClients[ci];
+  const steps = c.retainerSteps || [];
+  const fmt = v => v || 0;
+
+  // 年月の選択肢（現在から±3年）
+  const budget = window.App?.currentBudget;
+  const startMonth = budget?.startMonth || 4;
+  const baseYear = _revBudgetYear;
+  let yearOpts = '';
+  for (let y = baseYear - 1; y <= baseYear + 2; y++) {
+    yearOpts += `<option value="${y}">${y}</option>`;
+  }
+  let monthOpts = '';
+  for (let m = 1; m <= 12; m++) {
+    monthOpts += `<option value="${m}">${m}月</option>`;
+  }
+
+  const stepsHtml = steps.length === 0
+    ? '<div style="color:#9ca3af;font-size:12px;padding:4px 0">変更なし</div>'
+    : steps.map((s, si) => `
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:12px">
+          <span style="color:#6b7280">${s.from.year}/${String(s.from.month).padStart(2,'0')}〜</span>
+          <b style="color:#1d4ed8">${Math.round(s.amount).toLocaleString()}円</b>
+          <button onclick="_revDelStep(${ci},${si});_revOpenStepModal(${ci})"
+            style="font-size:10px;padding:1px 6px;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:3px;cursor:pointer">削除</button>
+        </div>`).join('');
+
+  const html = `
+    <div id="retainer-modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center"
+      onclick="if(event.target===this)this.remove()">
+      <div style="background:#fff;border-radius:12px;padding:24px;min-width:320px;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <h3 style="margin:0 0 4px;font-size:15px;font-weight:700">${_escHtml(c.name)||'（名称未設定）'}</h3>
+        <p style="margin:0 0 16px;font-size:12px;color:#6b7280">顧問料の途中変更（何月から新金額）</p>
+
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:6px">基本顧問料（期首〜）</div>
+          <b style="font-size:14px;color:#111">${Math.round(c.retainer||0).toLocaleString()} 円/月</b>
+        </div>
+
+        <div style="margin-bottom:16px">
+          <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:6px">変更履歴</div>
+          ${stepsHtml}
+        </div>
+
+        <div style="border-top:1px solid #e5e7eb;padding-top:14px">
+          <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:8px">変更を追加</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <select id="step-year" style="padding:5px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:12px">${yearOpts}</select>
+            <select id="step-month" style="padding:5px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:12px">${monthOpts}</select>
+            <span style="font-size:12px;color:#6b7280">〜</span>
+            <input id="step-amount" type="number" step="1000" placeholder="新金額"
+              style="width:100px;padding:5px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;text-align:right">
+            <span style="font-size:12px;color:#6b7280">円/月</span>
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
+            <button onclick="document.getElementById('retainer-modal-overlay').remove()"
+              style="padding:6px 14px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;cursor:pointer;background:#fff">閉じる</button>
+            <button onclick="_revAddStep(${ci})"
+              style="padding:6px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">追加</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('retainer-modal-overlay')?.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+
+  // デフォルト年を今年に
+  const sel = document.getElementById('step-year');
+  if (sel) sel.value = String(baseYear);
+}
+
+function _revAddStep(ci) {
+  const year   = parseInt(document.getElementById('step-year').value, 10);
+  const month  = parseInt(document.getElementById('step-month').value, 10);
+  const amount = parseFloat(document.getElementById('step-amount').value);
+  if (isNaN(year) || year < 2000 || year > 2100) { showToast('年が不正です', 'warn'); return; }
+  if (isNaN(month) || month < 1 || month > 12)   { showToast('月が不正です', 'warn'); return; }
+  if (isNaN(amount) || amount < 0)                { showToast('金額を正しく入力してください', 'warn'); return; }
+  if (!_revClients[ci].retainerSteps) _revClients[ci].retainerSteps = [];
+  _revClients[ci].retainerSteps.push({ from: { year, month }, amount });
+  // 年月順に常にソート
+  _revClients[ci].retainerSteps.sort((a, b) =>
+    (a.from.year * 100 + a.from.month) - (b.from.year * 100 + b.from.month));
+  _revSave();
+  _revOpenStepModal(ci);
+  _revRefresh();
+}
+
+function _revDelStep(ci, si) {
+  if (!_revClients[ci].retainerSteps) return;
+  _revClients[ci].retainerSteps.splice(si, 1);
+  _revSave();
+  _revRefresh();
 }
 
 // ===== レンダリング =====
@@ -215,24 +355,20 @@ function renderRevenue(container) {
 
       <div class="card-h" style="padding:0;overflow:hidden">
         <div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 420px)">
-          <table class="result-table" style="min-width:1100px;table-layout:fixed">
+          <table class="result-table" style="min-width:800px;table-layout:fixed">
             <colgroup>
-              <col style="width:28px"><!-- ドラッグ -->
-              <col style="width:170px">
-              <col style="width:120px"><!-- 区分 -->
-              <col style="width:60px"> <!-- 確定 -->
-              <col style="width:48px"> <!-- 課税 -->
-              <col style="width:110px"><!-- 契約開始 -->
-              <col style="width:110px"><!-- 解約年月 -->
-              <col style="width:88px"> <!-- 顧問料 -->
-              <col style="width:72px"> <!-- 決算月 -->
-              <col style="width:72px"> <!-- 申告月 -->
-              <col style="width:88px"> <!-- 決算報酬 -->
-              <col style="width:78px"> <!-- 年末調整 -->
-              ${months.map(()=>'<col style="width:68px">').join('')}
-              <col style="width:78px"><!-- 合計 -->
-              <col style="width:140px"><!-- メモ -->
-              <col style="width:56px"><!-- 操作 -->
+              <col style="width:20px"> <!-- ドラッグ -->
+              <col style="width:140px"><!-- 顧問先名 -->
+              <col style="width:86px"> <!-- 区分 -->
+              <col style="width:40px"> <!-- 確定 -->
+              <col style="width:34px"> <!-- 課税 -->
+              <col style="width:86px"> <!-- 契約開始 -->
+              <col style="width:76px"> <!-- 解約年月 -->
+              <col style="width:170px"><!-- 顧問料+決算+報酬+年末 -->
+              ${months.map(()=>'<col style="width:60px">').join('')}
+              <col style="width:68px"> <!-- 合計 -->
+              <col style="width:100px"><!-- メモ -->
+              <col style="width:56px"> <!-- 操作 -->
             </colgroup>
             <thead style="position:sticky;top:0;z-index:10">
               <tr>
@@ -243,15 +379,11 @@ function renderRevenue(container) {
                 <th title="課税売上かどうか（消費税設定へ反映）">課税</th>
                 <th>契約開始</th>
                 <th>解約年月</th>
-                <th>顧問料/月</th>
-                <th>決算月</th>
-                <th>申告月</th>
-                <th>決算報酬</th>
-                <th>年末調整</th>
+                <th>顧問料・決算</th>
                 ${months.map(m=>`<th>${m}</th>`).join('')}
-                <th>合計</th>
-                <th>メモ</th>
-                <th></th>
+                <th style="position:sticky;right:156px;background:#e0f2fe;z-index:11">合計</th>
+                <th style="position:sticky;right:56px;background:#e0f2fe;z-index:11">メモ</th>
+                <th style="position:sticky;right:0;background:#e0f2fe;z-index:11"></th>
               </tr>
             </thead>
             <tbody id="rev_tbody"></tbody>
@@ -351,13 +483,13 @@ function renderRevTable(startMonth, months) {
         <div style="display:flex;align-items:center;gap:5px">
           <input class="form-input" style="flex:1;font-size:12px;padding:4px 6px"
             value="${escHtml(c.name)}" placeholder="顧問先名"
-            oninput="_revClients[${ci}].name=this.value;_revSave()">
+            oninput="_revClients[${ci}].name=this.value" onblur="_revSave()">
           ${!isConfirmed ? '<span style="font-size:9px;background:#fcd34d;color:#78350f;border-radius:3px;padding:1px 4px;white-space:nowrap;font-weight:700">未確定</span>' : ''}
         </div>
       </td>
       <td style="padding:4px 5px">
         <select class="form-input" style="width:115px;font-size:11px;padding:3px 4px"
-          onchange="_revClients[${ci}].category=this.value;_revSave()">
+          onchange="_revClients[${ci}].category=this.value;_revRefresh()">
           ${catOpts}
         </select>
       </td>
@@ -377,7 +509,7 @@ function renderRevTable(startMonth, months) {
         <div style="display:flex;gap:3px">
           <input type="number" class="form-input" style="width:52px;font-size:11px;padding:3px 4px;text-align:right"
             value="${cs.year||''}" placeholder="年" min="2020" max="2040"
-            oninput="_revClients[${ci}].contractStart={..._revClients[${ci}].contractStart,year:+this.value};_revSave()"
+            oninput="_revClients[${ci}].contractStart={..._revClients[${ci}].contractStart,year:+this.value||''}"
             onblur="_revRefresh()">
           <select class="form-input" style="width:50px;font-size:11px;padding:3px 3px"
             onchange="_revClients[${ci}].contractStart={..._revClients[${ci}].contractStart,month:+this.value};_revRefresh()">
@@ -389,7 +521,7 @@ function renderRevTable(startMonth, months) {
         ${(()=>{const ce=c.contractEnd||{};return`<div style="display:flex;gap:3px">
           <input type="number" class="form-input" style="width:52px;font-size:11px;padding:3px 4px;text-align:right"
             value="${ce.year||''}" placeholder="年" min="2020" max="2040"
-            oninput="_revClients[${ci}].contractEnd={..._revClients[${ci}].contractEnd,year:+this.value||''};_revSave()"
+            oninput="_revClients[${ci}].contractEnd={..._revClients[${ci}].contractEnd,year:+this.value||''}"
             onblur="_revRefresh()">
           <select class="form-input" style="width:50px;font-size:11px;padding:3px 3px"
             onchange="_revClients[${ci}].contractEnd={..._revClients[${ci}].contractEnd,month:+this.value};_revRefresh()">
@@ -398,55 +530,37 @@ function renderRevTable(startMonth, months) {
           </select>
         </div>`})()}
       </td>
-      <td style="padding:4px 5px">
-        <input type="number" class="form-input" style="width:84px;font-size:12px;padding:4px 6px;text-align:right"
-          value="${c.retainer||''}" placeholder="0" step="1000"
-          oninput="_revClients[${ci}].retainer=+this.value;_revSave()"
-          onblur="_revRefresh()">
-      </td>
-      <td style="padding:4px 5px;text-align:center">
-        <select class="form-input" style="width:42px;font-size:11px;padding:2px 2px;margin-bottom:3px"
-          onchange="_revClients[${ci}].indiv=this.value==='1';const dm=_revClients[${ci}].filingCalMonth>0?(((c.filingCalMonth-1+(_revClients[${ci}].indiv?9:10))%12)+1):-1;if(dm>0)_revClients[${ci}].filingCalMonth=calcFilingMonth(dm,_revClients[${ci}].indiv);_revRefresh()">
-          <option value="0"${!c.indiv?' selected':''}>法人</option>
-          <option value="1"${c.indiv?' selected':''}>個人</option>
-        </select>
-        <select class="form-input" style="width:58px;font-size:11px;padding:2px 3px"
-          onchange="
-            const dm=+this.value;
-            _revClients[${ci}].filingCalMonth = dm>0 ? calcFilingMonth(dm,_revClients[${ci}].indiv) : -1;
-            _revRefresh()">
-          <option value="-1">–</option>
-          ${MONTH_LABELS_JP.map((m,i)=>`<option value="${i+1}"${c.filingCalMonth>0&&(((c.filingCalMonth-1+(c.indiv?9:10))%12)+1)===i+1?' selected':''}>${m}</option>`).join('')}
-        </select>
-      </td>
-      <td style="padding:4px 5px">
-        <select class="form-input" style="width:58px;font-size:11px;padding:2px 3px;font-weight:600;color:var(--emerald-dark)"
-          onchange="_revClients[${ci}].filingCalMonth=+this.value;_revRefresh()">
-          ${filingOpts}
-        </select>
-      </td>
-      <td style="padding:4px 5px">
-        <input type="number" class="form-input" style="width:84px;font-size:12px;padding:4px 6px;text-align:right"
-          value="${c.settlementFee||''}" placeholder="0" step="10000"
-          oninput="_revClients[${ci}].settlementFee=+this.value;_revSave()"
-          onblur="_revRefresh()">
-      </td>
-      <td style="padding:4px 5px">
-        <input type="number" class="form-input" style="width:72px;font-size:12px;padding:4px 6px;text-align:right"
-          value="${c.yearEndAdj||''}" placeholder="0" step="10000"
-          oninput="_revClients[${ci}].yearEndAdj=+this.value;_revSave()"
-          onblur="_revRefresh()">
+      <td style="padding:3px 5px">
+        ${_renderRetainerCell(c, ci)}
+        <div style="display:flex;gap:3px;margin-top:3px;align-items:center;flex-wrap:wrap">
+          <select class="form-input" style="width:36px;font-size:10px;padding:1px 2px"
+            onchange="(function(el){const oldIndiv=c.indiv;_revClients[${ci}].indiv=el.value==='1';const newIndiv=_revClients[${ci}].indiv;const fm=_revClients[${ci}].filingCalMonth;if(fm>0){const dm=(((fm-1+(oldIndiv?9:10))%12)+1);_revClients[${ci}].filingCalMonth=calcFilingMonth(dm,newIndiv);}  _revRefresh();})(this)">
+            <option value="0"${!c.indiv?' selected':''}>法人</option>
+            <option value="1"${c.indiv?' selected':''}>個人</option>
+          </select>
+          <select class="form-input" style="width:46px;font-size:10px;padding:1px 2px"
+            onchange="const dm=+this.value;_revClients[${ci}].filingCalMonth=dm>0?calcFilingMonth(dm,_revClients[${ci}].indiv):-1;_revRefresh()">
+            <option value="-1">決算–</option>
+            ${MONTH_LABELS_JP.map((m,i)=>`<option value="${i+1}"${c.filingCalMonth>0&&(((c.filingCalMonth-1+(c.indiv?9:10))%12)+1)===i+1?' selected':''}>${m}</option>`).join('')}
+          </select>
+          <input type="number" class="form-input" style="width:62px;font-size:10px;padding:1px 3px;text-align:right" placeholder="決算報酬"
+            value="${c.settlementFee||''}" step="10000"
+            oninput="_revClients[${ci}].settlementFee=Math.max(0,+this.value||0)" onblur="_revRefresh()">
+          <input type="number" class="form-input" style="width:54px;font-size:10px;padding:1px 3px;text-align:right" placeholder="年末調整"
+            value="${c.yearEndAdj||''}" step="10000"
+            oninput="_revClients[${ci}].yearEndAdj=Math.max(0,+this.value||0)" onblur="_revRefresh()">
+        </div>
       </td>
       ${monthCells}
-      <td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--emerald-dark);font-size:12px">
+      <td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--emerald-dark);font-size:12px;position:sticky;right:156px;background:${isConfirmed?'#fff':'#fffbeb'};z-index:2">
         ${Math.round(total/1000).toLocaleString()}
       </td>
-      <td style="padding:4px 5px">
+      <td style="padding:4px 5px;position:sticky;right:56px;background:${isConfirmed?'#fff':'#fffbeb'};z-index:2">
         <input type="text" class="remarks-input" style="width:100%;font-size:11px"
           value="${escHtml(c.memo||'')}" placeholder="メモ"
           onchange="updateClientMemo('${c.id}', this.value)">
       </td>
-      <td style="padding:3px;text-align:center;white-space:nowrap">
+      <td style="padding:3px;text-align:center;white-space:nowrap;position:sticky;right:0;background:${isConfirmed?'#fff':'#fffbeb'};z-index:2">
         <button class="btn-xs btn-ghost" onclick="openConsulting(${ci})" title="コンサル入力" style="display:block;margin:0 auto 4px">💼</button>
         <button onclick="removeRevenueClient(${ci})" title="削除" style="display:block;margin:0 auto;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap">🗑 削除</button>
       </td>
@@ -455,11 +569,11 @@ function renderRevTable(startMonth, months) {
 
   tfoot.innerHTML = `
     <tr style="background:#f0fdf4;font-weight:700">
-      <td colspan="8" style="padding:8px 10px;position:sticky;left:0;background:#f0fdf4">合計（千円）</td>
+      <td colspan="8" style="padding:8px 10px;position:sticky;left:0;background:#f0fdf4;z-index:9">合計（千円）</td>
       ${totalByMonth.map(v=>`<td style="text-align:right;padding:6px 8px">${v?Math.round(v/1000).toLocaleString():'–'}</td>`).join('')}
-      <td style="text-align:right;padding:6px 8px;color:var(--emerald-dark)">${Math.round(grandTotal/1000).toLocaleString()}</td>
-      <td></td>
-      <td></td>
+      <td style="text-align:right;padding:6px 8px;color:var(--emerald-dark);position:sticky;right:156px;background:#f0fdf4;z-index:9">${Math.round(grandTotal/1000).toLocaleString()}</td>
+      <td style="position:sticky;right:56px;background:#f0fdf4;z-index:9"></td>
+      <td style="position:sticky;right:0;background:#f0fdf4;z-index:9"></td>
     </tr>`;
 
   // 右クリックコンテキストメニュー
@@ -588,6 +702,12 @@ function _revSaveCtax(catId, checked) {
   saveRevCtaxSettings(company.id, _revBudgetYear, settings);
 }
 
+let _revRefreshTimer = null;
+function _revRefreshDebounced() {
+  clearTimeout(_revRefreshTimer);
+  _revRefreshTimer = setTimeout(_revRefresh, 300);
+}
+
 function _revRefresh() {
   _revSave();
   const budget = window.App?.currentBudget;
@@ -659,7 +779,7 @@ function openConsulting(ci) {
 function applyRevenueToBudget() {
   const budget  = window.App?.currentBudget;
   const company = window.App?.currentCompany;
-  if (!budget || !company) { alert('予算データがありません'); return; }
+  if (!budget || !company) { showToast('予算データがありません', 'error'); return; }
 
   const startMonth = budget.startMonth || 4;
   if (!budget.rows) budget.rows = {};
@@ -668,9 +788,7 @@ function applyRevenueToBudget() {
   Object.keys(budget.rows).forEach(k => { if (k.startsWith('rev_')) delete budget.rows[k]; });
 
   // dynamicAccounts が試算表インポート由来でない場合はクリア
-  if (budget.dynamicAccounts && !budget.dynamicAccountsFromImport) {
-    budget.dynamicAccounts = null;
-  } else if (budget.dynamicAccounts) {
+  if (budget.dynamicAccounts) {
     budget.dynamicAccounts = budget.dynamicAccounts.filter(a => !a.id.startsWith('rev_'));
   }
 
@@ -810,7 +928,7 @@ function applyRevenueToBudget() {
   const total = _revClients.reduce((s, c) =>
     s + calcClientMonthly(c, startMonth, _revBudgetYear).reduce((a,b)=>a+b,0), 0);
 
-  alert(`${_revClients.filter(c=>c.name).length}社の売上を予算に反映しました。\n年間合計：${Math.round(total/1000).toLocaleString()}千円`);
+  showToast(`${_revClients.filter(c=>c.name).length}社 反映完了 — 年間合計 ${Math.round(total/1000).toLocaleString()}千円`, 'success', 4000);
   showPage('budget');
 }
 
@@ -820,11 +938,18 @@ function exportRevenueExcel() {
   const startMonth = budget?.startMonth || 4;
   const months = getMonthLabels(startMonth);
 
+  // ステップ変更の最大数を計算
+  const maxSteps = Math.max(0, ..._revClients.map(c => (c.retainerSteps || []).length));
+
   // ヘッダー行
+  const stepHeaders = [];
+  for (let si = 0; si < maxSteps; si++) {
+    stepHeaders.push(`変更${si+1}_年月`, `変更${si+1}_金額`);
+  }
   const headers = [
     '顧問先名', '確定', '法人個人', '売上区分', '契約開始年', '契約開始月',
     '解約年', '解約月',
-    '顧問料/月', '決算月', '決算報酬', '年末調整',
+    '顧問料/月', ...stepHeaders, '決算月', '決算報酬', '年末調整',
     ...months.map(m => `コンサル_${m}`)
   ];
 
@@ -835,6 +960,15 @@ function exportRevenueExcel() {
       ? MONTH_LABELS_JP[((c.filingCalMonth - 1 + (c.indiv ? 9 : 10)) % 12)]
       : '';
     const catName = REV_CATEGORIES.find(r => r.id === (c.category || 'sales_advisory'))?.name || '顧問報酬';
+    const steps = c.retainerSteps || [];
+    const stepCells = [];
+    for (let si = 0; si < maxSteps; si++) {
+      const s = steps[si];
+      stepCells.push(
+        s ? `${s.from.year}/${String(s.from.month).padStart(2,'0')}` : '',
+        s ? s.amount : ''
+      );
+    }
     return [
       c.name || '',
       c.confirmed === false ? '未確定' : '確定',
@@ -845,6 +979,7 @@ function exportRevenueExcel() {
       ce.year || '',
       ce.month ? MONTH_LABELS_JP[ce.month - 1] : '',
       c.retainer || 0,
+      ...stepCells,
       decMonth,
       c.settlementFee || 0,
       c.yearEndAdj || 0,
@@ -855,8 +990,11 @@ function exportRevenueExcel() {
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
 
   // 列幅
+  const stepColWidths = Array(maxSteps * 2).fill({wch:14});
   ws['!cols'] = [
-    {wch:20},{wch:10},{wch:8},{wch:10},{wch:12},{wch:8},{wch:10},{wch:8},{wch:12},{wch:10},{wch:10},{wch:10},
+    {wch:20},{wch:10},{wch:8},{wch:10},{wch:12},{wch:8},{wch:10},{wch:8},{wch:12},
+    ...stepColWidths,
+    {wch:10},{wch:10},{wch:10},
     ...Array(12).fill({wch:10})
   ];
 
@@ -890,6 +1028,17 @@ function importRevenueExcel(file) {
       const decIdx       = header.findIndex(h => h.includes('決算月'));
       const feeIdx       = header.findIndex(h => h.includes('決算報酬'));
       const adjIdx       = header.findIndex(h => h.includes('年末調整'));
+
+      // ステップ変更列（変更N_年月 / 変更N_金額）
+      const stepGroups = {};
+      header.forEach((h, i) => {
+        const m = h.match(/^変更(\d+)_(年月|金額)$/);
+        if (m) {
+          const n = parseInt(m[1]);
+          if (!stepGroups[n]) stepGroups[n] = {};
+          stepGroups[n][m[2]] = i;
+        }
+      });
 
       // コンサル列（コンサル_○月）
       const consultingCols = header.map((h, i) => h.startsWith('コンサル_') ? i : -1).filter(i => i >= 0);
@@ -944,6 +1093,16 @@ function importRevenueExcel(file) {
             return { year: ey, month: emNum >= 0 ? emNum + 1 : '' };
           })(),
           retainer:      parseFloat(String(row[retIdx] ?? '').replace(/,/g,'')) || 0,
+          retainerSteps: Object.keys(stepGroups).sort((a,b)=>a-b).reduce((arr, n) => {
+            const g = stepGroups[n];
+            const ymStr = g['年月'] !== undefined ? String(row[g['年月']] ?? '').trim() : '';
+            const amount = g['金額'] !== undefined ? parseFloat(String(row[g['金額']] ?? '').replace(/,/g,'')) : NaN;
+            const ymMatch = ymStr.match(/^(\d{4})[\/\-](\d{1,2})$/);
+            if (ymMatch && !isNaN(amount) && amount > 0) {
+              arr.push({ from: { year: parseInt(ymMatch[1]), month: parseInt(ymMatch[2]) }, amount });
+            }
+            return arr;
+          }, []),
           filingCalMonth,
           settlementFee: parseFloat(String(row[feeIdx] ?? '').replace(/,/g,'')) || 0,
           yearEndAdj:    parseFloat(String(row[adjIdx] ?? '').replace(/,/g,'')) || 0,
@@ -951,7 +1110,7 @@ function importRevenueExcel(file) {
         });
       }
 
-      if (!imported.length) { alert('インポートできる顧問先が見つかりませんでした'); return; }
+      if (!imported.length) { showToast('インポートできる顧問先が見つかりませんでした', 'warn'); return; }
 
 
       if (_revClients.length) {
@@ -970,9 +1129,9 @@ function importRevenueExcel(file) {
       }
 
       _revRefresh();
-      alert(`${imported.length}社をインポートしました`);
+      showToast(`${imported.length}社をインポートしました`, 'success');
     } catch(err) {
-      alert('インポートに失敗しました: ' + err.message);
+      showToast('インポートに失敗しました: ' + err.message, 'error');
     }
   };
   reader.readAsArrayBuffer(file);
@@ -981,7 +1140,7 @@ function importRevenueExcel(file) {
 // ===== 顧問先メモ更新 =====
 function updateClientMemo(clientId, value) {
   const companyId = App.currentCompany?.id;
-  const year = App.currentYear;
+  const year = _revBudgetYear || App.currentYear;
   if (!companyId) return;
   const clients = loadRevenueClients(companyId, year);
   const client = clients.find(c => c.id === clientId);

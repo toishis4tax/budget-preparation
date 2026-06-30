@@ -628,18 +628,38 @@ function renderCtaxJudge(container) {
         ${note}`;
     }
 
-    // ① のみ（動的科目なし or 簡易課税）
+    // ① のみ（動的科目なし）
     if (!hasDynamic) return `
       <div class="tax-kpi-row"><span>計算方法</span><span>${metodLabel}</span></div>
       ${bsContent}
       ${bsFooter}
       ${note}`;
 
+    // 簡易課税 + 動的科目あり → 原則課税同様の3列比較表示（Bug(5)）
+    if (!isHonzoku && acctCalc) return `
+      <div class="tax-kpi-row"><span>計算方法</span><span>${metodLabel}</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 16px;margin-top:8px;align-items:start">
+        <div>
+          <div class="ctax-method-label">① 試算表ベース</div>
+          ${bsContent}${bsFooter}
+        </div>
+        <div style="border-left:1px solid var(--border);padding-left:16px">
+          <div class="ctax-method-label">② 科目別簡易計算</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">課税科目は「月次予算入力」の各科目行で設定</div>
+          <div id="ctax_acct_result">${_ctaxAcctResultHtml(acctCalc, ctaxStoredPrepaid)}</div>
+        </div>
+        ${kaniCol}
+      </div>
+      ${note}`;
+
     // ① + ③（動的科目あり、BS試算表のみ）
     return `
       <div class="tax-kpi-row"><span>計算方法</span><span>${metodLabel}</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:8px;align-items:start">
-        <div>${bsContent}${bsFooter}</div>
+        <div>
+          <div class="ctax-method-label">① 試算表ベース</div>
+          ${bsContent}${bsFooter}
+        </div>
         ${kaniCol}
       </div>
       ${note}`;
@@ -720,7 +740,7 @@ function renderCtaxJudge(container) {
             </select>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn btn-primary" onclick="runCtaxJudge()">判定</button>
+            <button class="btn-solid" onclick="runCtaxJudge()">判定</button>
             ${company ? `<button class="btn btn-sm btn-outline" onclick="saveCtaxToCompany()">会社情報に保存</button>` : ''}
           </div>
           <div id="ctax_result" class="ctax-result" style="margin-top:14px"></div>

@@ -5,11 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>予算・資金繰りシミュレーター</title>
     <link rel="icon" type="image/png" href="data:image/png;base64,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">
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="stylesheet" href="css/style.css?v=6">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Firebase compat -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
+
+<!-- ===== TOAST ===== -->
+<div id="toast-container"></div>
+
+<!-- ===== HAMBURGER ===== -->
+<button class="hamburger" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('open')" title="メニュー">☰</button>
+<div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('open')"></div>
 
 <!-- ===== サイドバー ===== -->
 <aside class="sidebar">
@@ -48,6 +59,9 @@
       </div>
       <div class="nav-item nav-sub-item" data-page="budget" data-phase="1">
         <span class="icon">📝</span>月次予算入力
+      </div>
+      <div class="nav-item nav-sub-item" data-page="nextyear_pl" data-phase="1">
+        <span class="icon">📅</span>翌期月次予算入力
       </div>
       <div class="nav-item nav-sub-item" id="nav_revenue" data-page="revenue" data-phase="1" style="display:none">
         <span class="icon">🏢</span>顧問先売上管理
@@ -133,6 +147,7 @@
     <button class="btn btn-sm" onclick="openCompanyModal(App.currentCompany?.id)">編集</button>
     <button class="btn btn-sm" style="border-color:rgba(255,100,100,.5);color:#ffaaaa" onclick="deleteCurrentCompany()">削除</button>
     <span class="header-spacer"></span>
+    <div id="fb-user-badge" style="display:none;align-items:center;gap:8px"></div>
     <span class="header-label">税理士向け予算管理システム</span>
   </header>
 
@@ -194,6 +209,16 @@
         <option value="real_estate">不動産業</option>
         <option value="construction">建設業</option>
         <option value="retail">小売・EC</option>
+        <option value="beauty">美容業</option>
+        <option value="wholesale">物販・卸売業</option>
+        <option value="restaurant">飲食業</option>
+        <option value="it">IT・ソフトウェア</option>
+        <option value="transport">運輸・物流</option>
+        <option value="education">教育・学習支援</option>
+        <option value="manufacturing">製造業</option>
+        <option value="agriculture">農業・林業</option>
+        <option value="hotel">宿泊・旅行</option>
+        <option value="finance">金融・保険</option>
       </select>
     </div>
     <div class="form-group">
@@ -264,26 +289,63 @@
   </div>
 </div>
 
+<!-- ===== ログインオーバーレイ ===== -->
+<div id="fb-login-overlay" style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;overflow:hidden">
+  <!-- 湘南背景 -->
+  <div style="position:absolute;inset:0;background:linear-gradient(180deg,#87CEEB 0%,#B0E0FF 35%,#40C8C0 60%,#1A9E9A 80%,#F5E6C8 80%,#E8D5A3 100%)"></div>
+  <!-- 太陽 -->
+  <div style="position:absolute;top:48px;right:80px;width:72px;height:72px;background:radial-gradient(circle,#FFE566 40%,rgba(255,229,102,0) 70%);border-radius:50%;box-shadow:0 0 40px 20px rgba(255,220,50,.35)"></div>
+  <!-- 波 -->
+  <svg style="position:absolute;bottom:18%;left:0;width:100%;opacity:.6" viewBox="0 0 1440 60" preserveAspectRatio="none"><path fill="#fff" fill-opacity=".5" d="M0,30 C240,60 480,0 720,30 C960,60 1200,0 1440,30 L1440,60 L0,60 Z"/></svg>
+  <svg style="position:absolute;bottom:15%;left:0;width:100%;opacity:.4" viewBox="0 0 1440 60" preserveAspectRatio="none"><path fill="#fff" fill-opacity=".6" d="M0,20 C360,50 720,10 1080,40 C1260,55 1380,20 1440,30 L1440,60 L0,60 Z"/></svg>
+  <!-- サーフボード装飾 -->
+  <svg style="position:absolute;left:6%;bottom:22%;opacity:.7;transform:rotate(-20deg)" width="28" height="90" viewBox="0 0 28 90"><ellipse cx="14" cy="45" rx="13" ry="43" fill="#FF6B6B"/><ellipse cx="14" cy="45" rx="8" ry="38" fill="#FF8E8E"/><rect x="12" y="20" width="4" height="50" rx="2" fill="rgba(255,255,255,.4)"/></svg>
+  <svg style="position:absolute;right:8%;bottom:24%;opacity:.6;transform:rotate(15deg)" width="24" height="78" viewBox="0 0 24 78"><ellipse cx="12" cy="39" rx="11" ry="37" fill="#4ECDC4"/><ellipse cx="12" cy="39" rx="6" ry="32" fill="#6EE7E0"/><rect x="10" y="16" width="4" height="46" rx="2" fill="rgba(255,255,255,.4)"/></svg>
+
+  <!-- カード -->
+  <div style="position:relative;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-radius:24px;padding:44px 40px 36px;width:400px;max-width:92vw;text-align:center;box-shadow:0 24px 64px rgba(0,100,150,.25),0 2px 8px rgba(0,0,0,.08)">
+    <!-- ロゴ -->
+    <div style="margin:0 auto 18px;width:64px;height:64px;background:linear-gradient(135deg,#0EA5E9,#06B6D4);border-radius:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(6,182,212,.4)">
+      <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+        <path d="M4 28 L10 18 L16 22 L22 10 L28 14 L32 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4 28 L10 18 L16 22 L22 10 L28 14 L32 6" stroke="rgba(255,255,255,.3)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="28" cy="26" r="5" fill="rgba(255,255,255,.2)" stroke="white" stroke-width="1.5"/>
+        <path d="M26 26 L27.5 27.5 L30.5 24" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h1 style="font-size:22px;font-weight:800;color:#0c1a2e;margin:0 0 4px;letter-spacing:-.3px">Budget & Cash Flow</h1>
+    <h2 style="font-size:15px;font-weight:600;color:#0EA5E9;margin:0 0 4px;letter-spacing:.5px">SIMULATOR</h2>
+    <p style="font-size:11px;color:#94a3b8;margin:0 0 28px;letter-spacing:.3px">S4税理士法人 専用システム</p>
+    <button id="fb-login-btn" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 16px;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;font-size:14px;font-weight:600;color:#374151;cursor:pointer;transition:all .2s;box-shadow:0 2px 8px rgba(0,0,0,.06)" onmouseover="this.style.borderColor='#0EA5E9';this.style.boxShadow='0 4px 16px rgba(14,165,233,.2)';this.style.transform='translateY(-1px)'" onmouseout="this.style.borderColor='#e2e8f0';this.style.boxShadow='0 2px 8px rgba(0,0,0,.06)';this.style.transform='translateY(0)'">
+      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+      Sign in with Google
+    </button>
+    <p id="fb-login-err" style="margin:14px 0 0;font-size:11px;color:#dc2626;min-height:16px"></p>
+  </div>
+</div>
+
 <!-- ===== JS ===== -->
 <script src="js/accounts.js"></script>
-<script src="js/home.js?v=7"></script>
+<script src="js/home.js?v=8"></script>
 <script src="js/storage.js"></script>
-<script src="js/calculations.js?v=3"></script>
-<script src="js/tax.js?v=25"></script>
+<script src="js/calculations.js?v=5"></script>
+<script src="js/tax.js?v=26"></script>
 <script src="js/welfare.js?v=7"></script>
-<script src="js/simulation.js?v=7"></script>
-<script src="js/health.js?v=3"></script>
-<script src="js/grid.js?v=7"></script>
+<script src="js/simulation.js?v=9"></script>
+<script src="js/health.js?v=5"></script>
+<script src="js/grid.js?v=12"></script>
 <script src="js/export.js"></script>
-<script src="js/import.js?v=13"></script>
-<script src="js/exec-comp.js?v=8"></script>
-<script src="js/revenue.js?v=5"></script>
+<script src="js/import.js?v=17"></script>
+<script src="js/exec-comp.js?v=9"></script>
+<script src="js/revenue.js?v=10"></script>
 <script src="js/taxsummary.js"></script>
-<script src="js/forecast-report.js?v=12"></script>
+<script src="js/forecast-report.js?v=13"></script>
 <script src="js/bizanalysis.js"></script>
-<script src="js/summarybs.js?v=3"></script>
+<script src="js/summarybs.js?v=5"></script>
 <script src="js/bepanalysis.js?v=1"></script>
-<script src="js/kichu-output.js?v=13"></script>
+<script src="js/kichu-output.js?v=14"></script>
+<script src="js/nextyear.js?v=12"></script>
+<script src="js/firebase-auth.js?v=3"></script>
 <script src="js/app.js"></script>
 
 <script>

@@ -1,3 +1,19 @@
+// ===== トースト通知 =====
+function showToast(msg, type = 'info', duration = 3000) {
+  const container = document.getElementById('toast-container');
+  if (!container) { alert(msg); return; }
+  const icons = { success: '✓', error: '✕', info: 'ℹ', warn: '⚠' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  const icon = document.createElement('span');
+  icon.textContent = icons[type] || 'ℹ';
+  const text = document.createElement('span');
+  text.textContent = String(msg);
+  el.append(icon, text);
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, duration);
+}
+
 // メインアプリケーション
 
 window.App = {
@@ -14,9 +30,19 @@ const _safeN = v => (isNaN(v) || !isFinite(v)) ? 0 : v;
 window.fmt  = v => Math.round(_safeN(v)).toLocaleString('ja-JP') + '円';
 window.fmtK = v => Math.round(_safeN(v) / 1000).toLocaleString('ja-JP');
 
-document.addEventListener('DOMContentLoaded', () => {
+// Firebase認証後に呼ばれる（firebase-auth.js から _fbInit → _onLoggedIn → initApp）
+window.initApp = function() {
   loadApp();
+};
+
+document.addEventListener('DOMContentLoaded', () => {
   setupNav();
+  // Firebase が有効な場合は _fbInit が認証後に initApp() を呼ぶ
+  if (typeof _fbInit === 'function') {
+    _fbInit();
+  } else {
+    loadApp(); // Firebase未導入時はそのまま起動
+  }
 
   document.getElementById('company_select')?.addEventListener('change', e => selectCompany(e.target.value));
   document.getElementById('year_select')?.addEventListener('change', e => {
@@ -31,14 +57,19 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+const _LAST_COMPANY_KEY = 'budget_app_last_company';
+
 function loadApp() {
   App.companies = getCompanies();
   renderCompanyList();
   setPhase(1);
-  if (App.companies.length > 0) {
-    selectCompany(App.companies[0].id);
+  const lastId = localStorage.getItem(_LAST_COMPANY_KEY);
+  const restore = lastId && App.companies.find(c => c.id === lastId);
+  if (restore) {
+    selectCompany(restore.id);
   } else {
-    showPage('budget');
+    // 会社未選択のまま表示（自動選択しない）
+    showPage('home');
   }
 }
 
@@ -62,6 +93,7 @@ function selectCompany(id) {
     return;
   }
   App.currentCompany = company;
+  localStorage.setItem(_LAST_COMPANY_KEY, company.id);
   updateNavForIndustry(company);
   const years = getYearsForCompany(id);
   const year  = years.includes(App.currentYear) ? App.currentYear : (years[0] || new Date().getFullYear());
@@ -225,23 +257,24 @@ function deleteCurrentCompany() {
 
 // ===== ページ管理 =====
 function togglePhase(phase) {
-  const isActive = App.currentPhase === phase;
+  const nav = document.getElementById(`phase-nav-${phase}`);
+  const isOpen = nav && nav.style.display !== 'none';
   [1, 2, 3].forEach(p => {
-    const nav = document.getElementById(`phase-nav-${p}`);
+    const n = document.getElementById(`phase-nav-${p}`);
     const icon = document.getElementById(`phase-toggle-${p}`);
     const label = document.querySelector(`#phase-section-${p} .sidebar-phase-label`);
-    if (!nav) return;
-    if (p === phase && !isActive) {
-      nav.style.display = 'block';
+    if (!n) return;
+    if (p === phase && !isOpen) {
+      n.style.display = 'block';
       if (icon) icon.textContent = '▾';
       label?.classList.add('active-phase');
     } else {
-      nav.style.display = 'none';
+      n.style.display = 'none';
       if (icon) icon.textContent = '▸';
       label?.classList.remove('active-phase');
     }
   });
-  if (!isActive) App.currentPhase = phase;
+  App.currentPhase = isOpen ? 0 : phase;
 }
 
 function setPhase(phase) {
@@ -289,7 +322,8 @@ function showPage(page) {
     case 'revenue':    renderRevenue(container);                          break;
     case 'import':     renderImport(container);                           break;
     case 'simulation': renderSimulation(container, budget);               break;
-    case 'nextyear':   renderNextYearSim(container, budget);              break;
+    case 'nextyear':      renderNextYearSim(container, budget);  break;
+    case 'nextyear_pl':   renderNextYearPL(container);           break;
     case 'fiveyear':   renderFiveYearSim(container, budget);              break;
     case 'cashflow':   renderCashFlow(container, budget);                 break;
     case 'execcomp':   renderExecComp(container, budget);                 break;

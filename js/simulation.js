@@ -32,7 +32,7 @@ function renderNextYearSim(container, budget) {
         <div class="sim-inputs card">
           <h3>増減率設定（前年比%）</h3>
           <table class="rate-table"><tbody>${rows}</tbody></table>
-          <button class="btn btn-primary" onclick="runNextYearSim()">予測実行</button>
+          <button class="btn-solid" onclick="runNextYearSim()">予測実行</button>
         </div>
         <div class="sim-results card" id="ny_result">
           <h3>翌年度PL予測</h3>
@@ -175,7 +175,7 @@ function renderFiveYearSim(container, budget) {
           </tbody>
         </table>
         </div>
-        <button class="btn btn-primary" onclick="runFiveYearSim()">5か年計画実行</button>
+        <button class="btn-solid" onclick="runFiveYearSim()">5か年計画実行</button>
       </div>
       <div id="fy_result"></div>
     </div>`;
@@ -183,22 +183,42 @@ function renderFiveYearSim(container, budget) {
 
 function runFiveYearSim() {
   const budget = window.App?.currentBudget;
-  const basePL = budget ? calcPL(budget.rows) : null;
-  const baseBS = budget ? calcBS(budget.rows) : null;
 
   const getRate = (id, y) => parseFloat(document.getElementById(`${id}_${y}`)?.value || 100) / 100;
   const getVal  = (id, y) => parseFloat(document.getElementById(`${id}_${y}`)?.value || 0) * 10000;
+  const annSum  = (arr) => arr ? arr.slice(0,13).reduce((a,b)=>a+b,0) : 0;
 
-  const annSum = (arr) => arr ? arr.reduce((a,b)=>a+b,0) : 0;
-
-  // ベースライン（現在の予算）
-  let curSales    = basePL ? annSum(basePL.sales)       : 0;
-  let curCogs     = basePL ? annSum(basePL.cogs)        : 0;
-  let curSalary   = basePL ? annSum(basePL.sga_salary)  : 0;
-  let curRent     = basePL ? annSum(budget.rows.sga_rent||[]) : 0;
-  let curOther    = basePL ? annSum(basePL.sga) - annSum(basePL.sga_salary) - annSum(budget.rows.sga_rent||[]) : 0;
-  let curCash     = baseBS ? (baseBS.current_assets[11]||0) : 0;
-  let curLoan     = baseBS ? ((baseBS.fixed_liab[11]||0)+(budget.rows.short_loan?.[11]||0)) : 0;
+  // ベースライン（動的/静的どちらも対応）
+  let curSales, curCogs, curSalary, curRent, curOther, curCash, curLoan;
+  if (budget?.dynamicAccounts?.length) {
+    const av    = calcAllValuesDynamic(budget);
+    const accts = budget.dynamicAccounts;
+    const dynSum  = id => annSum(av[id] || []);
+    const matchSum = re => {
+      const matching = accts.filter(a => a.type !== 'section' && re.test(a.name || ''));
+      const ids = new Set(matching.map(a => a.id));
+      return matching.filter(a => !ids.has(a.parentId)).reduce((s,a) => s + dynSum(a.id), 0);
+    };
+    const closeIdx = Math.max(0, ...(budget.actualCols||[]).map((v,i)=>v?i:-1));
+    curSales  = dynSum('sec_revenue') || dynSum('sales');
+    curCogs   = dynSum('sec_cogs')    || dynSum('cogs');
+    curSalary = matchSum(/給与|給料|賃金|役員報酬|役員賞与|賞与|法定福利|人件費|雑給/);
+    curRent   = matchSum(/家賃|地代|賃借料|リース/);
+    const sgaTotal = dynSum('sec_sga') || dynSum('sga');
+    curOther  = sgaTotal - curSalary - curRent;
+    curCash   = (av['sec_cur_asset'] || [])[closeIdx] || 0;
+    curLoan   = matchSum(/借入金/);
+  } else {
+    const basePL = budget ? calcPL(budget.rows) : null;
+    const baseBS = budget ? calcBS(budget.rows) : null;
+    curSales  = basePL ? annSum(basePL.sales)      : 0;
+    curCogs   = basePL ? annSum(basePL.cogs)       : 0;
+    curSalary = basePL ? annSum(basePL.sga_salary) : 0;
+    curRent   = basePL ? annSum(budget.rows.sga_rent||[]) : 0;
+    curOther  = basePL ? annSum(basePL.sga) - annSum(basePL.sga_salary) - annSum(budget.rows.sga_rent||[]) : 0;
+    curCash   = baseBS ? (baseBS.current_assets[11]||0) : 0;
+    curLoan   = baseBS ? ((baseBS.fixed_liab[11]||0)+(budget.rows.short_loan?.[11]||0)) : 0;
+  }
 
   const years = [];
   for (let y = 1; y <= 5; y++) {
@@ -296,34 +316,34 @@ function renderCashFlow(container, budget) {
   const monthLabels = getMonthLabels(budget.startMonth || 4);
 
   // 期首現預金: ① 前期末（index 11）→ ② 当期首（index 0）→ ③ 0（手入力）
-  // 途中月は拾わない
+  // 現金・預金の全口座を合算（単一科目ではなく全口座の合計）
   let autoCash = 0, cashSource = '手動入力';
   const budgetPrev1 = (typeof getBudget === 'function') ? getBudget(company?.id, curYear - 1) : null;
-  const _findCashAcc = b => {
-    if (!b?.dynamicAccounts) return null;
-    // ミロク形式: bs_cash_group（現金及び預金合計）を優先
-    const cg = b.dynamicAccounts.find(a => a.cashGroup && a.section?.startsWith('bs'));
-    if (cg) return cg;
-    // 汎用: 名前マッチ（信金・銀行 も対応）
-    return b.dynamicAccounts.find(a =>
-      a.name.replace(/\s/g,'').match(/現金|預金|現預金|信金|銀行|信用組合/) && a.section?.startsWith('bs')
+
+  // 現金・預金の全leaf科目を合算（二重計上防止: 親子両方マッチする場合は子を優先）
+  const _sumCashAt = (b, idx) => {
+    if (!b?.dynamicAccounts) return 0;
+    const av = calcAllValuesDynamic(b);
+    const CASH_RE = /現金|預金|信金|銀行|信用組合/;
+    const matching = b.dynamicAccounts.filter(a =>
+      a.section?.startsWith('bs') &&
+      a.type !== 'section' &&
+      CASH_RE.test((a.name || '').replace(/\s/g,''))
     );
+    const matchingIds = new Set(matching.map(a => a.id));
+    const deduped = matching.filter(a => !matchingIds.has(a.parentId));
+    return deduped.reduce((s, a) => s + ((av[a.id] || [])[idx] || 0), 0);
   };
+
   // ① 前期末（index 11 = 期末月）
-  const prevCashAcc = _findCashAcc(budgetPrev1);
-  if (prevCashAcc) {
-    const src = budgetPrev1.actualRows || budgetPrev1.rows || {};
-    const v = (src[prevCashAcc.id] || [])[11];
+  if (budgetPrev1?.dynamicAccounts) {
+    const v = _sumCashAt(budgetPrev1, 11);
     if (v) { autoCash = v; cashSource = '前期末 BS残高（自動取得）'; }
   }
   // ② 当期首（index 0 = 期初月の実績）
   if (!autoCash && budget.dynamicAccounts) {
-    const curCashAcc = _findCashAcc(budget);
-    if (curCashAcc) {
-      const src = budget.actualRows || budget.rows || {};
-      const v = (src[curCashAcc.id] || [])[0];
-      if (v) { autoCash = v; cashSource = '当期首 BS残高（自動取得）'; }
-    }
+    const v = _sumCashAt(budget, 0);
+    if (v) { autoCash = v; cashSource = '当期首 BS残高（自動取得）'; }
   }
 
   // 減価償却費: SGA内の減価償却科目から合算

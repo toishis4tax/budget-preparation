@@ -5,8 +5,14 @@ function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return initData();
-    return JSON.parse(raw);
-  } catch {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      console.warn('[storage] データ形式が不正です。初期化します。');
+      return initData();
+    }
+    return parsed;
+  } catch (e) {
+    console.warn('[storage] データ読み込みエラー。初期化します。', e);
     return initData();
   }
 }
@@ -16,18 +22,32 @@ function initData() {
 }
 
 function saveData(data) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {
+    if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+      if (typeof showToast === 'function') {
+        showToast('ストレージ容量が不足しています。古いデータを削除してください。', 'error', 6000);
+      } else {
+        alert('ストレージ容量が不足しています。古いデータを削除してください。');
+      }
+    } else {
+      console.error('[storage] 保存エラー:', e);
+    }
+  }
 }
 
 // 会社
 function getCompanies() { return loadData().companies; }
 
 function saveCompany(company) {
+  company.updatedAt = company.updatedAt || Date.now();
   const data = loadData();
   const idx = data.companies.findIndex(c => c.id === company.id);
   if (idx >= 0) data.companies[idx] = company;
   else data.companies.push(company);
   saveData(data);
+  if (typeof fbSaveCompany === 'function') fbSaveCompany(company);
 }
 
 function deleteCompany(id) {
@@ -35,6 +55,7 @@ function deleteCompany(id) {
   data.companies = data.companies.filter(c => c.id !== id);
   data.budgets = data.budgets.filter(b => b.companyId !== id);
   saveData(data);
+  if (typeof fbDeleteCompany === 'function') fbDeleteCompany(id);
 }
 
 // 予算
@@ -52,6 +73,7 @@ function saveBudget(budget) {
   if (idx >= 0) data.budgets[idx] = budget;
   else data.budgets.push(budget);
   saveData(data);
+  if (typeof fbSaveBudget === 'function') fbSaveBudget(budget);
 }
 
 function getYearsForCompany(companyId) {

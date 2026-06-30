@@ -45,6 +45,27 @@ function renderHealthDiag(container, budget) {
   const overallGrade = avg >= 4.5?'A': avg>=3.5?'B': avg>=2.5?'C': avg>=1.5?'D':'E';
   const overallColor = gradeColor[overallGrade];
 
+  // 優先改善アクション（グレードが低い順）
+  const scoredItems = items
+    .filter(i => i.key !== 'ebitda')
+    .map(i => ({ ...i, grade: gradeMetric(i.key, i.value), score: {A:5,B:4,C:3,D:2,E:1}[gradeMetric(i.key, i.value)] || 3 }))
+    .sort((a, b) => a.score - b.score);
+  const priorities = scoredItems.slice(0, 2);
+
+  const overallSummary = (() => {
+    if (overallGrade === 'A') return '財務体力は非常に高く、経営の安定性・成長投資の余力ともに十分な状態です。';
+    if (overallGrade === 'B') return '財務状態は良好です。一部の指標をさらに改善することで、より盤石な経営基盤が築けます。';
+    if (overallGrade === 'C') return '財務体力は中程度です。強みと課題が混在しており、優先課題への集中的な取り組みが鍵です。';
+    if (overallGrade === 'D') return '財務状態にいくつかの課題があります。早めの対策が将来のリスク軽減につながります。';
+    return '財務上の緊急課題があります。優先度の高い指標から順に、具体的な改善アクションを実行してください。';
+  })();
+
+  const gradeDistHtml = ['A','B','C','D','E'].map(g => {
+    const cnt = scoredItems.filter(i => i.grade === g).length;
+    const c = gradeColor[g];
+    return cnt > 0 ? `<span style="display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:700;color:${c}"><span style="width:18px;height:18px;border-radius:50%;background:${c};display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px">${g}</span>×${cnt}</span>` : '';
+  }).filter(Boolean).join('<span style="color:var(--border);margin:0 2px">|</span>');
+
   container.innerHTML = `
     <div class="sim-panel">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
@@ -53,11 +74,22 @@ function renderHealthDiag(container, budget) {
       </div>
       <div class="health-overview card">
         <div class="overall-grade">
-          <span class="grade-label">総合評価</span>
-          <span class="grade-big" style="color:${overallColor}">${overallGrade}</span>
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;margin-bottom:6px">総合評価</div>
+          <div class="grade-big" style="color:${overallColor}">${overallGrade}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin:8px 0 12px;line-height:1.6">${overallSummary}</div>
+          <div style="margin-bottom:14px">${gradeDistHtml}</div>
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">▼ 優先改善ポイント</div>
+          ${priorities.map(p => `
+            <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;padding:8px 10px;background:var(--bg);border-radius:8px;border-left:3px solid ${gradeColor[p.grade]}">
+              <span style="font-size:13px;font-weight:800;color:${gradeColor[p.grade]};min-width:18px">${p.grade}</span>
+              <div>
+                <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px">${p.label}</div>
+                <div style="font-size:11px;color:var(--text-muted);line-height:1.5">${(METRIC_COMMENTS[p.key]||{})[p.grade]||''}</div>
+              </div>
+            </div>`).join('')}
         </div>
         <div class="radar-wrap">
-          <canvas id="health_radar" width="300" height="300"></canvas>
+          <canvas id="health_radar" style="width:100%;height:100%"></canvas>
         </div>
       </div>
       <div class="card" style="margin-top:1rem">
@@ -91,7 +123,8 @@ function renderHealthDiag(container, budget) {
           }]
         },
         options: {
-          responsive: false,
+          responsive: true,
+          maintainAspectRatio: true,
           scales: { r: { min:0, max:5, ticks: { stepSize:1 } } },
           plugins: { legend: { display: false } }
         }

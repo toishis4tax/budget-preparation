@@ -121,7 +121,25 @@ function renderForecastReport(container) {
   };
   const pS = pSum('sec_revenue','sales');
   const pG = pSum('calc_gross','gross_profit');
-  const pL = pSum('sec_sga','sga_salary');
+  let pL = null;
+  if (prevAv && prevBudget?.dynamicAccounts) {
+    const LABOR_RE2 = /給与|給料|賃金|役員報酬|役員賞与|賞与|法定福利|福利厚生|厚生費|福利費|雑給|人件費|退職|手当/;
+    const prevSgaSec2 = prevBudget.dynamicAccounts.find(a =>
+      a.id === 'sec_sga' || (a.type === 'section' && /販売費|一般管理費/.test(a.name || ''))
+    );
+    if (prevSgaSec2) {
+      const prevLaborAccs = prevBudget.dynamicAccounts.filter(a =>
+        a.parentId === prevSgaSec2.id && LABOR_RE2.test(a.name || '')
+      );
+      if (prevLaborAccs.length > 0) {
+        pL = prevLaborAccs.reduce((s, a) => {
+          const vals = prevAv[a.id] || [];
+          return s + vals.slice(0, 13).reduce((t, v) => t + Math.abs(v || 0), 0);
+        }, 0);
+      }
+    }
+  }
+  if (pL === null) pL = pSum('sga_salary');
   const pO = pSum('calc_ord','ord_profit');
   const pN = pSum('calc_net','net_profit');
   const pPretax = pSum('calc_pretax','pretax_profit');
