@@ -32,35 +32,37 @@ function renderHealthDiag(container, budget) {
   ];
 
   const gradeColor = { A:'#10b981', B:'#3b82f6', C:'#f59e0b', D:'#f97316', E:'#ef4444' };
-
-  const rows = items.map(item => {
-    const grade = item.key === 'ebitda' ? '–' : gradeMetric(item.key, item.value);
-    const color = gradeColor[grade] || '#6b7280';
-    const comment = (METRIC_COMMENTS[item.key]||{})[grade] || '';
-    return `
-      <tr>
-        <td>${item.label}${formulaHtml(item.key)}</td>
-        <td class="num">${item.fmt(item.value)} ${item.unit}</td>
-        <td><span class="grade-badge" style="background:${color}">${grade}</span></td>
-        <td class="comment">${comment}</td>
-      </tr>`;
-  }).join('');
+  const scoreMap = {A:5,B:4,C:3,D:2,E:1};
 
   // 総合スコア
   const grades = items
     .filter(i => i.key !== 'ebitda')
     .map(i => gradeMetric(i.key, i.value));
-  const scoreMap = {A:5,B:4,C:3,D:2,E:1};
   const avg = grades.reduce((a,g) => a + (scoreMap[g]||3), 0) / grades.length;
   const overallGrade = avg >= 4.5?'A': avg>=3.5?'B': avg>=2.5?'C': avg>=1.5?'D':'E';
   const overallColor = gradeColor[overallGrade];
 
-  // 優先改善アクション（グレードが低い順）
   const scoredItems = items
     .filter(i => i.key !== 'ebitda')
-    .map(i => ({ ...i, grade: gradeMetric(i.key, i.value), score: {A:5,B:4,C:3,D:2,E:1}[gradeMetric(i.key, i.value)] || 3 }))
+    .map(i => ({ ...i, grade: gradeMetric(i.key, i.value), score: scoreMap[gradeMetric(i.key, i.value)] || 3 }))
     .sort((a, b) => a.score - b.score);
-  const priorities = scoredItems.slice(0, 2);
+
+  // テーブル行（目標値列を追加）
+  const rows = items.map(item => {
+    const grade = item.key === 'ebitda' ? '–' : gradeMetric(item.key, item.value);
+    const color = gradeColor[grade] || '#6b7280';
+    const comment = (METRIC_COMMENTS[item.key]||{})[grade] || '';
+    const target  = (typeof METRIC_TARGETS !== 'undefined' && METRIC_TARGETS[item.key])
+      ? (METRIC_TARGETS[item.key][grade] || '—') : '—';
+    return `
+      <tr>
+        <td>${item.label}${formulaHtml(item.key)}</td>
+        <td class="num">${item.fmt(item.value)} ${item.unit}</td>
+        <td style="text-align:center"><span class="grade-badge" style="background:${color}">${grade}</span></td>
+        <td style="font-size:11px;color:#6b7280">${target}</td>
+        <td class="comment">${comment}</td>
+      </tr>`;
+  }).join('');
 
   const overallSummary = (() => {
     if (overallGrade === 'A') return '財務体力は非常に高く、経営の安定性・成長投資の余力ともに十分な状態です。';
@@ -76,39 +78,87 @@ function renderHealthDiag(container, budget) {
     return cnt > 0 ? `<span style="display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:700;color:${c}"><span style="width:18px;height:18px;border-radius:50%;background:${c};display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px">${g}</span>×${cnt}</span>` : '';
   }).filter(Boolean).join('<span style="color:var(--border);margin:0 2px">|</span>');
 
+  // 優先改善ポイント（C以下を最大3件、評価が低い順）
+  const priorities = scoredItems.filter(i => i.score <= 3).slice(0, 3);
+
+  // 改善アクションプラン（優先順に全改善対象）
+  const actionItems = scoredItems.filter(i => i.score <= 4);
+  const actionHtml = actionItems.length === 0
+    ? '<div style="font-size:12px;color:var(--text-muted);padding:8px 0">すべての指標が良好な水準です。現状維持と成長投資に集中できます。</div>'
+    : actionItems.map((item, idx) => {
+        const actions = (typeof METRIC_ACTIONS !== 'undefined' && METRIC_ACTIONS[item.key]) || [];
+        const target  = (typeof METRIC_TARGETS !== 'undefined' && METRIC_TARGETS[item.key])
+          ? (METRIC_TARGETS[item.key][item.grade] || '') : '';
+        return `
+          <div style="margin-bottom:16px;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <span style="width:22px;height:22px;border-radius:50%;background:${gradeColor[item.grade]};display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800;flex-shrink:0">${item.grade}</span>
+              <span style="font-size:13px;font-weight:800;color:var(--text)">${idx+1}. ${item.label}</span>
+              ${target ? `<span style="margin-left:auto;font-size:11px;color:${gradeColor[item.grade]};font-weight:700;white-space:nowrap">→ ${target}</span>` : ''}
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;line-height:1.6">${(METRIC_COMMENTS[item.key]||{})[item.grade]||''}</div>
+            <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:6px">具体的な改善アクション</div>
+            <ol style="margin:0;padding-left:18px;font-size:11px;color:var(--text);line-height:1.8">
+              ${actions.map(a => `<li>${a}</li>`).join('')}
+            </ol>
+          </div>`;
+      }).join('');
+
   container.innerHTML = `
     <div class="sim-panel">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
         <h2 class="section-title" style="margin-bottom:0">財務健康診断</h2>
         <button class="btn btn-sm btn-outline" onclick="showPage('home')" style="margin-left:auto">← ホームに戻る</button>
       </div>
+
+      <!-- 総合評価カード -->
       <div class="health-overview card">
         <div class="overall-grade">
           <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;margin-bottom:6px">総合評価</div>
           <div class="grade-big" style="color:${overallColor}">${overallGrade}</div>
           <div style="font-size:11px;color:var(--text-muted);margin:8px 0 12px;line-height:1.6">${overallSummary}</div>
-          <div style="margin-bottom:14px">${gradeDistHtml}</div>
-          <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">▼ 優先改善ポイント</div>
-          ${priorities.map(p => `
-            <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;padding:8px 10px;background:var(--bg);border-radius:8px;border-left:3px solid ${gradeColor[p.grade]}">
-              <span style="font-size:13px;font-weight:800;color:${gradeColor[p.grade]};min-width:18px">${p.grade}</span>
-              <div>
-                <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px">${p.label}</div>
-                <div style="font-size:11px;color:var(--text-muted);line-height:1.5">${(METRIC_COMMENTS[p.key]||{})[p.grade]||''}</div>
-              </div>
-            </div>`).join('')}
+          <div style="margin-bottom:16px">${gradeDistHtml}</div>
+          ${priorities.length > 0 ? `
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px;letter-spacing:.03em">▼ 優先改善ポイント</div>
+            ${priorities.map(p => `
+              <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;padding:8px 10px;background:var(--bg);border-radius:8px;border-left:3px solid ${gradeColor[p.grade]}">
+                <span style="font-size:13px;font-weight:800;color:${gradeColor[p.grade]};min-width:18px">${p.grade}</span>
+                <div>
+                  <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px">${p.label}</div>
+                  <div style="font-size:10px;color:${gradeColor[p.grade]};font-weight:700;margin-bottom:3px">${(typeof METRIC_TARGETS !== 'undefined' && METRIC_TARGETS[p.key]) ? METRIC_TARGETS[p.key][p.grade] || '' : ''}</div>
+                  <div style="font-size:11px;color:var(--text-muted);line-height:1.5">${(METRIC_COMMENTS[p.key]||{})[p.grade]||''}</div>
+                </div>
+              </div>`).join('')}
+          ` : `<div style="font-size:12px;color:#10b981;font-weight:700">✓ すべての指標がB以上。財務状態は良好です。</div>`}
         </div>
         <div class="radar-wrap">
           <canvas id="health_radar" style="width:100%;height:100%"></canvas>
         </div>
       </div>
+
+      <!-- 指標一覧テーブル -->
       <div class="card" style="margin-top:1rem">
-        <table class="result-table health-table">
-          <thead>
-            <tr><th>指標</th><th>数値</th><th>評価</th><th>コメント</th></tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">📋 指標一覧</div>
+        <div style="overflow-x:auto">
+          <table class="result-table health-table" style="width:100%">
+            <thead>
+              <tr>
+                <th style="min-width:160px">指標</th>
+                <th>数値</th>
+                <th>評価</th>
+                <th>次の目標</th>
+                <th style="min-width:200px">状況コメント</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 改善アクションプラン -->
+      <div class="card" style="margin-top:1rem">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">🎯 改善アクションプラン</div>
+        ${actionHtml}
       </div>
     </div>`;
 

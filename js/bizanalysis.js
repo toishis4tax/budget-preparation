@@ -40,7 +40,21 @@ function extractBizMetrics(budget, company) {
   const marginalProfit = gross;
   const fixedCost      = sga;
   const employees      = budget.employees || company.employees || 1;
-  const cf             = pretax > 0 ? Math.round(pretax * 0.662) : pretax;
+
+  // 減価償却費を取得
+  let depr = 0;
+  if (budget.dynamicAccounts) {
+    const accts = budget.dynamicAccounts;
+    const deprAccs = accts.filter(a => (a.name || '').replace(/\s/g,'').match(/減価償却/) && a.type === 'input');
+    depr = deprAccs.reduce((s, a) => s + ((av[a.id] || []).reduce((x, v) => x + v, 0)), 0);
+  } else {
+    const allV = calcAllValues(budget.rows || {});
+    depr = (allV['sga_depr'] || []).reduce((a, v) => a + v, 0);
+  }
+
+  // 簡易CF = 税引前利益 × 66.2% + 減価償却費
+  const cfBase = pretax > 0 ? Math.round(pretax * 0.662) : pretax;
+  const cf     = cfBase + depr;
 
   let currentRatio = 0, equityRatio = 0, debtMonthRatio = 0;
   try {
@@ -55,7 +69,7 @@ function extractBizMetrics(budget, company) {
 
   return {
     sales, cogs, gross, sga, op, ord, pretax, net,
-    marginalProfit, fixedCost, cf, employees,
+    marginalProfit, fixedCost, cf, depr, employees,
     currentRatio, equityRatio, debtMonthRatio,
     breakEven, marginRate,
   };
@@ -240,7 +254,7 @@ function renderBizAnalysis(container) {
                 mPrev2 ? K(mPrev2.cf) : null,
                 mPrev  ? K(mPrev.cf)  : null,
                 mCur   ? K(mCur.cf)   : null,
-                null, '', '税引前利益 × 66.2%（簡易CF）')}
+                null, '', '税引前利益 × 66.2%（税後利益）+ 減価償却費')}
               ${anaRow('1人当り売上高（千円）',   perEmpSalesPrev2, perEmpSalesPrev, perEmpSalesCur, null, '', '売上高 ÷ 従業員数')}
               ${anaRow('1人当り限界利益（千円）', perEmpMargPrev2,  perEmpMargPrev,  perEmpMargCur,  null, '', '限界利益 ÷ 従業員数')}
               ${anaRow('1人当り経常利益（千円）', perEmpOrdPrev2,   perEmpOrdPrev,   perEmpOrdCur,   null, '', '経常利益 ÷ 従業員数')}
