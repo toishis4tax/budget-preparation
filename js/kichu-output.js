@@ -1347,8 +1347,8 @@ function renderKichuTaxPlanning(container, budget, company) {
       if (shoug_est > 0) {
         var shoug_tax = calcAllTax(Math.max(0, landingPretax - shoug_est), capital);
         measures.push({
-          name: '少額減価償却資産の取得（30万円未満）',
-          desc: '取得価額30万円未満の資産は全額即時損金算入（年間300万円上限）。決算前の設備購入で活用。',
+          name: '少額減価償却資産の取得（40万円未満）',
+          desc: '取得価額40万円未満の資産は全額即時損金算入（年間300万円上限）。令和8年度改正で30万→40万円に拡大。決算前の設備購入で活用。',
           limit: '年間300万円',
           amount: shoug_est,
           taxSave: currentTax - (shoug_tax ? shoug_tax.total : 0),
