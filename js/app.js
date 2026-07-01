@@ -307,6 +307,33 @@ function setupNav() {
   });
 }
 
+const PAGE_RENDERERS = {
+  home:           c      => renderHome(c),
+  budget:         (c, b) => renderGrid(c, b),
+  revenue:        c      => renderRevenue(c),
+  import:         c      => renderImport(c),
+  simulation:     (c, b) => renderSimulation(c, b),
+  nextyear:       (c, b) => renderNextYearSim(c, b),
+  nextyear_pl:    c      => renderNextYearPL(c),
+  fiveyear:       (c, b) => renderFiveYearSim(c, b),
+  cashflow:       (c, b) => renderCashFlow(c, b),
+  cashplan:       c      => renderCashPlan(c),
+  loansim:        c      => renderLoanSim(c),
+  kpiboard:       c      => renderKpiBoard(c),
+  execopt:        c      => renderExecOpt(c),
+  execcomp:       (c, b) => renderExecComp(c, b),
+  welfare:        c      => renderWelfare(c),
+  tax:            c      => renderTaxSimulator(c),
+  ctax:           c      => renderCtaxJudge(c),
+  health:         (c, b) => renderHealthDiag(c, b),
+  taxsummary:     c      => renderTaxSummary(c),
+  forecastreport: c      => renderForecastReport(c),
+  bizanalysis:    c      => renderBizAnalysis(c),
+  summarypl:      c      => renderSummaryPL(c),
+  summarybs:      c      => renderSummaryBS(c),
+  bepanalysis:    c      => renderBEPAnalysis(c),
+};
+
 function showPage(page) {
   App.currentPage = page;
   document.querySelectorAll('[data-page]').forEach(el =>
@@ -315,34 +342,12 @@ function showPage(page) {
 
   const container = document.getElementById('main_content');
   if (!container) return;
-  const budget  = App.currentBudget;
 
-  switch (page) {
-    case 'home':       renderHome(container);                             break;
-    case 'budget':     renderGrid(container, budget);                     break;
-    case 'revenue':    renderRevenue(container);                          break;
-    case 'import':     renderImport(container);                           break;
-    case 'simulation': renderSimulation(container, budget);               break;
-    case 'nextyear':      renderNextYearSim(container, budget);  break;
-    case 'nextyear_pl':   renderNextYearPL(container);           break;
-    case 'fiveyear':   renderFiveYearSim(container, budget);              break;
-    case 'cashflow':   renderCashFlow(container, budget);                 break;
-    case 'cashplan':   renderCashPlan(container);                         break;
-    case 'loansim':    renderLoanSim(container);                          break;
-    case 'kpiboard':   renderKpiBoard(container);                         break;
-    case 'execopt':    renderExecOpt(container);                          break;
-    case 'execcomp':   renderExecComp(container, budget);                 break;
-    case 'welfare':    renderWelfare(container);                          break;
-    case 'tax':        renderTaxSimulator(container);                     break;
-    case 'ctax':       renderCtaxJudge(container);                        break;
-    case 'health':     renderHealthDiag(container, budget);               break;
-    case 'taxsummary':     renderTaxSummary(container);                   break;
-    case 'forecastreport': renderForecastReport(container);               break;
-    case 'bizanalysis': renderBizAnalysis(container);                     break;
-    case 'summarypl':   renderSummaryPL(container);                       break;
-    case 'summarybs':   renderSummaryBS(container);                       break;
-    case 'bepanalysis': renderBEPAnalysis(container);                     break;
-    default:           container.innerHTML = '<div class="no-data">ページが見つかりません</div>';
+  const renderer = PAGE_RENDERERS[page];
+  if (renderer) {
+    renderer(container, App.currentBudget);
+  } else {
+    container.innerHTML = '<div class="no-data">ページが見つかりません</div>';
   }
 }
 
