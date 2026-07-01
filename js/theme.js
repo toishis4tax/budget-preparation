@@ -13,6 +13,36 @@ const THEMES = [
     emoji: '☕',
     colors: { bar: '#2c1a0e', body: '#f5efe6', accent: '#92400e', text: '#2c1a0e' },
   },
+  {
+    id: 'sakura',
+    label: '桜',
+    emoji: '🌸',
+    colors: { bar: '#831843', body: '#fff1f5', accent: '#db2777', text: '#831843' },
+  },
+  {
+    id: 'mint',
+    label: 'ミント',
+    emoji: '🌿',
+    colors: { bar: '#134e4a', body: '#f0fdf4', accent: '#0d9488', text: '#134e4a' },
+  },
+  {
+    id: 'sky',
+    label: 'スカイ',
+    emoji: '🩵',
+    colors: { bar: '#0c4a6e', body: '#f0f9ff', accent: '#0284c7', text: '#0c4a6e' },
+  },
+  {
+    id: 'lavender',
+    label: 'ラベンダー',
+    emoji: '💜',
+    colors: { bar: '#4c1d95', body: '#faf5ff', accent: '#7c3aed', text: '#4c1d95' },
+  },
+  {
+    id: 'sand',
+    label: 'サンド',
+    emoji: '🏖️',
+    colors: { bar: '#7c2d12', body: '#fff7ed', accent: '#ea580c', text: '#7c2d12' },
+  },
 ];
 
 // 現在のテーマキーを返す

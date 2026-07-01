@@ -75,6 +75,251 @@ body[data-theme="latte"] {
 }
 
 /* ========================================
+   🌸 桜テーマ (sakura)
+======================================== */
+:root[data-theme="sakura"] {
+  --surface-1: #fff1f5;
+  --surface-2: #ffffff;
+  --surface-3: #fce7f3;
+  --sidebar-bg: #831843;
+  --header-bg:  #ffffff;
+  --white:      #ffffff;
+  --gray-50:    #fff1f5;
+  --gray-100:   #fce7f3;
+  --gray-200:   #fbcfe8;
+  --gray-300:   #f9a8d4;
+  --gray-400:   #f472b6;
+  --gray-500:   #ec4899;
+  --gray-600:   #db2777;
+  --gray-700:   #be185d;
+  --gray-800:   #9d174d;
+  --bg:         #fff1f5;
+  --bg-card:    #ffffff;
+  --text:       #831843;
+  --text-sub:   #9d174d;
+  --text-muted: #be185d;
+  --text-light: #ec4899;
+  --text-accent: #db2777;
+  --text-secondary: #9d174d;
+  --border:       #fbcfe8;
+  --border-muted: #fce7f3;
+  --primary:       #db2777;
+  --primary-hover: #be185d;
+  --primary-light: #fce7f3;
+  --primary-muted: #fbcfe8;
+  --blue-50:  #fff1f5;
+  --blue-100: #fce7f3;
+  --blue-200: #fbcfe8;
+  --blue-300: #f9a8d4;
+  --blue-400: #f472b6;
+  --blue-500: #ec4899;
+  --blue-600: #db2777;
+  --green:    #059669;
+  --green-bg: #d1fae5;
+  --amber:    #d97706;
+  --amber-bg: #fffbeb;
+  --rose:     #e11d48;
+  --rose-bg:  #fff1f2;
+}
+body[data-theme="sakura"] { background: #fff1f5; }
+
+/* ========================================
+   🌿 ミントテーマ (mint)
+======================================== */
+:root[data-theme="mint"] {
+  --surface-1: #f0fdf4;
+  --surface-2: #ffffff;
+  --surface-3: #dcfce7;
+  --sidebar-bg: #134e4a;
+  --header-bg:  #ffffff;
+  --white:      #ffffff;
+  --gray-50:    #f0fdf4;
+  --gray-100:   #dcfce7;
+  --gray-200:   #bbf7d0;
+  --gray-300:   #86efac;
+  --gray-400:   #4ade80;
+  --gray-500:   #22c55e;
+  --gray-600:   #16a34a;
+  --gray-700:   #15803d;
+  --gray-800:   #166534;
+  --bg:         #f0fdf4;
+  --bg-card:    #ffffff;
+  --text:       #134e4a;
+  --text-sub:   #166534;
+  --text-muted: #15803d;
+  --text-light: #16a34a;
+  --text-accent: #0d9488;
+  --text-secondary: #166534;
+  --border:       #bbf7d0;
+  --border-muted: #dcfce7;
+  --primary:       #0d9488;
+  --primary-hover: #0f766e;
+  --primary-light: #ccfbf1;
+  --primary-muted: #99f6e4;
+  --blue-50:  #f0fdf4;
+  --blue-100: #dcfce7;
+  --blue-200: #bbf7d0;
+  --blue-300: #86efac;
+  --blue-400: #4ade80;
+  --blue-500: #0d9488;
+  --blue-600: #0f766e;
+  --green:    #059669;
+  --green-bg: #d1fae5;
+  --amber:    #d97706;
+  --amber-bg: #fffbeb;
+  --rose:     #e11d48;
+  --rose-bg:  #fff1f2;
+}
+body[data-theme="mint"] { background: #f0fdf4; }
+
+/* ========================================
+   🩵 スカイテーマ (sky)
+======================================== */
+:root[data-theme="sky"] {
+  --surface-1: #f0f9ff;
+  --surface-2: #ffffff;
+  --surface-3: #e0f2fe;
+  --sidebar-bg: #0c4a6e;
+  --header-bg:  #ffffff;
+  --white:      #ffffff;
+  --gray-50:    #f0f9ff;
+  --gray-100:   #e0f2fe;
+  --gray-200:   #bae6fd;
+  --gray-300:   #7dd3fc;
+  --gray-400:   #38bdf8;
+  --gray-500:   #0ea5e9;
+  --gray-600:   #0284c7;
+  --gray-700:   #0369a1;
+  --gray-800:   #075985;
+  --bg:         #f0f9ff;
+  --bg-card:    #ffffff;
+  --text:       #0c4a6e;
+  --text-sub:   #075985;
+  --text-muted: #0369a1;
+  --text-light: #0284c7;
+  --text-accent: #0284c7;
+  --text-secondary: #075985;
+  --border:       #bae6fd;
+  --border-muted: #e0f2fe;
+  --primary:       #0284c7;
+  --primary-hover: #0369a1;
+  --primary-light: #e0f2fe;
+  --primary-muted: #bae6fd;
+  --blue-50:  #f0f9ff;
+  --blue-100: #e0f2fe;
+  --blue-200: #bae6fd;
+  --blue-300: #7dd3fc;
+  --blue-400: #38bdf8;
+  --blue-500: #0ea5e9;
+  --blue-600: #0284c7;
+  --green:    #059669;
+  --green-bg: #d1fae5;
+  --amber:    #d97706;
+  --amber-bg: #fffbeb;
+  --rose:     #e11d48;
+  --rose-bg:  #fff1f2;
+}
+body[data-theme="sky"] { background: #f0f9ff; }
+
+/* ========================================
+   💜 ラベンダーテーマ (lavender)
+======================================== */
+:root[data-theme="lavender"] {
+  --surface-1: #faf5ff;
+  --surface-2: #ffffff;
+  --surface-3: #f3e8ff;
+  --sidebar-bg: #4c1d95;
+  --header-bg:  #ffffff;
+  --white:      #ffffff;
+  --gray-50:    #faf5ff;
+  --gray-100:   #f3e8ff;
+  --gray-200:   #e9d5ff;
+  --gray-300:   #d8b4fe;
+  --gray-400:   #c084fc;
+  --gray-500:   #a855f7;
+  --gray-600:   #9333ea;
+  --gray-700:   #7e22ce;
+  --gray-800:   #6b21a8;
+  --bg:         #faf5ff;
+  --bg-card:    #ffffff;
+  --text:       #4c1d95;
+  --text-sub:   #6b21a8;
+  --text-muted: #7e22ce;
+  --text-light: #9333ea;
+  --text-accent: #7c3aed;
+  --text-secondary: #6b21a8;
+  --border:       #e9d5ff;
+  --border-muted: #f3e8ff;
+  --primary:       #7c3aed;
+  --primary-hover: #6d28d9;
+  --primary-light: #f3e8ff;
+  --primary-muted: #e9d5ff;
+  --blue-50:  #faf5ff;
+  --blue-100: #f3e8ff;
+  --blue-200: #e9d5ff;
+  --blue-300: #d8b4fe;
+  --blue-400: #c084fc;
+  --blue-500: #a855f7;
+  --blue-600: #9333ea;
+  --green:    #059669;
+  --green-bg: #d1fae5;
+  --amber:    #d97706;
+  --amber-bg: #fffbeb;
+  --rose:     #e11d48;
+  --rose-bg:  #fff1f2;
+}
+body[data-theme="lavender"] { background: #faf5ff; }
+
+/* ========================================
+   🏖️ サンドテーマ (sand)
+======================================== */
+:root[data-theme="sand"] {
+  --surface-1: #fff7ed;
+  --surface-2: #ffffff;
+  --surface-3: #ffedd5;
+  --sidebar-bg: #7c2d12;
+  --header-bg:  #ffffff;
+  --white:      #ffffff;
+  --gray-50:    #fff7ed;
+  --gray-100:   #ffedd5;
+  --gray-200:   #fed7aa;
+  --gray-300:   #fdba74;
+  --gray-400:   #fb923c;
+  --gray-500:   #f97316;
+  --gray-600:   #ea580c;
+  --gray-700:   #c2410c;
+  --gray-800:   #9a3412;
+  --bg:         #fff7ed;
+  --bg-card:    #ffffff;
+  --text:       #7c2d12;
+  --text-sub:   #9a3412;
+  --text-muted: #c2410c;
+  --text-light: #ea580c;
+  --text-accent: #ea580c;
+  --text-secondary: #9a3412;
+  --border:       #fed7aa;
+  --border-muted: #ffedd5;
+  --primary:       #ea580c;
+  --primary-hover: #c2410c;
+  --primary-light: #ffedd5;
+  --primary-muted: #fed7aa;
+  --blue-50:  #fff7ed;
+  --blue-100: #ffedd5;
+  --blue-200: #fed7aa;
+  --blue-300: #fdba74;
+  --blue-400: #fb923c;
+  --blue-500: #f97316;
+  --blue-600: #ea580c;
+  --green:    #059669;
+  --green-bg: #d1fae5;
+  --amber:    #d97706;
+  --amber-bg: #fffbeb;
+  --rose:     #e11d48;
+  --rose-bg:  #fff1f2;
+}
+body[data-theme="sand"] { background: #fff7ed; }
+
+/* ========================================
    テーマピッカー UI
 ======================================== */
 #theme-picker-btn {
