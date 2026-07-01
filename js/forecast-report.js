@@ -169,17 +169,21 @@ function renderForecastReport(container) {
     prevCtaxAmt = prevCtaxAcct ? Math.round(prevCtaxAcct.ctax) : 0;
   }
 
-  // 中間納付：taxsummary_v1 から読み込み（消費税ページの入力値と連動）
-  const corpPrepaid = parseFloat(document.getElementById('tax_prepaid1')?.value) || company.prepaid1 || 0;
+  // 中間納付：taxsummary_v1 から税目別に読み込み（法人税概算ページの入力値と連動）
   const tsaved = (typeof loadTaxSummaryData === 'function') ? loadTaxSummaryData(company?.id, curYear) : {};
-  const ctaxPrepaid = (parseFloat(tsaved['i_ctax']) || 0) + (parseFloat(tsaved['i_localCtax']) || 0) || company.ctaxPrepaid || 0;
+  const n = k => parseFloat(tsaved[k]) || 0;
+  const corpPrepaid  = n('i_corp') + n('i_localCorp') || company.prepaid1 || 0;
+  const prefPrepaid  = n('i_prefKatsu') + n('i_prefKintou');
+  const cityPrepaid  = n('i_cityKatsu') + n('i_cityKintou');
+  const bizPrepaid   = n('i_business') + n('i_special');
+  const ctaxPrepaid  = n('i_ctax') + n('i_localCtax') || company.ctaxPrepaid || 0;
 
   const taxRows = [
-    { label: '法人税・地方法人税',     annual: tax ? tax.corp + tax.localCorp : 0, prepaid: corpPrepaid, prev: prevTax ? prevTax.corp + prevTax.localCorp : 0 },
-    { label: '都 道 府 県 民 税',      annual: tax ? tax.pref : 0,                  prepaid: 0,          prev: prevTax ? prevTax.pref : 0 },
-    { label: '市 町 村 民 税',         annual: tax ? tax.city : 0,                  prepaid: 0,          prev: prevTax ? prevTax.city : 0 },
-    { label: '事業税・特別法人事業税', annual: tax ? tax.business + tax.special : 0, prepaid: 0,         prev: prevTax ? prevTax.business + prevTax.special : 0 },
-    { label: '消　費　税　等',         annual: ctaxAmt,                              prepaid: ctaxPrepaid, prev: prevCtaxAmt },
+    { label: '法人税・地方法人税',     annual: tax ? tax.corp + tax.localCorp : 0,      prepaid: corpPrepaid, prev: prevTax ? prevTax.corp + prevTax.localCorp : 0 },
+    { label: '都 道 府 県 民 税',      annual: tax ? tax.pref : 0,                       prepaid: prefPrepaid, prev: prevTax ? prevTax.pref : 0 },
+    { label: '市 町 村 民 税',         annual: tax ? tax.city : 0,                       prepaid: cityPrepaid, prev: prevTax ? prevTax.city : 0 },
+    { label: '事業税・特別法人事業税', annual: tax ? tax.business + tax.special : 0,     prepaid: bizPrepaid,  prev: prevTax ? prevTax.business + prevTax.special : 0 },
+    { label: '消　費　税　等',         annual: ctaxAmt,                                  prepaid: ctaxPrepaid, prev: prevCtaxAmt },
   ];
   const totalAnnual  = taxRows.reduce((s, r) => s + r.annual, 0);
   const totalPrepaid = taxRows.reduce((s, r) => s + r.prepaid, 0);
