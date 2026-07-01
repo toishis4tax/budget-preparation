@@ -23,10 +23,11 @@ window.App = {
   currentBudget: null,
   currentPage: 'home',
   currentPhase: 1,
+  charts: {},
 };
 
 // 共通フォーマット関数（全モジュールから参照）
-const _safeN = v => (isNaN(v) || !isFinite(v)) ? 0 : v;
+const _safeN = v => { const n = Number(v); return (isNaN(n) || !isFinite(n)) ? 0 : n; };
 window.fmt  = v => Math.round(_safeN(v)).toLocaleString('ja-JP') + '円';
 window.fmtK = v => Math.round(_safeN(v) / 1000).toLocaleString('ja-JP');
 
@@ -512,7 +513,9 @@ function renderSimulation(container, budget) {
 
   if (typeof Chart !== 'undefined') {
     const ctx = document.getElementById('sim_chart');
-    if (ctx) new Chart(ctx, {
+    if (ctx) {
+      if (App.charts.sim) App.charts.sim.destroy();
+      App.charts.sim = new Chart(ctx, {
       type: 'bar',
       data: {
         labels: months,
@@ -531,6 +534,7 @@ function renderSimulation(container, budget) {
         scales: { y: { beginAtZero: false, grid: { color: 'rgba(59,130,246,.06)' } } }
       }
     });
+    }
   }
 }
 
