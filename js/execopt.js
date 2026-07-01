@@ -352,10 +352,19 @@ function _eoReasons(optM, optR, curR, curM, pretax) {
   return reasons;
 }
 
+// canvas実幅を安全に取得（パディング考慮でフィードバックループ防止）
+function _eoCanvasW(canvas) {
+  const p = canvas.parentElement;
+  if (!p) return 300;
+  const cs = window.getComputedStyle(p);
+  const w = Math.floor(p.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0));
+  return Math.max(160, w);
+}
+
 // 棒グラフ描画
 function _eoDrawBar(canvas, r) {
   const dpr = window.devicePixelRatio || 1;
-  const W = canvas.parentElement?.clientWidth || 300;
+  const W = _eoCanvasW(canvas);
   const H = 180;
   canvas.width  = W * dpr;
   canvas.height = H * dpr;
@@ -408,7 +417,7 @@ function _eoDrawBar(canvas, r) {
 // 税負担曲線グラフ描画
 function _eoDrawCurve(canvas, pretax, age40plus, curMonthly, optMonthly) {
   const dpr = window.devicePixelRatio || 1;
-  const W = canvas.parentElement?.clientWidth || 300;
+  const W = _eoCanvasW(canvas);
   const H = 180;
   canvas.width  = W * dpr;
   canvas.height = H * dpr;
