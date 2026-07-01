@@ -455,20 +455,7 @@ function _ctaxAcctCalc(budget, company) {
 function _ctaxAcctResultHtml(calc, ctaxPrepaid) {
   if (!calc) return '<div class="no-data-small">補助科目データがありません</div>';
   const balance = calc.ctax - (ctaxPrepaid || 0);
-  const unclassifiedCount = (() => {
-    const budget = window.App?.currentBudget;
-    if (!budget?.dynamicAccounts?.length) return 0;
-    const cls = budget.ctaxClassification || {};
-    return budget.dynamicAccounts.filter(a =>
-      (a.type === 'input' || a.type === 'rev_display') &&
-      !a.section?.startsWith('bs') &&
-      cls[a.id] === undefined
-    ).length;
-  })();
-  const warnHtml = unclassifiedCount > 0
-    ? `<div style="margin-bottom:8px;padding:6px 10px;border-radius:6px;background:#fef3c7;border:1px solid #f59e0b;font-size:11px;color:#92400e">⚠️ ${unclassifiedCount}科目が未分類です。月次予算入力画面の各科目行で課税／非課税を設定してください。</div>`
-    : '';
-  return `${warnHtml}
+  return `
     <div class="tax-kpi-row"><span>課税売上合計</span><span>${Math.round(calc.taxableRevenue/1000).toLocaleString()}千円</span></div>
     <div class="tax-kpi-row"><span>課税仕入合計</span><span>${Math.round(calc.taxableExpense/1000).toLocaleString()}千円</span></div>
     <hr style="margin:6px 0;border-color:var(--border);border-style:dashed">
