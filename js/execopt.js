@@ -1,284 +1,500 @@
 // ===== 役員報酬最適化シミュレーター =====
 
-// ---- 税率・計算ロジック ----
-
-function _eoSalaryDeduction(annual) {
-  if (annual <= 1_625_000)  return 550_000;
-  if (annual <= 1_800_000)  return annual * 0.4 - 100_000;
-  if (annual <= 3_600_000)  return annual * 0.3 + 80_000;
-  if (annual <= 6_600_000)  return annual * 0.2 + 440_000;
-  if (annual <= 8_500_000)  return annual * 0.1 + 1_100_000;
-  return 1_950_000;
-}
-
-function _eoIncomeTax(taxable) {
-  if (taxable <= 0) return 0;
-  let tax;
-  if      (taxable <= 1_950_000)  tax = taxable * 0.05;
-  else if (taxable <= 3_300_000)  tax = taxable * 0.10 - 97_500;
-  else if (taxable <= 6_950_000)  tax = taxable * 0.20 - 427_500;
-  else if (taxable <= 9_000_000)  tax = taxable * 0.23 - 636_000;
-  else if (taxable <= 18_000_000) tax = taxable * 0.33 - 1_536_000;
-  else if (taxable <= 40_000_000) tax = taxable * 0.40 - 2_796_000;
-  else                            tax = taxable * 0.45 - 4_796_000;
-  return Math.round(tax * 1.021); // 復興特別所得税2.1%
-}
-
-function _eoSocialIns(monthly, age40plus) {
-  const health  = Math.min(monthly, 1_390_000) * 0.04985;
-  const kaigo   = age40plus ? Math.min(monthly, 1_390_000) * 0.0091 : 0;
-  const pension = Math.min(monthly, 650_000) * 0.0915;
-  return Math.round((health + kaigo + pension) * 12);
-}
-
-function _eoCorporateTax(pretax) {
-  if (pretax <= 0) return 0;
-  // 中小法人: 800万以下21.4%、超過34.4%（実効税率概算）
-  if (pretax <= 8_000_000) return Math.round(pretax * 0.214);
-  return Math.round(8_000_000 * 0.214 + (pretax - 8_000_000) * 0.344);
-}
-
-function _eoCalc(monthly, companyPretaxBefore, age40plus) {
-  const annual   = monthly * 12;
-  const corpPretax = Math.max(0, companyPretaxBefore - annual);
-  const corpTax    = _eoCorporateTax(corpPretax);
-
-  const salaryDed  = _eoSalaryDeduction(annual);
-  const salaryInc  = Math.max(0, annual - salaryDed);
-  const socialIns  = _eoSocialIns(monthly, age40plus);
-  const basicDed   = 480_000;
-  const taxable    = Math.max(0, salaryInc - socialIns - basicDed);
-  const incomeTax  = _eoIncomeTax(taxable);
-  const residentTax = Math.max(0, taxable - 330_000) * 0.10 + 5_000;
-  const totalPersonal = incomeTax + Math.round(residentTax) + socialIns;
-  const takehome   = annual - totalPersonal;
-  const totalTax   = corpTax + totalPersonal;
-  const totalCash  = takehome + (companyPretaxBefore - annual - corpPretax) + Math.max(0, corpPretax - corpTax);
-
-  return {
-    monthly, annual,
-    corpPretax, corpTax,
-    salaryDed, salaryInc, socialIns,
-    taxable, incomeTax,
-    residentTax: Math.round(residentTax),
-    totalPersonal, takehome,
-    totalTax,
-  };
-}
-
-// ---- 画面描画 ----
-
 function renderExecOpt(container) {
-  const company = window.App?.currentCompany;
   const budget  = window.App?.currentBudget;
+  const company = window.App?.currentCompany;
 
-  // 予算から経常利益を拾う（あれば）
-  let defaultProfit = 30_000_000;
+  // 予算から経常利益を自動取得
+  let autoPretax = 0;
   if (budget) {
     const av = budget.dynamicAccounts?.length
       ? calcAllValuesDynamic(budget)
       : calcAllValues(budget.rows || {});
-    const ord = (av['calc_ord'] || []).slice(0, 12).reduce((s, v) => s + (v || 0), 0);
-    if (ord > 0) defaultProfit = Math.round(ord / 100_000) * 100_000;
+    const arr = av['calc_pretax'] || av['sec_pretax'] || [];
+    autoPretax = Math.round(arr.reduce((s, v) => s + (v || 0), 0) / 10000) * 10000;
   }
-  const defaultMonthly = company?.execMonthly || 600_000;
 
   container.innerHTML = `
-    <div class="sim-panel">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:1rem">
-        <h2 class="section-title" style="margin-bottom:0">役員報酬最適化シミュレーター</h2>
+    <div class="sim-panel" style="max-width:960px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.5rem">
+        <h2 class="section-title" style="margin-bottom:0">役員報酬 最適化シミュレーター</h2>
         <button class="btn btn-sm btn-outline" onclick="showPage('home')" style="margin-left:auto">← ホームに戻る</button>
       </div>
-      <p style="font-size:12px;color:var(--text-muted);margin-bottom:1.25rem;line-height:1.6">
-        所得税・住民税・社会保険料（協会けんぽ東京）・法人税（中小法人実効税率）を合算し、役員報酬の最適水準を試算します。<br>
-        ※ 概算です。実際の申告には必ず税理士にご確認ください。
-      </p>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+      <!-- 入力パネル -->
+      <div style="background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1.25rem">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px">シミュレーション条件</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;align-items:end">
 
-        <!-- 入力 -->
-        <div class="card" style="padding:1.25rem">
-          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px">条件入力</div>
-
-          <div class="loan-field">
-            <label>会社の年間利益（役員報酬支払前）</label>
-            <div style="display:flex;align-items:center;gap:8px">
-              <input type="number" id="eo_profit" value="${Math.round(defaultProfit/10000)}" min="0" step="100"
-                oninput="_eoUpdate()" style="flex:1;text-align:right">
-              <span style="font-size:12px;color:var(--text-muted);white-space:nowrap">万円</span>
-            </div>
-            <div style="font-size:10px;color:var(--text-muted);margin-top:4px">※ 予算の経常利益から自動セット</div>
-          </div>
-
-          <div class="loan-field">
-            <label>役員報酬（月額）</label>
-            <div style="display:flex;align-items:center;gap:8px">
-              <input type="range" id="eo_monthly" min="0" max="300" step="5" value="${Math.round(defaultMonthly/10000)}"
-                oninput="_eoUpdate()" style="flex:1">
-              <input type="number" id="eo_monthly_n" min="0" max="5000" step="5" value="${Math.round(defaultMonthly/10000)}"
-                oninput="document.getElementById('eo_monthly').value=Math.min(this.value,300);_eoUpdate()"
-                style="width:80px;text-align:right">
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:5px;font-weight:600">月額役員報酬</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="number" id="eo_monthly" value="100" min="0" max="5000" step="10" oninput="_eoSyncSlider();_eoUpdate()" style="flex:1;text-align:right">
               <span style="font-size:12px;color:var(--text-muted);white-space:nowrap">万円/月</span>
             </div>
+            <input type="range" id="eo_slider" min="0" max="300" step="5" value="100" oninput="_eoSyncInput();_eoUpdate()"
+              style="width:100%;margin-top:8px;accent-color:var(--text-accent)">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:2px">
+              <span>0万円</span><span>300万円</span>
+            </div>
           </div>
 
-          <div class="loan-field" style="margin-bottom:0">
-            <label>介護保険対象（40歳以上）</label>
-            <label style="display:flex;align-items:center;gap:8px;margin-top:6px;cursor:pointer">
-              <input type="checkbox" id="eo_age40" oninput="_eoUpdate()" style="width:16px;height:16px">
-              <span style="font-size:13px">40歳以上として計算する</span>
-            </label>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:5px;font-weight:600">会社の年間利益（役員報酬支払前）</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="number" id="eo_pretax" value="${Math.round(autoPretax/10000)}" min="0" step="100" oninput="_eoUpdate()" style="flex:1;text-align:right">
+              <span style="font-size:12px;color:var(--text-muted);white-space:nowrap">万円/年</span>
+            </div>
+            ${autoPretax ? `<div style="font-size:10px;color:var(--text-accent);margin-top:3px">予算の経常利益から自動取得</div>` : ''}
           </div>
+
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:5px;font-weight:600">年齢</label>
+            <select id="eo_age" oninput="_eoUpdate()" style="width:100%">
+              <option value="0">40歳未満（介護保険なし）</option>
+              <option value="1" selected>40歳以上（介護保険あり）</option>
+            </select>
+          </div>
+
         </div>
-
-        <!-- 結果サマリー -->
-        <div id="eo_result"></div>
       </div>
 
-      <!-- 内訳 -->
-      <div class="card" style="margin-top:16px;padding:1.25rem">
-        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">税負担の内訳</div>
-        <div id="eo_breakdown"></div>
+      <!-- 最適解ヒーロー -->
+      <div id="eo_hero" style="margin-bottom:1.25rem"></div>
+
+      <!-- グラフ＋明細 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:1.25rem">
+        <div style="background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem">
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:12px">税負担の内訳（現在の報酬）</div>
+          <canvas id="eo_bar" height="180" style="width:100%"></canvas>
+        </div>
+        <div style="background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem">
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:12px">報酬別・総税負担曲線</div>
+          <canvas id="eo_curve" height="180" style="width:100%"></canvas>
+        </div>
       </div>
 
-      <!-- 月額別比較テーブル -->
-      <div class="card" style="margin-top:16px;padding:1.25rem">
-        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">月額別シミュレーション</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">★は税負担合計が最小となる水準</div>
+      <!-- 現在vs最適 比較カード -->
+      <div id="eo_compare" style="margin-bottom:1.25rem"></div>
+
+      <!-- 最適化の根拠 -->
+      <div id="eo_reason" style="margin-bottom:1.25rem"></div>
+
+      <!-- 詳細テーブル -->
+      <div style="background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:12px;letter-spacing:.05em">報酬別シミュレーション一覧（万円）</div>
         <div style="overflow-x:auto">
-          <table class="result-table" id="eo_table" style="width:100%;min-width:580px"></table>
+          <table id="eo_table" style="width:100%;min-width:600px;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums"></table>
         </div>
       </div>
-    </div>
-
-    <style>
-      .loan-field { margin-bottom:18px }
-      .loan-field > label { display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:500 }
-      .eo-bar-wrap { display:flex;gap:6px;align-items:center;margin-bottom:8px }
-      .eo-bar-label { font-size:11px;color:var(--text-muted);min-width:120px }
-      .eo-bar-bg { flex:1;height:8px;background:var(--surface-1);border-radius:4px;overflow:hidden }
-      .eo-bar-fill { height:100%;border-radius:4px }
-      .eo-bar-val { font-size:11px;color:var(--text);min-width:80px;text-align:right;font-variant-numeric:tabular-nums }
-    </style>`;
+    </div>`;
 
   _eoUpdate();
 }
 
-function _eoUpdate() {
-  const profitMan  = parseFloat(document.getElementById('eo_profit')?.value) || 0;
-  const monthlyN   = document.getElementById('eo_monthly_n');
-  const monthlyR   = document.getElementById('eo_monthly');
-  if (monthlyR && monthlyN) monthlyR.value = Math.min(parseFloat(monthlyN.value) || 0, 300);
-  const monthlyMan = parseFloat(monthlyR?.value) || 0;
-  const age40      = document.getElementById('eo_age40')?.checked || false;
+function _eoSyncSlider() {
+  const v = parseFloat(document.getElementById('eo_monthly')?.value || 0);
+  const sl = document.getElementById('eo_slider');
+  if (sl) sl.value = Math.min(300, Math.max(0, v));
+}
+function _eoSyncInput() {
+  const v = parseFloat(document.getElementById('eo_slider')?.value || 0);
+  const inp = document.getElementById('eo_monthly');
+  if (inp) inp.value = v;
+}
 
-  const profit  = profitMan  * 10_000;
-  const monthly = monthlyMan * 10_000;
+function _eoVal(id) {
+  return parseFloat(document.getElementById(id)?.value || 0) || 0;
+}
 
-  const res = _eoCalc(monthly, profit, age40);
+// 給与所得控除
+function _eoSalaryDeduction(annual) {
+  if (annual <= 1_625_000)  return 550_000;
+  if (annual <= 1_800_000)  return annual * 0.40 - 100_000;
+  if (annual <= 3_600_000)  return annual * 0.30 + 80_000;
+  if (annual <= 6_600_000)  return annual * 0.20 + 440_000;
+  if (annual <= 8_500_000)  return annual * 0.10 + 1_100_000;
+  return 1_950_000;
+}
 
-  // 最適値を探す（月額0〜500万を10万刻み）
-  let best = null, bestTax = Infinity;
-  for (let m = 0; m <= 500; m += 5) {
-    const r = _eoCalc(m * 10_000, profit, age40);
-    if (r.totalTax < bestTax) { bestTax = r.totalTax; best = r; }
-  }
-
-  const _fmtM = v => Math.round(v / 10_000).toLocaleString() + '万円';
-  const _fmtK = v => Math.round(v / 1_000).toLocaleString() + '千円';
-
-  // 結果サマリー
-  const isBest = best && Math.abs(best.monthly - monthly) < 50_000;
-  const bestDiff = best ? best.monthly - monthly : 0;
-  const resultEl = document.getElementById('eo_result');
-  if (resultEl) {
-    resultEl.innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="card" style="padding:1rem;text-align:center;grid-column:1/-1">
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">個人手取り（年間）</div>
-          <div style="font-size:26px;font-weight:700;color:var(--primary)">${_fmtM(res.takehome)}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">年収 ${_fmtM(res.annual)} の手取り率 ${res.annual > 0 ? (res.takehome/res.annual*100).toFixed(1) : '—'}%</div>
-        </div>
-        <div class="card" style="padding:1rem;text-align:center">
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">個人+法人 合計税負担</div>
-          <div style="font-size:20px;font-weight:700;color:#f97316">${_fmtM(res.totalTax)}</div>
-        </div>
-        <div class="card" style="padding:1rem;text-align:center">
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">法人税</div>
-          <div style="font-size:20px;font-weight:700;color:var(--text)">${_fmtM(res.corpTax)}</div>
-        </div>
-      </div>
-      ${best ? `
-        <div style="margin-top:10px;padding:10px 14px;border-radius:8px;background:${isBest?'var(--bg-success)':'var(--bg-warning)'};border:1px solid ${isBest?'var(--border-success)':'var(--border-warning)'}">
-          <div style="font-size:11px;font-weight:700;color:${isBest?'var(--text-success)':'var(--text-warning)'};margin-bottom:4px">
-            ${isBest ? '✓ 現在の設定は最適水準付近です' : `最適月額：${_fmtM(best.monthly/12*12/12)}（月${Math.round(best.monthly/10000)}万円）`}
-          </div>
-          ${!isBest ? `<div style="font-size:11px;color:var(--text-muted)">現在より ${_fmtM(Math.abs(bestDiff > 0 ? best.totalTax - res.totalTax : res.totalTax - best.totalTax))} 節税できる可能性があります</div>` : ''}
-        </div>` : ''}`;
-  }
-
-  // 内訳バーチャート
-  const maxVal = Math.max(res.incomeTax, res.residentTax, res.socialIns, res.corpTax, 1);
-  const bars = [
-    { label: '所得税（復興税含）', val: res.incomeTax,   color: '#ef4444' },
-    { label: '住民税',             val: res.residentTax, color: '#f97316' },
-    { label: '社会保険料（本人）', val: res.socialIns,   color: '#f59e0b' },
-    { label: '法人税（実効）',     val: res.corpTax,     color: '#8b5cf6' },
+// 所得税（復興税込み）
+function _eoIncomeTax(taxable) {
+  if (taxable <= 0) return 0;
+  const brackets = [
+    [1_950_000, 0.05, 0],
+    [3_300_000, 0.10, 97_500],
+    [6_950_000, 0.20, 427_500],
+    [9_000_000, 0.23, 636_000],
+    [18_000_000, 0.33, 1_536_000],
+    [40_000_000, 0.40, 2_796_000],
+    [Infinity,   0.45, 4_796_000],
   ];
-  const breakEl = document.getElementById('eo_breakdown');
-  if (breakEl) {
-    breakEl.innerHTML = bars.map(b => `
-      <div class="eo-bar-wrap">
-        <div class="eo-bar-label">${b.label}</div>
-        <div class="eo-bar-bg">
-          <div class="eo-bar-fill" style="width:${Math.round(b.val/maxVal*100)}%;background:${b.color}"></div>
+  for (const [lim, rate, deduct] of brackets) {
+    if (taxable <= lim) return Math.round(taxable * rate - deduct) * 1.021;
+  }
+  return 0;
+}
+
+// 社会保険（協会けんぽ東京・2024年度概算）
+function _eoSocialIns(monthly, age40plus) {
+  const kenpo  = Math.min(monthly, 1_390_000) * (age40plus ? 0.04985 + 0.009 : 0.04985);
+  const kosei  = Math.min(monthly, 650_000)   * 0.09150;
+  return Math.round((kenpo + kosei) * 12);
+}
+
+// 法人実効税率（中小法人）
+function _eoCorporateTax(pretax) {
+  if (pretax <= 0) return 0;
+  const low = Math.min(pretax, 8_000_000) * 0.214;
+  const hi  = Math.max(0, pretax - 8_000_000) * 0.344;
+  return Math.round(low + hi);
+}
+
+function _eoCalc(monthly, companyPretaxBefore, age40plus) {
+  const annualSalary     = monthly * 12;
+  const salaryDeduction  = _eoSalaryDeduction(annualSalary);
+  const personalIncome   = Math.max(0, annualSalary - salaryDeduction - 480_000);
+  const incomeTax        = _eoIncomeTax(personalIncome);
+  const residTax         = Math.round(personalIncome * 0.10) + 5_000;
+  const socialIns        = _eoSocialIns(monthly, age40plus);
+  const companyPretax    = companyPretaxBefore - annualSalary;
+  const corpTax          = _eoCorporateTax(companyPretax);
+  const totalTax         = incomeTax + residTax + socialIns + corpTax;
+  return { annualSalary, incomeTax, residTax, socialIns, corpTax, totalTax, personalIncome, companyPretax };
+}
+
+function _eoFmt(v) { return Math.round(v / 10000).toLocaleString('ja-JP'); }
+
+function _eoUpdate() {
+  const monthly   = _eoVal('eo_monthly') * 10_000;
+  const pretaxMan = _eoVal('eo_pretax');
+  const pretax    = pretaxMan * 10_000;
+  const age40plus = document.getElementById('eo_age')?.value === '1';
+
+  const cur = _eoCalc(monthly, pretax, age40plus);
+
+  // 最適解探索（0〜500万×5万刻み）
+  let optMonthly = 0, optResult = null;
+  for (let m = 0; m <= 500 * 10_000; m += 5 * 10_000) {
+    const r = _eoCalc(m, pretax, age40plus);
+    if (!optResult || r.totalTax < optResult.totalTax) {
+      optResult = r; optMonthly = m;
+    }
+  }
+
+  // ヒーロー表示
+  const heroEl = document.getElementById('eo_hero');
+  if (heroEl) {
+    const saving = cur.totalTax - optResult.totalTax;
+    const isCurrent = Math.abs(monthly - optMonthly) < 25_000;
+    heroEl.innerHTML = isCurrent
+      ? `<div style="background:linear-gradient(135deg,#d1fae5,#a7f3d0);border:1px solid #6ee7b7;border-radius:14px;padding:1.25rem 1.5rem;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <div style="font-size:2.2rem">✅</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#065f46">現在の報酬が最適です</div>
+            <div style="font-size:12px;color:#047857;margin-top:4px">月額 ${_eoFmt(monthly * 10_000)}万円 の設定が、税負担を最小化します</div>
+          </div>
+          <div style="margin-left:auto;text-align:right">
+            <div style="font-size:11px;color:#065f46">年間総税負担</div>
+            <div style="font-size:22px;font-weight:700;color:#065f46">${_eoFmt(cur.totalTax)}万円</div>
+          </div>
+        </div>`
+      : `<div style="background:linear-gradient(135deg,#fef3c7,#fde68a);border:1px solid #fcd34d;border-radius:14px;padding:1.25rem 1.5rem;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <div style="font-size:2.2rem">💡</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#78350f">最適月額は <span style="font-size:20px;color:#92400e">${_eoFmt(optMonthly * 10_000)}万円/月</span></div>
+            <div style="font-size:12px;color:#92400e;margin-top:4px">現在（${_eoFmt(monthly * 10_000)}万円）から変更すると、年間 <strong>${_eoFmt(saving)}万円</strong> の節税効果</div>
+          </div>
+          <div style="margin-left:auto;text-align:right;min-width:130px">
+            <div style="font-size:11px;color:#78350f">節税額/年</div>
+            <div style="font-size:28px;font-weight:700;color:#78350f">▼ ${_eoFmt(saving)}万円</div>
+          </div>
+        </div>`;
+  }
+
+  // 棒グラフ（現在の内訳）
+  const barCanvas = document.getElementById('eo_bar');
+  if (barCanvas) _eoDrawBar(barCanvas, cur);
+
+  // 曲線グラフ
+  const curveCanvas = document.getElementById('eo_curve');
+  if (curveCanvas) _eoDrawCurve(curveCanvas, pretax, age40plus, monthly, optMonthly);
+
+  // 現在vs最適比較
+  const compareEl = document.getElementById('eo_compare');
+  if (compareEl) {
+    const _card = (title, r, highlight) => `
+      <div style="background:var(--surface-2);border:${highlight?'2px solid #f59e0b':'0.5px solid var(--border)'};border-radius:12px;padding:1rem 1.25rem">
+        <div style="font-size:12px;font-weight:700;color:${highlight?'#92400e':'var(--text-muted)'};margin-bottom:10px">${title}</div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:5px 12px;font-size:12px">
+          ${[
+            ['所得税（復興税込）', r.incomeTax],
+            ['住民税', r.residTax],
+            ['社会保険料（本人負担）', r.socialIns],
+            ['法人税等', r.corpTax],
+          ].map(([lbl, val]) => `
+            <span style="color:var(--text-muted)">${lbl}</span>
+            <span style="text-align:right;font-weight:600">${_eoFmt(val)}万円</span>
+          `).join('')}
         </div>
-        <div class="eo-bar-val">${_fmtK(b.val)}</div>
-      </div>`).join('') + `
-      <div style="border-top:1px dashed var(--border);margin:8px 0;padding-top:8px;display:flex;justify-content:space-between;font-size:12px;font-weight:700">
-        <span style="color:var(--text-muted)">合計税負担</span>
-        <span style="color:#ef4444">${_fmtM(res.totalTax)}</span>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;font-size:11px;color:var(--text-muted)">
-        <div>給与所得控除：${_fmtM(res.salaryDed)}</div>
-        <div>課税所得：${_fmtM(res.taxable)}</div>
-        <div>法人課税前利益：${_fmtM(res.corpPretax)}</div>
+        <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;font-weight:700;font-size:14px">
+          <span>合計税負担</span>
+          <span style="color:${highlight?'#92400e':'var(--text-accent)'}">${_eoFmt(r.totalTax)}万円</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+          会社手取後利益: ${_eoFmt(Math.max(0, r.companyPretax) - r.corpTax)}万円
+        </div>
+      </div>`;
+    compareEl.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        ${_card(`現在の設定（${_eoFmt(monthly * 10_000)}万円/月）`, cur, false)}
+        ${_card(`★ 最適設定（${_eoFmt(optMonthly * 10_000)}万円/月）`, optResult, true)}
       </div>`;
   }
 
-  // 月額別比較テーブル
-  const tableEl = document.getElementById('eo_table');
-  if (!tableEl) return;
+  // 最適化の根拠
+  const reasonEl = document.getElementById('eo_reason');
+  if (reasonEl) {
+    const reasons = _eoReasons(optMonthly, optResult, cur, monthly, pretax);
+    reasonEl.innerHTML = `
+      <div style="background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:12px;letter-spacing:.05em">なぜこの金額が最適か</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${reasons.map(r => `
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="font-size:14px;flex-shrink:0">${r.icon}</span>
+              <div>
+                <div style="font-size:12px;font-weight:600;color:var(--text)">${r.title}</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${r.body}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
 
-  const steps = [0,10,20,30,40,50,60,70,80,90,100,120,150,200,250,300,400,500];
-  let rows = '';
-  steps.forEach(m => {
-    const r = _eoCalc(m * 10_000, profit, age40);
-    const isCurrent = Math.abs(monthly - m * 10_000) < 1;
-    const isOptimal = best && Math.abs(best.monthly - m * 10_000) < 1;
-    const rowStyle = isCurrent ? 'background:var(--bg-accent);font-weight:700' : '';
-    rows += `<tr style="${rowStyle}">
-      <td style="text-align:center">${isOptimal ? '★' : ''} ${m}万円</td>
-      <td class="num">${_fmtM(r.annual)}</td>
-      <td class="num">${_fmtM(r.takehome)}</td>
-      <td class="num" style="color:#f59e0b">${_fmtM(r.socialIns)}</td>
-      <td class="num" style="color:#ef4444">${_fmtM(r.incomeTax + r.residentTax)}</td>
-      <td class="num" style="color:#8b5cf6">${_fmtM(r.corpTax)}</td>
-      <td class="num" style="color:#f97316;font-weight:600">${_fmtM(r.totalTax)}</td>
-    </tr>`;
+  // 詳細テーブル
+  const tableEl = document.getElementById('eo_table');
+  if (tableEl) {
+    const steps = [];
+    for (let m = 0; m <= 500 * 10_000; m += 25 * 10_000) steps.push(m);
+    const thS  = 'style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:2px solid var(--border);white-space:nowrap"';
+    const th1S = 'style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:2px solid var(--border)"';
+    tableEl.innerHTML = `
+      <thead>
+        <tr>
+          <th ${th1S}>月額報酬</th>
+          <th ${thS}>所得税</th>
+          <th ${thS}>住民税</th>
+          <th ${thS}>社会保険</th>
+          <th ${thS}>法人税等</th>
+          <th ${thS}>総税負担</th>
+          <th ${thS}>節税額</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${steps.map(m => {
+          const r = _eoCalc(m, pretax, age40plus);
+          const saving = cur.totalTax - r.totalTax;
+          const isCur  = Math.abs(m - monthly) < 12_500;
+          const isOpt  = Math.abs(m - optMonthly) < 12_500;
+          const rowBg  = isOpt ? 'background:#fefce8;' : isCur ? 'background:#eff6ff;' : '';
+          const label  = isOpt ? `★ ${_eoFmt(m * 10_000)}万円` : isCur ? `▶ ${_eoFmt(m * 10_000)}万円` : `${_eoFmt(m * 10_000)}万円`;
+          const lColor = isOpt ? '#92400e' : isCur ? '#1e40af' : 'var(--text)';
+          return `<tr style="${rowBg}border-bottom:0.5px solid var(--border)">
+            <td style="padding:5px 10px;font-weight:${isOpt||isCur?'700':'400'};color:${lColor}">${label}</td>
+            ${[r.incomeTax, r.residTax, r.socialIns, r.corpTax, r.totalTax].map(v =>
+              `<td style="padding:5px 10px;text-align:right;font-variant-numeric:tabular-nums;font-weight:${isOpt||isCur?'700':'400'};color:${lColor}">${_eoFmt(v)}</td>`
+            ).join('')}
+            <td style="padding:5px 10px;text-align:right;font-variant-numeric:tabular-nums;font-weight:${isOpt||isCur?'700':'400'};color:${saving>0?'#166534':saving<0?'#991b1b':lColor}">${saving>0?'▼ '+_eoFmt(saving):saving<0?'▲ '+_eoFmt(-saving):'-'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>`;
+  }
+}
+
+// 最適化の根拠を生成
+function _eoReasons(optM, optR, curR, curM, pretax) {
+  const reasons = [];
+  const annualOpt = optM * 12;
+
+  if (optM >= 1_390_000) {
+    reasons.push({ icon: '🏥', title: '社会保険料が上限に達しています',
+      body: `健康保険料は月額139万円（標準報酬月額の上限）で頭打ちになります。それ以上報酬を増やしても社会保険負担は増えません。` });
+  } else {
+    reasons.push({ icon: '🏥', title: `社会保険料は月額${Math.round(optM/10000)}万円が最適バランス`,
+      body: `報酬が高くなると社会保険料も増加しますが、給与所得控除による節税効果とのバランスでこの水準が最小点です。` });
+  }
+
+  const pretaxAfter = pretax - annualOpt;
+  if (pretaxAfter <= 8_000_000 && pretaxAfter > 0) {
+    reasons.push({ icon: '🏢', title: '法人所得が800万円以下の軽減税率内に収まっています',
+      body: `中小法人は課税所得800万円以下に対し約21.4%の軽減税率が適用されます。役員報酬でうまく調整することで税率が低い枠内に収められています。` });
+  } else if (pretaxAfter > 8_000_000) {
+    reasons.push({ icon: '🏢', title: '役員報酬をさらに増やすと法人税節税効果あり',
+      body: `現在の法人所得は${_eoFmt(pretaxAfter)}万円で、800万円を超える部分には約34.4%が課税されます。役員報酬を増やして法人所得を圧縮すると法人税を減らせますが、個人の社会保険・所得税との兼ね合いでこの水準が最適点です。` });
+  } else if (pretaxAfter <= 0) {
+    reasons.push({ icon: '🏢', title: '役員報酬が会社利益を上回っています',
+      body: `役員報酬が利益を超えると会社は赤字となり、繰越欠損金として将来の節税に使えますが、継続的な赤字は財務健全性を損ないます。` });
+  }
+
+  reasons.push({ icon: '📋', title: `給与所得控除 ${_eoFmt(_eoSalaryDeduction(annualOpt) * 10_000)}万円が実質的な個人の経費に`,
+    body: `役員報酬には給与所得控除が適用されます。この控除額が実質的な個人の「経費」となり、所得税・住民税の課税対象を減らします。` });
+
+  const saving = curR.totalTax - optR.totalTax;
+  if (Math.abs(saving) > 10_000) {
+    reasons.push({ icon: saving > 0 ? '💰' : '⚠️',
+      title: saving > 0 ? `最適化で年間 ${_eoFmt(saving)}万円の節税` : `現在の設定の方が ${_eoFmt(-saving)}万円 有利`,
+      body: saving > 0
+        ? `個人・法人合計の税負担を比較すると、最適な報酬設定に変更することで年間${_eoFmt(saving)}万円の節税が見込まれます。`
+        : `入力した報酬額は既に税負担最小値に近い水準です。` });
+  }
+
+  return reasons;
+}
+
+// 棒グラフ描画
+function _eoDrawBar(canvas, r) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement?.clientWidth || 300;
+  const H = 180;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const items = [
+    { label: '所得税', value: r.incomeTax, color: '#6366f1' },
+    { label: '住民税', value: r.residTax,  color: '#8b5cf6' },
+    { label: '社会保険', value: r.socialIns, color: '#06b6d4' },
+    { label: '法人税等', value: r.corpTax,  color: '#f59e0b' },
+  ];
+
+  const maxV = Math.max(...items.map(i => i.value), 1);
+  const pad  = { left: 60, right: 16, top: 20, bottom: 30 };
+  const bW   = (W - pad.left - pad.right) / items.length * 0.65;
+  const gapW = (W - pad.left - pad.right) / items.length;
+  const chartH = H - pad.top - pad.bottom;
+
+  items.forEach((item, i) => {
+    const x  = pad.left + i * gapW + (gapW - bW) / 2;
+    const bH = Math.max(2, (item.value / maxV) * chartH);
+    const y  = pad.top + chartH - bH;
+
+    ctx.fillStyle = item.color;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, bW, bH, [4, 4, 0, 0]);
+    else ctx.rect(x, y, bW, bH);
+    ctx.fill();
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(_eoFmt(item.value) + '万', x + bW / 2, y - 3);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px system-ui';
+    ctx.fillText(item.label, x + bW / 2, H - pad.bottom + 14);
   });
 
-  tableEl.innerHTML = `
-    <thead>
-      <tr>
-        <th style="text-align:center">月額</th>
-        <th>年収</th>
-        <th>個人手取り</th>
-        <th style="color:#f59e0b">社会保険</th>
-        <th style="color:#ef4444">所得税+住民税</th>
-        <th style="color:#8b5cf6">法人税</th>
-        <th style="color:#f97316">合計税負担</th>
-      </tr>
-    </thead>
-    <tbody>${rows}</tbody>`;
+  ctx.fillStyle = '#475569';
+  ctx.font = 'bold 11px system-ui';
+  ctx.textAlign = 'right';
+  ctx.fillText('合計 ' + _eoFmt(r.totalTax) + '万円', W - pad.right, pad.top - 4);
+}
+
+// 税負担曲線グラフ描画
+function _eoDrawCurve(canvas, pretax, age40plus, curMonthly, optMonthly) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement?.clientWidth || 300;
+  const H = 180;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const MAX_M = 500 * 10_000;
+  const STEPS = 100;
+  const pad = { left: 52, right: 16, top: 20, bottom: 30 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+
+  const pts = [];
+  for (let i = 0; i <= STEPS; i++) {
+    const m = (i / STEPS) * MAX_M;
+    pts.push({ m, y: _eoCalc(m, pretax, age40plus).totalTax });
+  }
+
+  const minY = Math.min(...pts.map(p => p.y));
+  const maxY = Math.max(...pts.map(p => p.y), minY + 1);
+  const toX = m => pad.left + (m / MAX_M) * chartW;
+  const toY = v => pad.top + chartH - ((v - minY) / (maxY - minY)) * chartH;
+
+  // グリッド線
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 0.5;
+  for (let g = 0; g <= 4; g++) {
+    const gy = pad.top + (g / 4) * chartH;
+    ctx.beginPath(); ctx.moveTo(pad.left, gy); ctx.lineTo(pad.left + chartW, gy); ctx.stroke();
+    const val = minY + ((4 - g) / 4) * (maxY - minY);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '9px system-ui';
+    ctx.textAlign = 'right';
+    ctx.fillText(_eoFmt(val), pad.left - 3, gy + 3);
+  }
+
+  // 曲線
+  ctx.beginPath();
+  pts.forEach((p, i) => {
+    const x = toX(p.m), y = toY(p.y);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = '#6366f1';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // エリア塗りつぶし
+  ctx.lineTo(toX(MAX_M), toY(minY));
+  ctx.lineTo(toX(0), toY(minY));
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(99,102,241,0.08)';
+  ctx.fill();
+
+  // 現在位置
+  const curR = _eoCalc(curMonthly, pretax, age40plus);
+  const cx = toX(curMonthly), cy = toY(curR.totalTax);
+  ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#3b82f6'; ctx.fill();
+  ctx.fillStyle = '#1e40af';
+  ctx.font = '9px system-ui';
+  ctx.textAlign = cx < pad.left + chartW * 0.7 ? 'left' : 'right';
+  ctx.fillText('現在', cx + (cx < pad.left + chartW * 0.7 ? 7 : -7), cy - 6);
+
+  // 最適位置
+  const optR = _eoCalc(optMonthly, pretax, age40plus);
+  const ox = toX(optMonthly), oy = toY(optR.totalTax);
+  ctx.beginPath(); ctx.arc(ox, oy, 6, 0, Math.PI * 2);
+  ctx.fillStyle = '#f59e0b'; ctx.fill();
+  ctx.fillStyle = '#92400e';
+  ctx.font = 'bold 9px system-ui';
+  ctx.textAlign = ox < pad.left + chartW * 0.7 ? 'left' : 'right';
+  ctx.fillText('★最適', ox + (ox < pad.left + chartW * 0.7 ? 9 : -9), oy - 6);
+
+  // X軸ラベル
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '9px system-ui';
+  ctx.textAlign = 'center';
+  [0, 100, 200, 300, 400, 500].forEach(v => {
+    ctx.fillText(v + '万', toX(v * 10_000), H - pad.bottom + 12);
+  });
+
+  ctx.fillStyle = '#64748b';
+  ctx.font = '9px system-ui';
+  ctx.textAlign = 'right';
+  ctx.fillText('総税負担（万円）', pad.left - 2, pad.top - 4);
 }
