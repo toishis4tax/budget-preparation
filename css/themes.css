@@ -1,0 +1,676 @@
+/* ========================================
+   テーマシステム
+   適用先: :root[data-theme="X"]
+======================================== */
+
+/* ── デフォルト変数（他テーマが上書き） ── */
+:root {
+  --surface-1:    #f0f4f8;
+  --surface-2:    #ffffff;
+  --surface-3:    #f8fafc;
+  --sidebar-bg:   #0f172a;
+  --header-bg:    #ffffff;
+  --text-accent:  #2563eb;
+  --text-secondary: #1e293b;
+}
+
+/* body に適用 */
+body { background: var(--surface-1); }
+.sidebar { background: var(--sidebar-bg) !important; }
+.app-header { background: var(--header-bg) !important; border-bottom-color: var(--border) !important; }
+
+/* カード・パネル */
+.card, .card-h { background: var(--surface-2) !important; }
+
+/* ========================================
+   共通アニメーション
+======================================== */
+@keyframes waveFlow {
+  0%   { transform: translateX(0) translateY(0); }
+  50%  { transform: translateX(-30px) translateY(15px); }
+  100% { transform: translateX(0) translateY(0); }
+}
+@keyframes floatUp {
+  0%   { transform: translateY(0) rotate(0deg); opacity:.8; }
+  100% { transform: translateY(-120vh) rotate(360deg); opacity:0; }
+}
+@keyframes twinkle {
+  0%,100% { opacity:.3; transform:scale(1); }
+  50%      { opacity:1;  transform:scale(1.4); }
+}
+@keyframes drift {
+  0%   { transform: translateX(0) rotate(0deg); }
+  33%  { transform: translateX(12px) rotate(5deg); }
+  66%  { transform: translateX(-8px) rotate(-3deg); }
+  100% { transform: translateX(0) rotate(0deg); }
+}
+@keyframes petalFall {
+  0%   { transform: translateY(-20px) translateX(0) rotate(0deg); opacity:1; }
+  100% { transform: translateY(110vh) translateX(80px) rotate(720deg); opacity:0; }
+}
+@keyframes sandDrift {
+  0%   { background-position: 0 0; }
+  100% { background-position: 200px 200px; }
+}
+@keyframes nebulaPulse {
+  0%,100% { opacity:.4; }
+  50%      { opacity:.7; }
+}
+
+/* ========================================
+   🌊 海テーマ (ocean)
+======================================== */
+:root[data-theme="ocean"] {
+  --bg:           #041629;
+  --bg-card:      #0d2845;
+  --surface-1:    transparent;
+  --surface-2:    rgba(255,255,255,.06);
+  --surface-3:    rgba(255,255,255,.03);
+  --sidebar-bg:   #020d1a;
+  --header-bg:    #051e38;
+  --white:        #0d2845;
+  --gray-900:     #020d1a;
+  --gray-50:      rgba(255,255,255,.04);
+  --gray-100:     rgba(255,255,255,.06);
+  --text:         #e0f2fe;
+  --text-sub:     #bae6fd;
+  --text-muted:   #5da8c8;
+  --text-light:   #3b7a99;
+  --text-accent:  #38bdf8;
+  --text-secondary: #bae6fd;
+  --border:       rgba(56,189,248,.15);
+  --border-muted: rgba(56,189,248,.07);
+  --primary:          #0ea5e9;
+  --primary-hover:    #0284c7;
+  --primary-light:    rgba(14,165,233,.15);
+  --primary-muted:    rgba(14,165,233,.25);
+  --blue-50:  rgba(14,165,233,.08);
+  --blue-100: rgba(14,165,233,.14);
+  --blue-200: rgba(14,165,233,.25);
+  --blue-300: rgba(14,165,233,.4);
+  --blue-400: #38bdf8;
+  --blue-500: #0ea5e9;
+  --blue-600: #0284c7;
+  --green:    #34d399;
+  --green-bg: rgba(52,211,153,.12);
+  --amber:    #fbbf24;
+  --amber-bg: rgba(251,191,36,.12);
+  --rose:     #fb7185;
+  --rose-bg:  rgba(251,113,133,.12);
+}
+body[data-theme="ocean"] {
+  background: linear-gradient(160deg, #041629 0%, #062d56 45%, #0a4d8a 80%, #0c6ea8 100%);
+  background-attachment: fixed;
+}
+body[data-theme="ocean"] #main_content::before {
+  content: '';
+  position: fixed;
+  left: var(--sidebar-w); right: 0; top: var(--header-h); bottom: 0;
+  pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 70% 80%, rgba(6,182,212,.18) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 20% 30%, rgba(14,165,233,.12) 0%, transparent 55%);
+  animation: waveFlow 12s ease-in-out infinite;
+}
+body[data-theme="ocean"] #main_content::after {
+  content: '';
+  position: fixed;
+  left: var(--sidebar-w); right: 0; top: var(--header-h); bottom: 0;
+  pointer-events: none; z-index: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='80'%3E%3Cpath d='M0 40 Q25 20 50 40 Q75 60 100 40 Q125 20 150 40 Q175 60 200 40' fill='none' stroke='rgba(56,189,248,.06)' stroke-width='2'/%3E%3Cpath d='M0 60 Q25 40 50 60 Q75 80 100 60 Q125 40 150 60 Q175 80 200 60' fill='none' stroke='rgba(56,189,248,.04)' stroke-width='1.5'/%3E%3C/svg%3E") repeat;
+  animation: waveFlow 18s ease-in-out infinite reverse;
+}
+
+/* ========================================
+   🌲 山テーマ (forest)
+======================================== */
+:root[data-theme="forest"] {
+  --bg:        #071a0e;
+  --bg-card:   #0f2e18;
+  --surface-1: transparent;
+  --surface-2: rgba(255,255,255,.06);
+  --surface-3: rgba(255,255,255,.03);
+  --sidebar-bg: #040f08;
+  --header-bg:  #0a1f11;
+  --white:      #0f2e18;
+  --gray-900:   #040f08;
+  --gray-50:    rgba(255,255,255,.04);
+  --gray-100:   rgba(255,255,255,.06);
+  --text:       #dcfce7;
+  --text-sub:   #bbf7d0;
+  --text-muted: #4ade80;
+  --text-light: #2e8b45;
+  --text-accent: #34d399;
+  --text-secondary: #bbf7d0;
+  --border:       rgba(52,211,153,.15);
+  --border-muted: rgba(52,211,153,.07);
+  --primary:       #22c55e;
+  --primary-hover: #16a34a;
+  --primary-light: rgba(34,197,94,.15);
+  --primary-muted: rgba(34,197,94,.25);
+  --blue-50:  rgba(34,197,94,.08);
+  --blue-100: rgba(34,197,94,.14);
+  --blue-200: rgba(34,197,94,.25);
+  --blue-300: rgba(34,197,94,.4);
+  --blue-400: #4ade80;
+  --blue-500: #22c55e;
+  --blue-600: #16a34a;
+  --green:    #34d399;
+  --green-bg: rgba(52,211,153,.12);
+  --amber:    #fbbf24;
+  --amber-bg: rgba(251,191,36,.12);
+  --rose:     #fb7185;
+  --rose-bg:  rgba(251,113,133,.12);
+}
+body[data-theme="forest"] {
+  background: linear-gradient(170deg, #071a0e 0%, #0e3318 40%, #1a5728 70%, #0d3516 100%);
+  background-attachment: fixed;
+}
+body[data-theme="forest"] #main_content::before {
+  content: '';
+  position: fixed;
+  left: var(--sidebar-w); right: 0; top: var(--header-h); bottom: 0;
+  pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 30% 70%, rgba(34,197,94,.12) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 20%, rgba(16,185,129,.10) 0%, transparent 55%);
+  animation: drift 15s ease-in-out infinite;
+}
+body[data-theme="forest"] #main_content::after {
+  content: '';
+  position: fixed;
+  left: var(--sidebar-w); right: 0; bottom: 0; height: 180px;
+  pointer-events: none; z-index: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 180'%3E%3Cpolygon points='0,180 40,80 80,180' fill='rgba(34,197,94,.07)'/%3E%3Cpolygon points='50,180 100,60 150,180' fill='rgba(22,163,74,.08)'/%3E%3Cpolygon points='120,180 170,50 220,180' fill='rgba(34,197,94,.06)'/%3E%3Cpolygon points='200,180 260,70 320,180' fill='rgba(16,185,129,.07)'/%3E%3Cpolygon points='280,180 340,55 400,180' fill='rgba(34,197,94,.06)'/%3E%3C/svg%3E") bottom center / cover no-repeat;
+}
+
+/* ========================================
+   🃏 ポーカーテーマ (poker)
+======================================== */
+:root[data-theme="poker"] {
+  --bg:        #04140a;
+  --bg-card:   #0a2413;
+  --surface-1: transparent;
+  --surface-2: rgba(255,255,255,.05);
+  --surface-3: rgba(255,255,255,.03);
+  --sidebar-bg: #020b06;
+  --header-bg:  #071a0e;
+  --white:      #0a2413;
+  --gray-900:   #020b06;
+  --gray-50:    rgba(255,255,255,.04);
+  --gray-100:   rgba(255,255,255,.05);
+  --text:       #f0fdf4;
+  --text-sub:   #d1fae5;
+  --text-muted: #86efac;
+  --text-light: #4ade80;
+  --text-accent: #fbbf24;
+  --text-secondary: #d1fae5;
+  --border:       rgba(251,191,36,.2);
+  --border-muted: rgba(251,191,36,.09);
+  --primary:       #d97706;
+  --primary-hover: #b45309;
+  --primary-light: rgba(217,119,6,.15);
+  --primary-muted: rgba(217,119,6,.25);
+  --blue-50:  rgba(217,119,6,.08);
+  --blue-100: rgba(217,119,6,.14);
+  --blue-200: rgba(217,119,6,.25);
+  --blue-300: rgba(217,119,6,.4);
+  --blue-400: #fbbf24;
+  --blue-500: #d97706;
+  --blue-600: #b45309;
+  --green:    #34d399;
+  --green-bg: rgba(52,211,153,.12);
+  --amber:    #fbbf24;
+  --amber-bg: rgba(251,191,36,.12);
+  --rose:     #fb7185;
+  --rose-bg:  rgba(251,113,133,.12);
+}
+body[data-theme="poker"] {
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 50%, #0e3320 0%, #04140a 70%);
+  background-attachment: fixed;
+}
+body[data-theme="poker"] #main_content::before {
+  content: '';
+  position: fixed;
+  left: var(--sidebar-w); right: 0; top: var(--header-h); bottom: 0;
+  pointer-events: none; z-index: 0;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0px, rgba(255,255,255,.015) 1px, transparent 1px, transparent 40px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.015) 0px, rgba(255,255,255,.015) 1px, transparent 1px, transparent 40px);
+}
+body[data-theme="poker"] #main_content::after {
+  content: '♠ ♥ ♦ ♣';
+  position: fixed;
+  right: 40px; bottom: 40px;
+  pointer-events: none; z-index: 0;
+  font-size: 48px; letter-spacing: 16px;
+  color: rgba(251,191,36,.07);
+  font-weight: 900;
+  animation: drift 20s ease-in-out infinite;
+}
+
+/* ========================================
+   🌸 夜桜テーマ (sakura)
+======================================== */
+:root[data-theme="sakura"] {
+  --bg:        #0d0618;
+  --bg-card:   #1a0a30;
+  --surface-1: transparent;
+  --surface-2: rgba(255,255,255,.06);
+  --surface-3: rgba(255,255,255,.03);
+  --sidebar-bg: #08030f;
+  --header-bg:  #130824;
+  --white:      #1a0a30;
+  --gray-900:   #08030f;
+  --gray-50:    rgba(255,255,255,.04);
+  --gray-100:   rgba(255,255,255,.06);
+  --text:       #fdf2f8;
+  --text-sub:   #fce7f3;
+  --text-muted: #f9a8d4;
+  --text-light: #ec4899;
+  --text-accent: #f472b6;
+  --text-secondary: #fce7f3;
+  --border:       rgba(244,114,182,.18);
+  --border-muted: rgba(244,114,182,.08);
+  --primary:       #ec4899;
+  --primary-hover: #db2777;
+  --primary-light: rgba(236,72,153,.15);
+  --primary-muted: rgba(236,72,153,.25);
+  --blue-50:  rgba(236,72,153,.08);
+  --blue-100: rgba(236,72,153,.14);
+  --blue-200: rgba(236,72,153,.25);
+  --blue-300: rgba(236,72,153,.4);
+  --blue-400: #f472b6;
+  --blue-500: #ec4899;
+  --blue-600: #db2777;
+  --green:    #34d399;
+  --green-bg: rgba(52,211,153,.12);
+  --amber:    #fbbf24;
+  --amber-bg: rgba(251,191,36,.12);
+  --rose:     #fb7185;
+  --rose-bg:  rgba(251,113,133,.12);
+}
+body[data-theme="sakura"] {
+  background: linear-gradient(145deg, #0d0618 0%, #1e0935 40%, #2d0f4e 70%, #1a0530 100%);
+  background-attachment: fixed;
+}
+body[data-theme="sakura"] #main_content::before {
+  content: '';
+  position: fixed;
+  left: var(--sidebar-w); right: 0; top: var(--header-h); bottom: 0;
+  pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 30% 40%, rgba(236,72,153,.15) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 35% at 75% 70%, rgba(168,85,247,.12) 0%, transparent 55%);
+  animation: nebulaPulse 8s ease-in-out infinite;
+}
+/* 花びらは JS で動的生成 */
+
+/* ========================================
+   🌅 夕焼けテーマ (sunset)
+======================================== */
+:root[data-theme="sunset"] {
+  --bg:        #1a0800;
+  --bg-card:   #2d1200;
+  --surface-1: transparent;
+  --surface-2: rgba(255,255,255,.06);
+  --surface-3: rgba(255,255,255,.03);
+  --sidebar-bg: #0f0500;
+  --header-bg:  #241000;
+  --white:      #2d1200;
+  --gray-900:   #0f0500;
+  --gray-50:    rgba(255,255,255,.04);
+  --gray-100:   rgba(255,255,255,.06);
+  --text:       #fff7ed;
+  --text-sub:   #fed7aa;
+  --text-muted: #fb923c;
+  --text-light: #ea580c;
+  --text-accent: #f97316;
+  --text-secondary: #fed7aa;
+  --border:       rgba(249,115,22,.2);
+  --border-muted: rgba(249,115,22,.09);
+  --primary:       #ea580c;
+  --primary-hover: #c2410c;
+  --primary-light: rgba(234,88,12,.15);
+  --primary-muted: rgba(234,88,12,.25);
+  --blue-50:  rgba(234,88,12,.08);
+  --blue-100: rgba(234,88,12,.14);
+  --blue-200: rgba(234,88,12,.25);
+  --blue-300: rgba(234,88,12,.4);
+  --blue-400: #fb923c;
+  --blue-500: #f97316;
+  --blue-600: #ea580c;
+  --green:    #34d399;
+  --green-bg: rgba(52,211,153,.12);
+  --amber:    #fbbf24;
+  --amber-bg: rgba(251,191,36,.12);
+  --rose:     #fb7185;
+  --rose-bg:  rgba(251,113,133,.12);
+}
+body[data-theme="sunset"] {
+  background: linear-gradient(175deg, #1a0800 0%, #7c2d12 30%, #c2410c 55%, #9a3412 75%, #431407 100%);
+  background-attachment: fixed;
+}
+body[data-theme="sunset"] #main_content::before {
+  content: '';
+  position: fixed;
+  left: var(--sidebar-w); right: 0; top: var(--header-h); bottom: 0;
+  pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 40% at 50% 100%, rgba(251,191,36,.2) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 30% at 50% 60%, rgba(239,68,68,.12) 0%, transparent 50%);
+}
+body[data-theme="sunset"] #main_content::after {
+  content: '';
+  position: fixed;
+  left: var(--sidebar-w); right: 0; bottom: 0; height: 120px;
+  pointer-events: none; z-index: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 120'%3E%3Cellipse cx='150' cy='120' rx='120' ry='80' fill='rgba(180,60,0,.15)'/%3E%3Cellipse cx='400' cy='120' rx='160' ry='100' fill='rgba(100,30,0,.12)'/%3E%3Cellipse cx='650' cy='120' rx='130' ry='85' fill='rgba(160,50,0,.14)'/%3E%3C/svg%3E") bottom / cover no-repeat;
+}
+
+/* ========================================
+   🌌 宇宙テーマ (space)
+======================================== */
+:root[data-theme="space"] {
+  --bg:        #020408;
+  --bg-card:   #080f1e;
+  --surface-1: transparent;
+  --surface-2: rgba(255,255,255,.05);
+  --surface-3: rgba(255,255,255,.03);
+  --sidebar-bg: #010206;
+  --header-bg:  #050b18;
+  --white:      #080f1e;
+  --gray-900:   #010206;
+  --gray-50:    rgba(255,255,255,.04);
+  --gray-100:   rgba(255,255,255,.05);
+  --text:       #e0e7ff;
+  --text-sub:   #c7d2fe;
+  --text-muted: #818cf8;
+  --text-light: #6366f1;
+  --text-accent: #a78bfa;
+  --text-secondary: #c7d2fe;
+  --border:       rgba(167,139,250,.18);
+  --border-muted: rgba(167,139,250,.08);
+  --primary:       #6366f1;
+  --primary-hover: #4f46e5;
+  --primary-light: rgba(99,102,241,.15);
+  --primary-muted: rgba(99,102,241,.25);
+  --blue-50:  rgba(99,102,241,.08);
+  --blue-100: rgba(99,102,241,.14);
+  --blue-200: rgba(99,102,241,.25);
+  --blue-300: rgba(99,102,241,.4);
+  --blue-400: #818cf8;
+  --blue-500: #6366f1;
+  --blue-600: #4f46e5;
+  --green:    #34d399;
+  --green-bg: rgba(52,211,153,.12);
+  --amber:    #fbbf24;
+  --amber-bg: rgba(251,191,36,.12);
+  --rose:     #fb7185;
+  --rose-bg:  rgba(251,113,133,.12);
+}
+body[data-theme="space"] {
+  background: linear-gradient(135deg, #020408 0%, #070d20 40%, #0a1230 70%, #050a18 100%);
+  background-attachment: fixed;
+}
+body[data-theme="space"] #main_content::before {
+  content: '';
+  position: fixed;
+  left: var(--sidebar-w); right: 0; top: var(--header-h); bottom: 0;
+  pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 50% 40% at 20% 30%, rgba(99,102,241,.18) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 35% at 80% 70%, rgba(168,85,247,.14) 0%, transparent 50%),
+    radial-gradient(ellipse 30% 25% at 60% 20%, rgba(6,182,212,.10) 0%, transparent 45%);
+  animation: nebulaPulse 10s ease-in-out infinite;
+}
+/* 星は JS で動的生成 */
+
+/* ========================================
+   ☕ ミルクティーテーマ (latte)
+======================================== */
+:root[data-theme="latte"] {
+  --surface-1: #f5efe6;
+  --surface-2: #fffbf5;
+  --surface-3: #fdf6ee;
+  --sidebar-bg: #2c1a0e;
+  --header-bg:  #fffbf5;
+  --white:      #fffbf5;
+  --gray-900:   #2c1a0e;
+  --gray-50:    #fdf6ee;
+  --gray-100:   #f5ebe0;
+  --gray-200:   #e8d5be;
+  --gray-300:   #cdb08a;
+  --gray-400:   #a07850;
+  --gray-500:   #7d5a38;
+  --gray-600:   #5c3e22;
+  --gray-700:   #3d2810;
+  --gray-800:   #271808;
+  --gray-900:   #2c1a0e;
+  --bg:         #f5efe6;
+  --bg-card:    #fffbf5;
+  --text:       #2c1a0e;
+  --text-sub:   #3d2810;
+  --text-muted: #7d5a38;
+  --text-light: #a07850;
+  --text-accent: #92400e;
+  --text-secondary: #3d2810;
+  --border:       #e8d5be;
+  --border-muted: #f0e4d0;
+  --primary:       #92400e;
+  --primary-hover: #78350f;
+  --primary-light: #fef3c7;
+  --primary-muted: #fde68a;
+  --blue-50:  #fef9f0;
+  --blue-100: #fef3c7;
+  --blue-200: #fde68a;
+  --blue-300: #fcd34d;
+  --blue-400: #f59e0b;
+  --blue-500: #d97706;
+  --blue-600: #b45309;
+  --green:    #059669;
+  --green-bg: #d1fae5;
+  --amber:    #d97706;
+  --amber-bg: #fffbeb;
+  --rose:     #e11d48;
+  --rose-bg:  #fff1f2;
+}
+body[data-theme="latte"] {
+  background: #f5efe6;
+}
+
+/* ========================================
+   🌙 ミッドナイトテーマ (midnight)
+======================================== */
+:root[data-theme="midnight"] {
+  --bg:        #0a0a0f;
+  --bg-card:   #14141f;
+  --surface-1: transparent;
+  --surface-2: rgba(255,255,255,.055);
+  --surface-3: rgba(255,255,255,.03);
+  --sidebar-bg: #050508;
+  --header-bg:  #0f0f18;
+  --white:      #14141f;
+  --gray-900:   #050508;
+  --gray-50:    rgba(255,255,255,.035);
+  --gray-100:   rgba(255,255,255,.055);
+  --text:       #e2e2f0;
+  --text-sub:   #c8c8e0;
+  --text-muted: #8888aa;
+  --text-light: #5c5c7a;
+  --text-accent: #7c7cff;
+  --text-secondary: #c8c8e0;
+  --border:       rgba(255,255,255,.1);
+  --border-muted: rgba(255,255,255,.05);
+  --primary:       #5855e8;
+  --primary-hover: #4341c5;
+  --primary-light: rgba(88,85,232,.15);
+  --primary-muted: rgba(88,85,232,.25);
+  --blue-50:  rgba(88,85,232,.07);
+  --blue-100: rgba(88,85,232,.13);
+  --blue-200: rgba(88,85,232,.22);
+  --blue-300: rgba(88,85,232,.38);
+  --blue-400: #7c7cff;
+  --blue-500: #5855e8;
+  --blue-600: #4341c5;
+  --green:    #34d399;
+  --green-bg: rgba(52,211,153,.12);
+  --amber:    #fbbf24;
+  --amber-bg: rgba(251,191,36,.12);
+  --rose:     #fb7185;
+  --rose-bg:  rgba(251,113,133,.12);
+}
+body[data-theme="midnight"] {
+  background: #0a0a0f;
+}
+body[data-theme="midnight"] #main_content::before {
+  content: '';
+  position: fixed;
+  left: var(--sidebar-w); right: 0; top: var(--header-h); bottom: 0;
+  pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 45% at 15% 20%, rgba(88,85,232,.1) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 30% at 85% 75%, rgba(124,124,255,.07) 0%, transparent 50%);
+}
+
+/* ========================================
+   ダークテーマ共通: テキスト・ボーダー
+======================================== */
+[data-theme="ocean"],
+[data-theme="forest"],
+[data-theme="poker"],
+[data-theme="sakura"],
+[data-theme="sunset"],
+[data-theme="space"],
+[data-theme="midnight"] {
+  color-scheme: dark;
+}
+
+/* input / select のダーク対応 */
+[data-theme="ocean"] input,
+[data-theme="ocean"] select,
+[data-theme="forest"] input,
+[data-theme="forest"] select,
+[data-theme="poker"] input,
+[data-theme="poker"] select,
+[data-theme="sakura"] input,
+[data-theme="sakura"] select,
+[data-theme="sunset"] input,
+[data-theme="sunset"] select,
+[data-theme="space"] input,
+[data-theme="space"] select,
+[data-theme="midnight"] input,
+[data-theme="midnight"] select {
+  background: rgba(255,255,255,.07) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+[data-theme="ocean"] input::placeholder,
+[data-theme="forest"] input::placeholder,
+[data-theme="poker"] input::placeholder,
+[data-theme="sakura"] input::placeholder,
+[data-theme="sunset"] input::placeholder,
+[data-theme="space"] input::placeholder,
+[data-theme="midnight"] input::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* ヘッダー select ダーク */
+[data-theme="ocean"] .header-select,
+[data-theme="forest"] .header-select,
+[data-theme="poker"] .header-select,
+[data-theme="sakura"] .header-select,
+[data-theme="sunset"] .header-select,
+[data-theme="space"] .header-select,
+[data-theme="midnight"] .header-select {
+  background-color: rgba(255,255,255,.07) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+/* ボタン ダーク */
+[data-theme="ocean"] .btn,
+[data-theme="forest"] .btn,
+[data-theme="poker"] .btn,
+[data-theme="sakura"] .btn,
+[data-theme="sunset"] .btn,
+[data-theme="space"] .btn,
+[data-theme="midnight"] .btn,
+[data-theme="ocean"] .btn-outline,
+[data-theme="forest"] .btn-outline,
+[data-theme="poker"] .btn-outline,
+[data-theme="sakura"] .btn-outline,
+[data-theme="sunset"] .btn-outline,
+[data-theme="space"] .btn-outline,
+[data-theme="midnight"] .btn-outline {
+  background: rgba(255,255,255,.07) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+[data-theme="ocean"] .btn:hover,
+[data-theme="forest"] .btn:hover,
+[data-theme="poker"] .btn:hover,
+[data-theme="sakura"] .btn:hover,
+[data-theme="sunset"] .btn:hover,
+[data-theme="space"] .btn:hover,
+[data-theme="midnight"] .btn:hover {
+  background: rgba(255,255,255,.13) !important;
+  border-color: var(--primary) !important;
+  color: var(--text-accent) !important;
+}
+
+/* テーブル ダーク */
+[data-theme="ocean"] th,
+[data-theme="forest"] th,
+[data-theme="poker"] th,
+[data-theme="sakura"] th,
+[data-theme="sunset"] th,
+[data-theme="space"] th,
+[data-theme="midnight"] th {
+  color: var(--text-muted) !important;
+}
+
+/* ========================================
+   テーマピッカー UI
+======================================== */
+#theme-picker-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px;
+  background: transparent; border: 1.5px solid var(--border);
+  border-radius: 8px; cursor: pointer; font-size: 13px;
+  color: var(--text-muted); transition: all .15s;
+  font-family: inherit;
+}
+#theme-picker-btn:hover { border-color: var(--primary); color: var(--text); }
+
+#theme-picker-panel {
+  position: fixed; z-index: 9999;
+  background: var(--bg-card, #fff); color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px;
+  box-shadow: 0 20px 40px rgba(0,0,0,.25);
+  width: 340px;
+  display: none;
+}
+#theme-picker-panel.open { display: block; }
+.theme-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  margin-top: 12px;
+}
+.theme-card {
+  border-radius: 10px; overflow: hidden; cursor: pointer;
+  border: 2px solid transparent; transition: all .15s;
+  aspect-ratio: 1;
+  position: relative;
+}
+.theme-card:hover { transform: scale(1.05); }
+.theme-card.active { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb,37,99,235),.25); }
+.theme-card-preview {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+}
+.theme-card-bar { height: 35%; }
+.theme-card-body { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 3px; padding: 4px; }
+.theme-card-label { font-size: 9px; font-weight: 700; text-align: center; }
+.theme-card-emoji { font-size: 16px; }
