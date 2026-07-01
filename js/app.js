@@ -328,6 +328,7 @@ function showPage(page) {
     case 'cashflow':   renderCashFlow(container, budget);                 break;
     case 'loansim':    renderLoanSim(container);                          break;
     case 'kpiboard':   renderKpiBoard(container);                         break;
+    case 'execopt':    renderExecOpt(container);                          break;
     case 'execcomp':   renderExecComp(container, budget);                 break;
     case 'welfare':    renderWelfare(container);                          break;
     case 'tax':        renderTaxSimulator(container);                     break;
