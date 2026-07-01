@@ -44,7 +44,10 @@ function renderHealthDiag(container, budget) {
 
   const scoredItems = items
     .filter(i => i.key !== 'ebitda')
-    .map(i => ({ ...i, grade: gradeMetric(i.key, i.value), score: scoreMap[gradeMetric(i.key, i.value)] || 3 }))
+    .map(i => {
+      const g = gradeMetric(i.key, i.value);
+      return { ...i, grade: g, score: scoreMap[g] ?? 3 };
+    })
     .sort((a, b) => a.score - b.score);
 
   // テーブル行（目標値列を追加）

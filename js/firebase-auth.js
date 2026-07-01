@@ -332,7 +332,7 @@ async function showAdminPanel() {
           <td style="padding:8px">${escHtml(u.name || u.email)}</td>
           <td style="padding:8px;color:#64748b;font-size:12px">${escHtml(u.email)}</td>
           <td style="padding:8px">
-            <select onchange="_adminSetRole('${u.uid}',this.value)" style="font-size:12px;padding:3px 6px;border:1px solid #e2e8f0;border-radius:4px">
+            <select onchange="_adminSetRole('${escHtml(u.uid)}',this.value)" style="font-size:12px;padding:3px 6px;border:1px solid #e2e8f0;border-radius:4px">
               <option value="admin"   ${u.role==='admin'  ?'selected':''}>管理者</option>
               <option value="staff"   ${u.role==='staff'  ?'selected':''}>スタッフ</option>
               <option value="pending" ${u.role==='pending'?'selected':''}>承認待ち</option>
@@ -346,13 +346,13 @@ async function showAdminPanel() {
                 <label style="display:flex;align-items:center;gap:3px;font-size:11px;white-space:nowrap">
                   <input type="checkbox" value="${c.id}"
                     ${(u.allowedCompanyIds||[]).includes(c.id)?'checked':''}
-                    onchange="_adminToggleCompany('${u.uid}','${c.id}',this.checked)">
+                    onchange="_adminToggleCompany('${escHtml(u.uid)}','${escHtml(c.id)}',this.checked)">
                   ${escHtml(c.name)}
                 </label>`).join('')}
             </div>`}
           </td>
           <td style="padding:8px">
-            <button onclick="_adminDeleteUser('${u.uid}')" style="background:#fee2e2;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;color:#dc2626">削除</button>
+            <button onclick="_adminDeleteUser('${escHtml(u.uid)}')" style="background:#fee2e2;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;color:#dc2626">削除</button>
           </td>
         </tr>`).join('')}
       </tbody>

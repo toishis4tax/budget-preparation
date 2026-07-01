@@ -203,7 +203,7 @@ function renderForecastReport(container) {
   const fyS = startMonth;
   const fyE = fiscalMonth;
   // 期首年・期末年（西暦）
-  const fyStartYear = fyS <= fyE ? curYear - 1 : curYear - 1;
+  const fyStartYear = fyS <= fyE ? curYear : curYear - 1;
   const fyEndYear   = curYear;
   const lastD = new Date(fyEndYear, fyE, 0).getDate();
 

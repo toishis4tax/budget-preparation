@@ -55,11 +55,11 @@ function calcInterimTax(prevBudget, prevCompany) {
   const localCorpInterim = prevTax && prevTax.localCorp >= 10_000 ? Math.floor(prevTax.localCorp / 2 / 100) * 100 : 0;
 
   const prefKatsuInterim  = corpInterim ? Math.floor(corpInterim * 0.032 / 100) * 100 : 0;
-  const prefKintouInterim = prevTax ? Math.floor((prevTax.corp * 0.032 + 20_000) / 2 / 100) * 100 : 0;
+  const prefKintouInterim = corpInterim ? 10_000 : 0; // 均等割20,000÷2（固定額）
   const businessInterim   = prevTax && prevTax.business >= 100_000 ? Math.floor(prevTax.business / 2 / 100) * 100 : 0;
   const specialInterim    = prevTax && prevTax.special >= 100_000  ? Math.floor(prevTax.special  / 2 / 100) * 100 : 0;
   const cityKatsuInterim  = corpInterim ? Math.floor(corpInterim * 0.096 / 100) * 100 : 0;
-  const cityKintouInterim = prevTax ? Math.floor((prevTax.corp * 0.096 + 50_000) / 2 / 100) * 100 : 0;
+  const cityKintouInterim = corpInterim ? 25_000 : 0; // 均等割50,000÷2（固定額）
 
   // 消費税中間（前期消費税額で回数が変わる）★1/3/11回
   let ctaxPerPayment = 0, ctaxTimes = 0, localCtaxPerPayment = 0;

@@ -58,7 +58,9 @@ function extractBizMetrics(budget, company) {
 
   let currentRatio = 0, equityRatio = 0, debtMonthRatio = 0;
   try {
-    const hm = calcHealthMetrics(budget.rows || {}, company.capital || 10_000_000);
+    const hm = budget.dynamicAccounts?.length
+      ? calcHealthMetricsDynamic(budget, company.capital || 10_000_000)
+      : calcHealthMetrics(budget.rows || {}, company.capital || 10_000_000);
     currentRatio   = hm.current_ratio   || 0;
     equityRatio    = hm.equity_ratio    || 0;
     debtMonthRatio = hm.loan_month_ratio || 0;

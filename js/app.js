@@ -532,5 +532,17 @@ function renderSimulation(container, budget) {
 
 // escHtml（grid.jsより先にapp.jsで定義、両方から使える）
 function escHtml(s) {
-  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+let _memoSaveTimer = null;
+function _memoSaveDebounce() {
+  clearTimeout(_memoSaveTimer);
+  _memoSaveTimer = setTimeout(() => {
+    const c = window.App?.currentCompany;
+    const el = document.getElementById('company_memo_area');
+    if (!c || !el) return;
+    c.memo = el.value;
+    saveCompany(c);
+  }, 800);
 }

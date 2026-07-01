@@ -18,7 +18,7 @@ function renderHome(container) {
 
   // フェーズ別ダッシュボードに振り分け
   if (phase === 1) return renderPhase1Home(container, budget, company);
-  if (phase === 2) return renderPhase3Home(container, budget, company);
+  if (phase === 2) return renderPhase2Home(container, budget, company);
 
   const capital   = company.capital || 10000000;
   const curYear   = window.App?.currentYear || new Date().getFullYear();
@@ -149,6 +149,7 @@ function renderHome(container) {
         <div style="margin-top:12px">
           <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px">📝 メモ・コメント</div>
           <textarea id="company_memo_area" class="company-memo-area" placeholder="顧問先に関するメモ、特記事項、担当者情報など..."
+            oninput="_memoSaveDebounce()"
             onblur="(function(){ var c=App.currentCompany; if(!c)return; c.memo=document.getElementById('company_memo_area').value; saveCompany(c); })()"
           >${escHtml(company.memo || '')}</textarea>
         </div>
