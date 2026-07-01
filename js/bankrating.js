@@ -84,17 +84,17 @@ const RATING_METRICS = [
     badge: null,
   },
   {
-    key:      'ebitda_margin',
-    label:    'EBITDAマージン',
+    key:      'ebitda_leverage',
+    label:    'EBITDA有利子負債倍率',
     weight:   4,
-    unit:     '%',
-    inverted: false,
-    thresholds: [10, 5, 2, 0],
-    desc:     '(営業利益 + 減価償却費) ÷ 売上高',
-    detail:   'キャッシュ創出力を示す。減価償却後の実態的な稼ぐ力。設備投資の多い業種で重視される。',
+    unit:     '倍',
+    inverted: true,           // 低いほど良い
+    thresholds: [3, 5, 10, 20],  // A:3倍以下, B:5倍以下, C:10倍以下, D:20倍以下, E:超過
+    desc:     '有利子負債 ÷ EBITDA',
+    detail:   '経産省「ローカルベンチマーク」採用指標。EBITDAで借入金を何年で返せるかを示す。3〜4倍以内が目安とされる。',
     advice: {
-      D: 'キャッシュフロー創出力が低水準です。設備の生産性向上や不採算ラインの見直しを検討してください。',
-      E: 'EBITDAがマイナスです。固定費の抜本的な見直しが必要です。',
+      D: 'EBITDAに対して借入規模が大きすぎます。利益の蓄積と遊休資産売却による借入圧縮を同時に進めてください。',
+      E: 'EBITDA創出力が著しく低いか借入が過大です。収益力の抜本的な改善が急務です。',
     },
     badge: null,
   },
@@ -164,8 +164,8 @@ function calcBankMetrics(budget) {
   // インタレストカバレッジ: EBITDA / 支払利息
   const interestCoverage = interest > 0 ? ebitda / interest : (ebitda > 0 ? 99999 : 0);
 
-  // EBITDAマージン
-  const ebitdaMargin = sales > 0 ? (ebitda / sales * 100) : 0;
+  // EBITDA有利子負債倍率（経産省ローカルベンチマーク採用指標）
+  const ebitdaLeverage = ebitda > 0 ? loans / ebitda : (loans > 0 ? 99999 : 0);
 
   return {
     debt_repay:         debtRepay,
@@ -173,9 +173,9 @@ function calcBankMetrics(budget) {
     interest_coverage:  interestCoverage,
     op_margin:          m.op_margin,
     current_ratio:      m.current_ratio,
-    ebitda_margin:      ebitdaMargin,
+    ebitda_leverage:    ebitdaLeverage,
     // 表示用の内訳
-    _raw: { netDebt, ebitda, interest, loans, cash, sales, depr, opProfit, ordProfit },
+    _raw: { netDebt, ebitda, ebitdaLeverage, interest, loans, cash, sales, depr, opProfit, ordProfit },
   };
 }
 
@@ -327,7 +327,7 @@ function renderBankRating(container) {
     }
     if (unit === '%') return v.toFixed(1) + '%';
     if (unit === '倍') {
-      if (v >= 99999) return '∞（支払利息なし）';
+      if (v >= 99999) return key === 'interest_coverage' ? '∞（支払利息なし）' : '算定不能（赤字）';
       return v.toFixed(1) + '倍';
     }
     return v.toFixed(1) + unit;
