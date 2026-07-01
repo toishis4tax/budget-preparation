@@ -326,6 +326,7 @@ function showPage(page) {
     case 'nextyear_pl':   renderNextYearPL(container);           break;
     case 'fiveyear':   renderFiveYearSim(container, budget);              break;
     case 'cashflow':   renderCashFlow(container, budget);                 break;
+    case 'loansim':    renderLoanSim(container);                          break;
     case 'execcomp':   renderExecComp(container, budget);                 break;
     case 'welfare':    renderWelfare(container);                          break;
     case 'tax':        renderTaxSimulator(container);                     break;
