@@ -135,12 +135,16 @@ function _eoIncomeTax(taxable) {
   return 0;
 }
 
-// 社会保険（協会けんぽ東京・2024年度概算）
-function _eoSocialIns(monthly, age40plus) {
-  const kenpo  = Math.min(monthly, 1_390_000) * (age40plus ? 0.04985 + 0.009 : 0.04985);
-  const kosei  = Math.min(monthly, 650_000)   * 0.09150;
+// 社会保険（協会けんぽ東京・2024年度概算）― 個人負担・会社負担ともに同率
+function _eoSocialInsOne(monthly, age40plus) {
+  const kenpo = Math.min(monthly, 1_390_000) * (age40plus ? 0.04985 + 0.009 : 0.04985);
+  const kosei = Math.min(monthly, 650_000)   * 0.09150;
   return Math.round((kenpo + kosei) * 12);
 }
+// 個人負担分
+function _eoSocialIns(monthly, age40plus) { return _eoSocialInsOne(monthly, age40plus); }
+// 会社負担分（個人と同額）
+function _eoSocialInsCompany(monthly, age40plus) { return _eoSocialInsOne(monthly, age40plus); }
 
 // 法人実効税率（中小法人）
 function _eoCorporateTax(pretax) {
@@ -157,10 +161,12 @@ function _eoCalc(monthly, companyPretaxBefore, age40plus) {
   const incomeTax        = _eoIncomeTax(personalIncome);
   const residTax         = Math.round(personalIncome * 0.10) + 5_000;
   const socialIns        = _eoSocialIns(monthly, age40plus);
-  const companyPretax    = companyPretaxBefore - annualSalary;
+  const companySocialIns = _eoSocialInsCompany(monthly, age40plus);
+  // 法人の課税所得 = 利益 − 役員報酬 − 会社負担の社会保険料
+  const companyPretax    = companyPretaxBefore - annualSalary - companySocialIns;
   const corpTax          = _eoCorporateTax(companyPretax);
-  const totalTax         = incomeTax + residTax + socialIns + corpTax;
-  return { annualSalary, incomeTax, residTax, socialIns, corpTax, totalTax, personalIncome, companyPretax };
+  const totalTax         = incomeTax + residTax + socialIns + companySocialIns + corpTax;
+  return { annualSalary, incomeTax, residTax, socialIns, companySocialIns, corpTax, totalTax, personalIncome, companyPretax };
 }
 
 function _eoFmt(v) { return Math.round(v / 10000).toLocaleString('ja-JP'); }
@@ -231,6 +237,7 @@ function _eoUpdate() {
             ['所得税（復興税込）', r.incomeTax],
             ['住民税', r.residTax],
             ['社会保険料（本人負担）', r.socialIns],
+            ['社会保険料（会社負担）', r.companySocialIns],
             ['法人税等', r.corpTax],
           ].map(([lbl, val]) => `
             <span style="color:var(--text-muted)">${lbl}</span>
@@ -285,7 +292,8 @@ function _eoUpdate() {
           <th ${th1S}>月額報酬</th>
           <th ${thS}>所得税</th>
           <th ${thS}>住民税</th>
-          <th ${thS}>社会保険</th>
+          <th ${thS}>社保（本人）</th>
+          <th ${thS}>社保（会社）</th>
           <th ${thS}>法人税等</th>
           <th ${thS}>総税負担</th>
           <th ${thS}>節税額</th>
@@ -302,7 +310,7 @@ function _eoUpdate() {
           const lColor = isOpt ? '#92400e' : isCur ? '#1e40af' : 'var(--text)';
           return `<tr style="${rowBg}border-bottom:0.5px solid var(--border)">
             <td style="padding:5px 10px;font-weight:${isOpt||isCur?'700':'400'};color:${lColor}">${label}</td>
-            ${[r.incomeTax, r.residTax, r.socialIns, r.corpTax, r.totalTax].map(v =>
+            ${[r.incomeTax, r.residTax, r.socialIns, r.companySocialIns, r.corpTax, r.totalTax].map(v =>
               `<td style="padding:5px 10px;text-align:right;font-variant-numeric:tabular-nums;font-weight:${isOpt||isCur?'700':'400'};color:${lColor}">${_eoFmt(v)}</td>`
             ).join('')}
             <td style="padding:5px 10px;text-align:right;font-variant-numeric:tabular-nums;font-weight:${isOpt||isCur?'700':'400'};color:${saving>0?'#166534':saving<0?'#991b1b':lColor}">${saving>0?'▼ '+_eoFmt(saving):saving<0?'▲ '+_eoFmt(-saving):'-'}</td>
@@ -375,10 +383,11 @@ function _eoDrawBar(canvas, r) {
   ctx.clearRect(0, 0, W, H);
 
   const items = [
-    { label: '所得税', value: r.incomeTax, color: '#6366f1' },
-    { label: '住民税', value: r.residTax,  color: '#8b5cf6' },
-    { label: '社会保険', value: r.socialIns, color: '#06b6d4' },
-    { label: '法人税等', value: r.corpTax,  color: '#f59e0b' },
+    { label: '所得税',     value: r.incomeTax,       color: '#6366f1' },
+    { label: '住民税',     value: r.residTax,        color: '#8b5cf6' },
+    { label: '社保(本人)', value: r.socialIns,        color: '#06b6d4' },
+    { label: '社保(会社)', value: r.companySocialIns, color: '#0e7490' },
+    { label: '法人税等',   value: r.corpTax,          color: '#f59e0b' },
   ];
 
   const maxV = Math.max(...items.map(i => i.value), 1);
