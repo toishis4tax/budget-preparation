@@ -323,7 +323,7 @@ const PAGE_RENDERERS = {
   cashflow:       (c, b) => renderCashFlow(c, b),
   cashplan:       c      => renderCashPlan(c),
   loansim:        c      => renderLoanSim(c),
-  kpiboard:       c      => renderKpiBoard(c),
+
   execopt:        c      => renderExecOpt(c),
   execcomp:       (c, b) => renderExecComp(c, b),
   welfare:        c      => renderWelfare(c),
