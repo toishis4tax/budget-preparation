@@ -332,6 +332,7 @@ const PAGE_RENDERERS = {
   summarypl:      c      => renderSummaryPL(c),
   summarybs:      c      => renderSummaryBS(c),
   bepanalysis:    c      => renderBEPAnalysis(c),
+  bankrating:     c      => renderBankRating(c),
 };
 
 function showPage(page) {
