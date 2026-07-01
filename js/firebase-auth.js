@@ -74,6 +74,10 @@ async function _onLoggedIn(fbUser) {
       createdAt: Date.now(),
     };
     await userRef.set(profile);
+    // 初回admin作成後にsetup/initializedを書き込み（以降のadmin自己昇格を防止）
+    if (isFirst) {
+      await db.collection('setup').doc('initialized').set({ at: Date.now(), adminUid: fbUser.uid });
+    }
   } else {
     profile = userSnap.data();
   }

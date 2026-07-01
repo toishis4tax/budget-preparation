@@ -17,10 +17,27 @@ service cloud.firestore {
       return u.role == 'admin' || companyId in u.allowedCompanyIds;
     }
 
+    // ===== セットアップ設定コレクション =====
+    // 初回管理者作成後に書き込まれるフラグ。管理者昇格制御に使用
+    match /setup/{doc} {
+      allow read: if request.auth != null;
+      // 未初期化の場合のみ作成可能（一度作成されたら変更不可）
+      allow create: if request.auth != null
+        && !exists(/databases/$(database)/documents/setup/initialized);
+      allow update, delete: if false;
+    }
+
     // ===== ユーザーコレクション =====
     match /users/{uid} {
       // 初回ログイン時に自分のドキュメントを作成できる
-      allow create: if request.auth != null && request.auth.uid == uid;
+      // role=admin は setup/initialized が存在しない（初回のみ）場合のみ許可
+      // それ以外は role=pending のみ許可（自己昇格防止）
+      allow create: if request.auth != null && request.auth.uid == uid
+        && (
+          (request.resource.data.role == 'admin'
+            && !exists(/databases/$(database)/documents/setup/initialized))
+          || request.resource.data.role == 'pending'
+        );
       // 自分のプロファイルは読める。管理者は全ユーザー読める
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
       // ロール変更・許可会社変更は管理者のみ
