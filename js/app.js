@@ -30,6 +30,9 @@ window.App = {
 const _safeN = v => { const n = Number(v); return (isNaN(n) || !isFinite(n)) ? 0 : n; };
 window.fmt  = v => Math.round(_safeN(v)).toLocaleString('ja-JP') + '円';
 window.fmtK = v => Math.round(_safeN(v) / 1000).toLocaleString('ja-JP');
+function escHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 // Firebase認証後に呼ばれる（firebase-auth.js から _fbInit → _onLoggedIn → initApp）
 window.initApp = function() {
@@ -174,7 +177,7 @@ function loadBudget(companyId, year) {
   let budget = getBudget(companyId, year);
   if (!budget) {
     budget = createDefaultBudget(companyId, year);
-    saveBudget(budget);
+    try { saveBudget(budget); } catch(e) { showToast('データ保存に失敗しました（ストレージ容量不足の可能性）', 'warn'); }
   }
   App.currentBudget = budget;
   updateCarryBadge();
@@ -196,20 +199,21 @@ function updateCarryBadge() {
 function openCompanyModal(editId) {
   const modal   = document.getElementById('company_modal');
   const company = editId ? App.companies.find(c => c.id === editId) : null;
-  document.getElementById('modal_company_id').value   = company?.id || '';
-  document.getElementById('modal_company_name').value = company?.name || '';
-  document.getElementById('modal_capital').value      = company?.capital || 10000000;
-  document.getElementById('modal_pref').value         = company?.prefecture || '東京都';
-  document.getElementById('modal_fiscal').value       = company?.fiscalMonth || 3;
-  document.getElementById('modal_invoice').value           = company?.invoiceRegistered ? '1' : '0';
-  document.getElementById('modal_kani').value               = company?.kanijukazei ? '1' : '0';
-  document.getElementById('modal_kijun').value              = company?.kijunUriage || 0;
-  document.getElementById('modal_industry').value           = company?.industry || 'other';
-  document.getElementById('modal_business_type').value      = company?.businessType || 5;
-  document.getElementById('modal_prepaid1').value           = company?.prepaid1 || 0;
-  if (document.getElementById('modal_prepaid2')) document.getElementById('modal_prepaid2').value = company?.prepaid2 || 0;
-  document.getElementById('modal_ctax_prepaid').value       = company?.ctaxPrepaid || 0;
-  document.getElementById('modal_employees').value          = company?.employees || 1;
+  const _mset = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  _mset('modal_company_id',    company?.id || '');
+  _mset('modal_company_name',  company?.name || '');
+  _mset('modal_capital',       company?.capital || 10000000);
+  _mset('modal_pref',          company?.prefecture || '東京都');
+  _mset('modal_fiscal',        company?.fiscalMonth || 3);
+  _mset('modal_invoice',       company?.invoiceRegistered ? '1' : '0');
+  _mset('modal_kani',          company?.kanijukazei ? '1' : '0');
+  _mset('modal_kijun',         company?.kijunUriage || 0);
+  _mset('modal_industry',      company?.industry || 'other');
+  _mset('modal_business_type', company?.businessType || 5);
+  _mset('modal_prepaid1',      company?.prepaid1 || 0);
+  _mset('modal_prepaid2',      company?.prepaid2 || 0);
+  _mset('modal_ctax_prepaid',  company?.ctaxPrepaid || 0);
+  _mset('modal_employees',     company?.employees || 1);
   modal.classList.add('open');
 }
 
@@ -259,7 +263,7 @@ function deleteCurrentCompany() {
 // ===== ページ管理 =====
 function togglePhase(phase) {
   const nav = document.getElementById(`phase-nav-${phase}`);
-  const isOpen = nav && nav.style.display !== 'none';
+  const isOpen = App.currentPhase === phase;
   [1, 2, 3].forEach(p => {
     const n = document.getElementById(`phase-nav-${p}`);
     const icon = document.getElementById(`phase-toggle-${p}`);
@@ -416,16 +420,18 @@ function renderSimulation(container, budget) {
     const curAsset  = last('sec_cur_asset');
     const fixAsset  = last('sec_fix_asset');
     const otherAsset= last('sec_other_asset');
-    const totalAsset= curAsset + fixAsset + otherAsset || last('sec_total_asset');
+    const _assetSum = curAsset + fixAsset + otherAsset;
+    const totalAsset= _assetSum !== 0 ? _assetSum : last('sec_total_asset');
     const curLiab   = last('sec_cur_liab');
     const fixLiab   = last('sec_fix_liab');
-    const totalLiab = curLiab + fixLiab || last('sec_total_liab');
+    const _liabSum  = curLiab + fixLiab;
+    const totalLiab = _liabSum !== 0 ? _liabSum : last('sec_total_liab');
     const equity    = last('sec_equity');
 
     // 現預金を動的科目から探す
     const cashAcc = budget.dynamicAccounts.find(a => a.cashGroup && a.section?.startsWith('bs'))
       || budget.dynamicAccounts.find(a =>
-        a.name.replace(/\s/g,'').match(/現金|預金|現預金|信金|銀行|信用組合/) && a.section?.startsWith('bs')
+        a.name.replace(/\s/g,'').match(/現金|預金|現預金|信金|信用組合/) && a.section === 'bs_cur_asset'
       );
     const cash = cashAcc ? last(cashAcc.id) : 0;
 
@@ -446,8 +452,9 @@ function renderSimulation(container, budget) {
     ];
   } else {
     const bs = calcBS(budget.rows);
+    const bsCash = bs.cash?.[11] ?? bs.current_assets[11];
     bsAssetsRows = [
-      ['現金預金',       bs.current_assets[11], false],
+      ['現金預金',       bsCash,                false],
       ['流動資産合計',   bs.current_assets[11], true ],
       ['固定資産合計',   bs.fixed_assets[11],   false],
       ['資産合計',       bs.total_assets[11],   true ],
@@ -544,10 +551,6 @@ function renderSimulation(container, budget) {
   }
 }
 
-// escHtml（grid.jsより先にapp.jsで定義、両方から使える）
-function escHtml(s) {
-  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
 
 let _memoSaveTimer = null;
 function _memoSaveDebounce() {
