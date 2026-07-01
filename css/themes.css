@@ -632,7 +632,217 @@ body[data-theme="midnight"] #main_content::before {
 }
 
 /* ========================================
-   テーマピッカー UI
+   ダークテーマ共通: 変数不足の補正
+   --blue-700/800 が上書きされていないとグリッドの
+   合計列・実績列が暗い青文字になって不可視になる
+======================================== */
+:root[data-theme="ocean"],
+:root[data-theme="forest"],
+:root[data-theme="poker"],
+:root[data-theme="sakura"],
+:root[data-theme="sunset"],
+:root[data-theme="space"],
+:root[data-theme="midnight"] {
+  /* グリッド合計列・実績列の文字色 → テーマのアクセント色へ */
+  --blue-700: var(--text-accent);
+  --blue-800: var(--text-sub);
+  /* バッジ(.act-budget)の背景・文字 */
+  --gray-200: rgba(255,255,255,.09);
+  --gray-600: rgba(255,255,255,.55);
+  /* section-row は背景が --gray-800 なので変えない */
+}
+
+/* ========================================
+   ダークテーマ共通: 固定背景色クラスの上書き
+   style.css 内のハードコード #fffbeb 等を暗い等価色に
+======================================== */
+
+/* 未確定行 (.tentative-row) */
+[data-theme="ocean"]   .tentative-row td,
+[data-theme="forest"]  .tentative-row td,
+[data-theme="poker"]   .tentative-row td,
+[data-theme="sakura"]  .tentative-row td,
+[data-theme="sunset"]  .tentative-row td,
+[data-theme="space"]   .tentative-row td,
+[data-theme="midnight"] .tentative-row td {
+  background: rgba(217,119,6,.15) !important;
+  color: var(--text) !important;
+}
+
+/* 行選択 (.selected-row) */
+[data-theme="ocean"]   .selected-row td,
+[data-theme="forest"]  .selected-row td,
+[data-theme="poker"]   .selected-row td,
+[data-theme="sakura"]  .selected-row td,
+[data-theme="sunset"]  .selected-row td,
+[data-theme="space"]   .selected-row td,
+[data-theme="midnight"] .selected-row td {
+  background: rgba(250,204,21,.12) !important;
+  color: var(--text) !important;
+}
+
+/* 実績列 (.actual-col) ハードコード #f0f6ff を暗い等価に */
+[data-theme="ocean"]   .actual-col,
+[data-theme="forest"]  .actual-col,
+[data-theme="poker"]   .actual-col,
+[data-theme="sakura"]  .actual-col,
+[data-theme="sunset"]  .actual-col,
+[data-theme="space"]   .actual-col,
+[data-theme="midnight"] .actual-col {
+  background: rgba(99,102,241,.08) !important;
+}
+
+/* 実績ヘッダー (.actual-hdr) */
+[data-theme="ocean"]   .actual-hdr,
+[data-theme="forest"]  .actual-hdr,
+[data-theme="poker"]   .actual-hdr,
+[data-theme="sakura"]  .actual-hdr,
+[data-theme="sunset"]  .actual-hdr,
+[data-theme="space"]   .actual-hdr,
+[data-theme="midnight"] .actual-hdr {
+  background: rgba(99,102,241,.14) !important;
+  color: var(--text-accent) !important;
+}
+
+/* .act-actual バッジ */
+[data-theme="ocean"]   .act-actual,
+[data-theme="forest"]  .act-actual,
+[data-theme="poker"]   .act-actual,
+[data-theme="sakura"]  .act-actual,
+[data-theme="sunset"]  .act-actual,
+[data-theme="space"]   .act-actual,
+[data-theme="midnight"] .act-actual {
+  background: rgba(99,102,241,.15) !important;
+  color: var(--text-accent) !important;
+}
+
+/* result-table の合計行 */
+[data-theme="ocean"]   .result-table .total-row td,
+[data-theme="forest"]  .result-table .total-row td,
+[data-theme="poker"]   .result-table .total-row td,
+[data-theme="sakura"]  .result-table .total-row td,
+[data-theme="sunset"]  .result-table .total-row td,
+[data-theme="space"]   .result-table .total-row td,
+[data-theme="midnight"] .result-table .total-row td {
+  background: var(--blue-50) !important;
+  color: var(--text-accent) !important;
+  border-top-color: var(--border) !important;
+}
+
+/* result-table ホバー行 */
+[data-theme="ocean"]   .result-table tr:hover td,
+[data-theme="forest"]  .result-table tr:hover td,
+[data-theme="poker"]   .result-table tr:hover td,
+[data-theme="sakura"]  .result-table tr:hover td,
+[data-theme="sunset"]  .result-table tr:hover td,
+[data-theme="space"]   .result-table tr:hover td,
+[data-theme="midnight"] .result-table tr:hover td {
+  background: var(--blue-50) !important;
+}
+
+/* グリッド hover */
+[data-theme="ocean"]   .budget-grid tbody tr:hover,
+[data-theme="forest"]  .budget-grid tbody tr:hover,
+[data-theme="poker"]   .budget-grid tbody tr:hover,
+[data-theme="sakura"]  .budget-grid tbody tr:hover,
+[data-theme="sunset"]  .budget-grid tbody tr:hover,
+[data-theme="space"]   .budget-grid tbody tr:hover,
+[data-theme="midnight"] .budget-grid tbody tr:hover { background: var(--blue-50) !important; }
+
+/* sticky列 */
+[data-theme="ocean"]   .sticky-col,
+[data-theme="forest"]  .sticky-col,
+[data-theme="poker"]   .sticky-col,
+[data-theme="sakura"]  .sticky-col,
+[data-theme="sunset"]  .sticky-col,
+[data-theme="space"]   .sticky-col,
+[data-theme="midnight"] .sticky-col { background: var(--white) !important; }
+
+[data-theme="ocean"]   .budget-grid thead th.sticky-col,
+[data-theme="forest"]  .budget-grid thead th.sticky-col,
+[data-theme="poker"]   .budget-grid thead th.sticky-col,
+[data-theme="sakura"]  .budget-grid thead th.sticky-col,
+[data-theme="sunset"]  .budget-grid thead th.sticky-col,
+[data-theme="space"]   .budget-grid thead th.sticky-col,
+[data-theme="midnight"] .budget-grid thead th.sticky-col { background: var(--gray-50) !important; }
+
+/* .cell-input:focus の背景 */
+[data-theme="ocean"]   .cell-input:focus,
+[data-theme="forest"]  .cell-input:focus,
+[data-theme="poker"]   .cell-input:focus,
+[data-theme="sakura"]  .cell-input:focus,
+[data-theme="sunset"]  .cell-input:focus,
+[data-theme="space"]   .cell-input:focus,
+[data-theme="midnight"] .cell-input:focus { background: var(--blue-50) !important; }
+
+/* グリッドツールバー・タブ */
+[data-theme="ocean"]   .grid-toolbar,
+[data-theme="forest"]  .grid-toolbar,
+[data-theme="poker"]   .grid-toolbar,
+[data-theme="sakura"]  .grid-toolbar,
+[data-theme="sunset"]  .grid-toolbar,
+[data-theme="space"]   .grid-toolbar,
+[data-theme="midnight"] .grid-toolbar,
+[data-theme="ocean"]   .grid-mode-tabs,
+[data-theme="forest"]  .grid-mode-tabs,
+[data-theme="poker"]   .grid-mode-tabs,
+[data-theme="sakura"]  .grid-mode-tabs,
+[data-theme="sunset"]  .grid-mode-tabs,
+[data-theme="space"]   .grid-mode-tabs,
+[data-theme="midnight"] .grid-mode-tabs { background: var(--white) !important; }
+
+/* モーダル */
+[data-theme="ocean"]   .modal-content,
+[data-theme="forest"]  .modal-content,
+[data-theme="poker"]   .modal-content,
+[data-theme="sakura"]  .modal-content,
+[data-theme="sunset"]  .modal-content,
+[data-theme="space"]   .modal-content,
+[data-theme="midnight"] .modal-content { background: var(--white) !important; color: var(--text) !important; }
+
+[data-theme="ocean"]   .modal-header,
+[data-theme="forest"]  .modal-header,
+[data-theme="poker"]   .modal-header,
+[data-theme="sakura"]  .modal-header,
+[data-theme="sunset"]  .modal-header,
+[data-theme="space"]   .modal-header,
+[data-theme="midnight"] .modal-header { border-bottom-color: var(--border) !important; }
+
+[data-theme="ocean"]   .modal-footer,
+[data-theme="forest"]  .modal-footer,
+[data-theme="poker"]   .modal-footer,
+[data-theme="sakura"]  .modal-footer,
+[data-theme="sunset"]  .modal-footer,
+[data-theme="space"]   .modal-footer,
+[data-theme="midnight"] .modal-footer { border-top-color: var(--border) !important; background: var(--white) !important; }
+
+/* grid-mode-tab テキスト */
+[data-theme="ocean"]   .grid-mode-tab,
+[data-theme="forest"]  .grid-mode-tab,
+[data-theme="poker"]   .grid-mode-tab,
+[data-theme="sakura"]  .grid-mode-tab,
+[data-theme="sunset"]  .grid-mode-tab,
+[data-theme="space"]   .grid-mode-tab,
+[data-theme="midnight"] .grid-mode-tab { color: var(--text-muted) !important; }
+
+[data-theme="ocean"]   .grid-mode-tab.active,
+[data-theme="forest"]  .grid-mode-tab.active,
+[data-theme="poker"]   .grid-mode-tab.active,
+[data-theme="sakura"]  .grid-mode-tab.active,
+[data-theme="sunset"]  .grid-mode-tab.active,
+[data-theme="space"]   .grid-mode-tab.active,
+[data-theme="midnight"] .grid-mode-tab.active { color: var(--primary) !important; border-bottom-color: var(--primary) !important; }
+
+/* グリッドスクロールエリア */
+[data-theme="ocean"]   .grid-scroll,
+[data-theme="forest"]  .grid-scroll,
+[data-theme="poker"]   .grid-scroll,
+[data-theme="sakura"]  .grid-scroll,
+[data-theme="sunset"]  .grid-scroll,
+[data-theme="space"]   .grid-scroll,
+[data-theme="midnight"] .grid-scroll { background: var(--white) !important; }
+
+/* テーマピッカー UI
 ======================================== */
 #theme-picker-btn {
   display: inline-flex; align-items: center; gap: 5px;

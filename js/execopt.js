@@ -224,8 +224,8 @@ function _eoUpdate() {
   const compareEl = document.getElementById('eo_compare');
   if (compareEl) {
     const _card = (title, r, highlight) => `
-      <div style="background:var(--surface-2);border:${highlight?'2px solid #f59e0b':'0.5px solid var(--border)'};border-radius:12px;padding:1rem 1.25rem">
-        <div style="font-size:12px;font-weight:700;color:${highlight?'#92400e':'var(--text-muted)'};margin-bottom:10px">${title}</div>
+      <div style="background:var(--surface-2);border:${highlight?'2px solid var(--primary)':'0.5px solid var(--border)'};border-radius:12px;padding:1rem 1.25rem">
+        <div style="font-size:12px;font-weight:700;color:${highlight?'var(--text-accent)':'var(--text-muted)'};margin-bottom:10px">${title}</div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:5px 12px;font-size:12px">
           ${[
             ['所得税（復興税込）', r.incomeTax],
@@ -239,7 +239,7 @@ function _eoUpdate() {
         </div>
         <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;font-weight:700;font-size:14px">
           <span>合計税負担</span>
-          <span style="color:${highlight?'#92400e':'var(--text-accent)'}">${_eoFmt(r.totalTax)}万円</span>
+          <span style="color:var(--text-accent)">${_eoFmt(r.totalTax)}万円</span>
         </div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
           会社手取後利益: ${_eoFmt(Math.max(0, r.companyPretax) - r.corpTax)}万円
