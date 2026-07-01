@@ -107,7 +107,17 @@ function calcBusinessTax(pretaxProfit, capital) {
   return { income, special };
 }
 
-function calcAllTax(pretaxProfit, capital) {
+// 防衛特別法人税（令和7年法律第13号、2026年4月1日以降開始事業年度から適用）
+// 法人税額から500万円控除後の金額に4%を乗じた付加税
+const DEFENSE_TAX_RATE       = 0.04;
+const DEFENSE_TAX_DEDUCTION  = 5_000_000; // 基礎控除500万円
+
+function calcDefenseTax(corp) {
+  const base = Math.max(0, corp - DEFENSE_TAX_DEDUCTION);
+  return trunc100(base * DEFENSE_TAX_RATE);
+}
+
+function calcAllTax(pretaxProfit, capital, { includeDefense = false } = {}) {
   // 課税標準（所得）は1,000円未満切捨て
   const taxBase    = trunc1000(pretaxProfit);
   const corp       = calcCorpTax(taxBase, capital);
@@ -120,8 +130,9 @@ function calcAllTax(pretaxProfit, capital) {
   const cityKintou = small ? 50000 : 130000;  // 市町村民税均等割
   const inhabitant = prefWari + cityWari + prefKintou + cityKintou;
   const { income: business, special } = calcBusinessTax(taxBase, capital);
-  const total      = corp + localCorp + inhabitant + business + special;
-  return { corp, localCorp, inhabitant, prefWari, prefKintou, cityWari, cityKintou, business, special, total };
+  const defense    = includeDefense ? calcDefenseTax(corp) : 0;
+  const total      = corp + localCorp + inhabitant + business + special + defense;
+  return { corp, localCorp, inhabitant, prefWari, prefKintou, cityWari, cityKintou, business, special, defense, total };
 }
 
 function renderTaxSimulator(container) {
@@ -178,6 +189,13 @@ function renderTaxSimulator(container) {
           <div class="form-group">
             <label>資本金（円）</label>
             <input type="number" id="tax_capital" value="${capital}" class="form-input" step="100000" oninput="runTaxSim()">
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;margin-top:4px">
+            <input type="checkbox" id="tax_defense" onchange="runTaxSim()" style="width:16px;height:16px;accent-color:#7c3aed;cursor:pointer">
+            <label for="tax_defense" style="font-size:12px;font-weight:700;color:#5b21b6;cursor:pointer;margin:0">
+              防衛特別法人税を含める
+              <span style="display:block;font-size:10px;font-weight:400;color:#7c3aed">2026年4月施行・法人税額×4%（500万円基礎控除）</span>
+            </label>
           </div>
 
           <h3 style="margin-top:14px">📝 税務調整</h3>
@@ -275,7 +293,8 @@ function runTaxSim() {
   const nolDeduction = Math.min(Math.abs(nolRaw), Math.max(0, nolLimit));
   const taxableIncome = Math.max(0, incomeBeforeNol - nolDeduction);
 
-  const taxes = calcAllTax(taxableIncome, capital);
+  const includeDefense = document.getElementById('tax_defense')?.checked || false;
+  const taxes = calcAllTax(taxableIncome, capital, { includeDefense });
   const prepaid = prepaid1;
   const balance = taxes.total - prepaid;
 
@@ -348,6 +367,7 @@ function runTaxSim() {
     <tr style="color:var(--text-muted)"><td style="padding-left:8px;font-size:12px">市町村民税　均等割${sub(cityKintouDetail)}</td><td class="num" style="font-size:12px">${fmt(taxes.cityKintou)}</td></tr>
     <tr><td>法人事業税${sub(bizDetail)}</td><td class="num">${fmt(taxes.business)}</td></tr>
     <tr><td>特別法人事業税${sub(specialDetail)}</td><td class="num">${fmt(taxes.special)}</td></tr>
+    ${includeDefense ? `<tr style="color:#7c3aed"><td>防衛特別法人税${sub('（法人税額 − 500万円）× 4%　※2026年4月施行')}</td><td class="num">${fmt(taxes.defense)}</td></tr>` : ''}
     <tr class="total-row"><td><strong>税額合計</strong></td><td class="num"><strong>${fmt(taxes.total)}</strong></td></tr>
   `;
 
