@@ -373,7 +373,7 @@ function _wfRenderTable() {
   const months     = getMonthLabels(startMonth);
 
   theadRow.innerHTML = `
-    <th style="position:sticky;left:0;background:#e0f2fe;z-index:5">従業員</th>
+    <th style="position:sticky;left:0;background:var(--blue-100);color:var(--text);z-index:5">従業員</th>
     <th style="text-align:right">月額SI</th>
     ${months.map(m => `<th style="text-align:right">${m}</th>`).join('')}
     <th style="text-align:right">年間合計</th>`;
@@ -396,12 +396,12 @@ function _wfRenderTable() {
 
   tbody.innerHTML = empData.map(({ emp, budgetMonthly, annualTotal, baseSI }) => `
     <tr>
-      <td style="position:sticky;left:0;background:#fff;font-weight:600;font-size:12px">${escHtml(emp.name||'(未入力)')}</td>
+      <td style="position:sticky;left:0;background:var(--white);color:var(--text);font-weight:600;font-size:12px">${escHtml(emp.name||'(未入力)')}</td>
       <td style="text-align:right;font-size:11px;color:var(--text-muted)">${fmt(baseSI)}</td>
       ${budgetMonthly.map((v, mi) => {
         const bonusPart = Math.max(0, v - baseSI);
         const isBonusMonth = bonusPart > 0;
-        return `<td style="text-align:right;font-size:12px;${isBonusMonth ? 'background:#fffbeb' : ''}">
+        return `<td style="text-align:right;font-size:12px;${isBonusMonth ? 'background:var(--amber-bg)' : ''}">
           <div style="${isBonusMonth ? 'font-weight:700' : ''}">${fmt(baseSI)}</div>
           ${isBonusMonth ? `<div style="font-size:9px;color:#d97706;font-weight:700">+${fmt(bonusPart)}<br>▲賞与SI</div>` : ''}
         </td>`;
@@ -417,18 +417,18 @@ function _wfRenderTable() {
 
   const tfRow = (label, arr, total, bg, color, bold) => `
     <tr style="background:${bg}">
-      <td style="position:sticky;left:0;background:${bg};padding:6px 10px;font-size:11.5px;${bold?'font-weight:700':'color:var(--text-muted)'}">${label}</td>
+      <td style="position:sticky;left:0;background:${bg};color:var(--text);padding:6px 10px;font-size:11.5px;${bold?'font-weight:700':'opacity:.8'}">${label}</td>
       <td></td>
       ${arr.map(v => `<td style="text-align:right;padding:5px 8px;font-size:11.5px;${v>0&&color?'color:'+color:''}">${v ? fmt(v) : '–'}</td>`).join('')}
       <td style="text-align:right;padding:5px 8px;font-weight:700;${color?'color:'+color:''}">${fmt(total)}</td>
     </tr>`;
 
   tfoot.innerHTML =
-    tfRow('法定福利費（月額）合計',   regularSI,  totalRegSI,  '#f0f9ff', '',        true) +
-    tfRow('うち賞与分法定福利費',      bonusSI,    totalBonSI,  '#fffbeb', '#d97706', false) +
-    tfRow('賞与支給額合計',           bonusSalary, totalBonSal, '#fff7f0', '#ea580c', false) +
-    `<tr style="background:#e0f2fe;font-weight:700;border-top:2px solid #bae6fd">
-      <td style="position:sticky;left:0;background:#e0f2fe;padding:7px 10px">法定福利費 総合計</td>
+    tfRow('法定福利費（月額）合計',   regularSI,  totalRegSI,  'var(--blue-50)',   '',              true) +
+    tfRow('うち賞与分法定福利費',      bonusSI,    totalBonSI,  'var(--amber-bg)', 'var(--amber)',   false) +
+    tfRow('賞与支給額合計',           bonusSalary, totalBonSal, 'var(--rose-bg)',  'var(--rose)',    false) +
+    `<tr style="background:var(--blue-100);font-weight:700;border-top:2px solid var(--border)">
+      <td style="position:sticky;left:0;background:var(--blue-100);color:var(--text);padding:7px 10px">法定福利費 総合計</td>
       <td></td>
       ${Array.from({length:12},(_,i)=>`<td style="text-align:right;padding:6px 8px">${fmt(regularSI[i]+bonusSI[i])}</td>`).join('')}
       <td style="text-align:right;padding:6px 8px;color:var(--emerald-dark)">${fmt(grandSI)}</td>

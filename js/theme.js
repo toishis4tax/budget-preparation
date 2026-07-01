@@ -8,182 +8,35 @@ const THEMES = [
     colors: { bar: '#1e293b', body: '#f0f4f8', accent: '#2563eb', text: '#0f172a' },
   },
   {
-    id: 'ocean',
-    label: '海',
-    emoji: '🌊',
-    colors: { bar: '#020d1a', body: '#051e38', accent: '#38bdf8', text: '#e0f2fe' },
-    particles: 'bubbles',
-  },
-  {
-    id: 'forest',
-    label: '山',
-    emoji: '🌲',
-    colors: { bar: '#040f08', body: '#0e3318', accent: '#34d399', text: '#dcfce7' },
-  },
-  {
-    id: 'poker',
-    label: 'ポーカー',
-    emoji: '🃏',
-    colors: { bar: '#020b06', body: '#0e3320', accent: '#fbbf24', text: '#f0fdf4' },
-  },
-  {
-    id: 'sakura',
-    label: '夜桜',
-    emoji: '🌸',
-    colors: { bar: '#08030f', body: '#1e0935', accent: '#f472b6', text: '#fdf2f8' },
-    particles: 'petals',
-  },
-  {
-    id: 'sunset',
-    label: '夕焼け',
-    emoji: '🌅',
-    colors: { bar: '#0f0500', body: '#7c2d12', accent: '#f97316', text: '#fff7ed' },
-  },
-  {
-    id: 'space',
-    label: '宇宙',
-    emoji: '🌌',
-    colors: { bar: '#010206', body: '#070d20', accent: '#a78bfa', text: '#e0e7ff' },
-    particles: 'stars',
-  },
-  {
     id: 'latte',
     label: 'ラテ',
     emoji: '☕',
     colors: { bar: '#2c1a0e', body: '#f5efe6', accent: '#92400e', text: '#2c1a0e' },
   },
-  {
-    id: 'midnight',
-    label: 'ミッドナイト',
-    emoji: '🌙',
-    colors: { bar: '#050508', body: '#0a0a0f', accent: '#7c7cff', text: '#e2e2f0' },
-  },
 ];
-
-let _particleTimer = null;
-let _particleContainer = null;
 
 // 現在のテーマキーを返す
 function getCurrentTheme() {
-  return localStorage.getItem('app_theme') || 'default';
+  const saved = localStorage.getItem('app_theme') || 'default';
+  // 廃止済みテーマが残っていたらデフォルトに戻す
+  return THEMES.find(t => t.id === saved) ? saved : 'default';
 }
 
 // テーマを適用
 function applyTheme(id) {
   const theme = THEMES.find(t => t.id === id) || THEMES[0];
-  document.documentElement.setAttribute('data-theme', id === 'default' ? '' : id);
-  document.body.setAttribute('data-theme', id === 'default' ? '' : id);
-  localStorage.setItem('app_theme', id);
-
-  // パーティクル更新
-  _stopParticles();
-  if (theme.particles) _startParticles(theme.particles);
+  document.documentElement.setAttribute('data-theme', theme.id === 'default' ? '' : theme.id);
+  document.body.setAttribute('data-theme', theme.id === 'default' ? '' : theme.id);
+  localStorage.setItem('app_theme', theme.id);
 
   // ピッカーのアクティブ状態を更新
   document.querySelectorAll('.theme-card').forEach(el => {
-    el.classList.toggle('active', el.dataset.themeId === id);
+    el.classList.toggle('active', el.dataset.themeId === theme.id);
   });
 
   // ボタンの絵文字更新
   const btn = document.getElementById('theme-picker-btn');
   if (btn) btn.textContent = theme.emoji + ' テーマ';
-}
-
-// ========== パーティクル ==========
-
-function _stopParticles() {
-  clearInterval(_particleTimer);
-  if (_particleContainer) {
-    _particleContainer.remove();
-    _particleContainer = null;
-  }
-}
-
-function _startParticles(type) {
-  _particleContainer = document.createElement('div');
-  _particleContainer.id = 'particle-layer';
-  _particleContainer.style.cssText = `
-    position: fixed;
-    left: var(--sidebar-w, 224px); right: 0;
-    top: var(--header-h, 54px); bottom: 0;
-    pointer-events: none; z-index: 1;
-    overflow: hidden;
-  `;
-  document.body.appendChild(_particleContainer);
-
-  const spawn = type === 'petals' ? _spawnPetal
-               : type === 'bubbles' ? _spawnBubble
-               : _spawnStar;
-
-  // 初期配置
-  for (let i = 0; i < (type === 'stars' ? 60 : 12); i++) {
-    spawn(true);
-  }
-
-  if (type !== 'stars') {
-    const interval = type === 'petals' ? 1200 : 1800;
-    _particleTimer = setInterval(spawn, interval);
-  }
-}
-
-function _spawnPetal(initial = false) {
-  const el = document.createElement('div');
-  const size = 6 + Math.random() * 8;
-  const left = Math.random() * 100;
-  const delay = initial ? Math.random() * 8 : 0;
-  const dur = 6 + Math.random() * 6;
-  const hue = 320 + Math.random() * 30;
-  el.style.cssText = `
-    position: absolute;
-    left: ${left}%;
-    top: -20px;
-    width: ${size}px; height: ${size * 1.3}px;
-    border-radius: 50% 0 50% 0;
-    background: hsl(${hue},80%,78%);
-    opacity: 0.7;
-    animation: petalFall ${dur}s linear ${delay}s forwards;
-  `;
-  _particleContainer.appendChild(el);
-  setTimeout(() => el.remove(), (dur + delay) * 1000 + 200);
-}
-
-function _spawnBubble(initial = false) {
-  const el = document.createElement('div');
-  const size = 4 + Math.random() * 10;
-  const left = Math.random() * 100;
-  const delay = initial ? Math.random() * 10 : 0;
-  const dur = 8 + Math.random() * 8;
-  el.style.cssText = `
-    position: absolute;
-    left: ${left}%;
-    bottom: -20px;
-    width: ${size}px; height: ${size}px;
-    border-radius: 50%;
-    border: 1px solid rgba(56,189,248,0.4);
-    background: rgba(56,189,248,0.05);
-    animation: floatUp ${dur}s ease-in ${delay}s forwards;
-  `;
-  _particleContainer.appendChild(el);
-  setTimeout(() => el.remove(), (dur + delay) * 1000 + 200);
-}
-
-function _spawnStar(initial = false) {
-  const el = document.createElement('div');
-  const size = Math.random() < 0.15 ? 3 : Math.random() < 0.4 ? 2 : 1;
-  const left = Math.random() * 100;
-  const top  = Math.random() * 100;
-  const delay = Math.random() * 5;
-  const dur = 2 + Math.random() * 4;
-  const bright = Math.random();
-  el.style.cssText = `
-    position: absolute;
-    left: ${left}%; top: ${top}%;
-    width: ${size}px; height: ${size}px;
-    border-radius: 50%;
-    background: ${bright > 0.8 ? '#fff' : bright > 0.5 ? 'rgba(167,139,250,.9)' : 'rgba(199,210,254,.6)'};
-    animation: twinkle ${dur}s ease-in-out ${delay}s infinite;
-  `;
-  _particleContainer.appendChild(el);
 }
 
 // ========== テーマピッカー UI ==========

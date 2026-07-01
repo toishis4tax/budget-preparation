@@ -185,12 +185,24 @@ function renderHealthDiag(container, budget) {
             backgroundColor: 'rgba(59,130,246,0.2)',
           }]
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          scales: { r: { min:0, max:5, ticks: { stepSize:1 } } },
-          plugins: { legend: { display: false } }
-        }
+        options: (() => {
+          const _dark = ['ocean','forest','poker','sakura','sunset','space','midnight']
+            .includes(document.documentElement.getAttribute('data-theme') || '');
+          const _tc = _dark ? 'rgba(255,255,255,.65)' : '#6b7280';
+          const _gc = _dark ? 'rgba(255,255,255,.14)' : '#e5e7eb';
+          return {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: { r: {
+              min: 0, max: 5,
+              ticks: { stepSize:1, color:_tc, backdropColor:'transparent' },
+              pointLabels: { color:_tc, font:{ size:11 } },
+              grid:        { color:_gc },
+              angleLines:  { color:_gc }
+            }},
+            plugins: { legend: { display: false } }
+          };
+        })()
       });
     }
   }

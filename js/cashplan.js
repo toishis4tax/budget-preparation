@@ -268,16 +268,16 @@ function _runCashPlan() {
   };
 
   // 月末残高行（色付き）
-  const balanceRow = `<tr style="background:#eff6ff">
-    <td style="padding:6px 10px;font-weight:700;color:#1e40af;border-top:2px solid #93c5fd">月末残高</td>
+  const balanceRow = `<tr style="background:var(--blue-50)">
+    <td style="padding:6px 10px;font-weight:700;color:var(--primary);border-top:2px solid var(--border)">月末残高</td>
     ${rows.map(r => {
       const neg  = r.closeBal < 0;
       const warn = !neg && r.closeBal < 3_000_000;
-      const c    = neg ? '#ef4444' : warn ? '#d97706' : '#1e40af';
-      const bg   = neg ? 'background:#fee2e2;' : warn ? 'background:#fffbeb;' : '';
-      return `<td style="padding:6px 10px;text-align:right;font-weight:700;color:${c};${bg}font-variant-numeric:tabular-nums;border-top:2px solid #93c5fd">${_cpFmt(r.closeBal)}</td>`;
+      const c    = neg ? 'var(--rose)' : warn ? 'var(--amber)' : 'var(--primary)';
+      const bg   = neg ? 'background:var(--rose-bg);' : warn ? 'background:var(--amber-bg);' : '';
+      return `<td style="padding:6px 10px;text-align:right;font-weight:700;color:${c};${bg}font-variant-numeric:tabular-nums;border-top:2px solid var(--border)">${_cpFmt(r.closeBal)}</td>`;
     }).join('')}
-    <td style="padding:6px 10px;text-align:right;font-weight:700;color:${finalBal<0?'#ef4444':'#1e40af'};border-left:1px solid var(--border);border-top:2px solid #93c5fd">${_cpFmt(finalBal)}</td>
+    <td style="padding:6px 10px;text-align:right;font-weight:700;color:${finalBal<0?'var(--rose)':'var(--primary)'};border-left:1px solid var(--border);border-top:2px solid var(--border)">${_cpFmt(finalBal)}</td>
   </tr>`;
 
   tableEl.innerHTML = `
@@ -288,34 +288,34 @@ function _runCashPlan() {
     </thead>
     <tbody>
       <!-- 月初残高 -->
-      <tr style="background:#f0fdf4">
-        <td style="padding:6px 10px;font-weight:700;color:#166534">月初残高</td>
-        ${rows.map(r=>`<td style="padding:6px 10px;text-align:right;font-weight:700;color:#166534;font-variant-numeric:tabular-nums">${_cpFmt(r.openBal)}</td>`).join('')}
+      <tr style="background:var(--green-bg)">
+        <td style="padding:6px 10px;font-weight:700;color:var(--green)">月初残高</td>
+        ${rows.map(r=>`<td style="padding:6px 10px;text-align:right;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums">${_cpFmt(r.openBal)}</td>`).join('')}
         <td style="padding:6px 10px;text-align:right;color:var(--text-muted);font-size:11px;border-left:1px solid var(--border)">—</td>
       </tr>
 
       <!-- 収入の部 -->
       <tr style="background:var(--surface-1)">
-        <td colspan="14" style="padding:5px 10px;font-size:11px;font-weight:700;color:#166534;letter-spacing:.05em">▼ 収入の部</td>
+        <td colspan="14" style="padding:5px 10px;font-size:11px;font-weight:700;color:var(--green);letter-spacing:.05em">▼ 収入の部</td>
       </tr>
       ${_row('売上回収', rows.map(r=>r.cashIn), totalIn, {indent:true})}
-      ${_row('収入合計', rows.map(r=>r.inTotal), totalIn, {bold:true, color:'#166534', bg:'#f0fdf4', borderTop:true})}
+      ${_row('収入合計', rows.map(r=>r.inTotal), totalIn, {bold:true, color:'var(--green)', bg:'var(--green-bg)', borderTop:true})}
 
       <!-- 支出の部 -->
       <tr style="background:var(--surface-1)">
-        <td colspan="14" style="padding:5px 10px;font-size:11px;font-weight:700;color:#991b1b;letter-spacing:.05em">▼ 支出の部</td>
+        <td colspan="14" style="padding:5px 10px;font-size:11px;font-weight:700;color:var(--rose);letter-spacing:.05em">▼ 支出の部</td>
       </tr>
       ${_row('仕入支払', rows.map(r=>r.cashCogs), rows.reduce((s,r)=>s+r.cashCogs,0), {indent:true})}
       ${_row('経費支払', rows.map(r=>r.cashSga),  rows.reduce((s,r)=>s+r.cashSga,0),  {indent:true})}
       ${repay > 0 ? _row('借入返済', rows.map(_=>repay), repay*12, {indent:true}) : ''}
       ${taxAmt > 0 ? _row('税金支払', rows.map(r=>r.taxOut), taxAmt, {indent:true}) : ''}
-      ${_row('支出合計', rows.map(r=>r.outTotal), totalOut, {bold:true, color:'#991b1b', bg:'#fef2f2', borderTop:true})}
+      ${_row('支出合計', rows.map(r=>r.outTotal), totalOut, {bold:true, color:'var(--rose)', bg:'var(--rose-bg)', borderTop:true})}
 
       <!-- 当月収支 -->
       <tr>
         <td style="padding:6px 10px;font-weight:700;color:var(--text)">当月収支</td>
-        ${rows.map(r=>`<td style="padding:6px 10px;text-align:right;font-weight:600;color:${r.net>=0?'#166534':'#991b1b'};font-variant-numeric:tabular-nums">${_cpFmt(r.net)}</td>`).join('')}
-        <td style="padding:6px 10px;text-align:right;font-weight:600;color:${totalIn-totalOut>=0?'#166534':'#991b1b'};border-left:1px solid var(--border);font-variant-numeric:tabular-nums">${_cpFmt(totalIn-totalOut)}</td>
+        ${rows.map(r=>`<td style="padding:6px 10px;text-align:right;font-weight:600;color:${r.net>=0?'var(--green)':'var(--rose)'};font-variant-numeric:tabular-nums">${_cpFmt(r.net)}</td>`).join('')}
+        <td style="padding:6px 10px;text-align:right;font-weight:600;color:${totalIn-totalOut>=0?'var(--green)':'var(--rose)'};border-left:1px solid var(--border);font-variant-numeric:tabular-nums">${_cpFmt(totalIn-totalOut)}</td>
       </tr>
 
       <!-- 月末残高 -->

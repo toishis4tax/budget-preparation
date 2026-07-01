@@ -608,8 +608,8 @@ function renderExecCompareTable(officer, pref, capital, pretax) {
       ※ 過大な賞与・低すぎる月額は「不相当に高額」「定期同額外」として否認リスクがあるため、税理士と要確認
     </div>
     <style>
-      .comp-table .opt-best td { background:#dcfce7 !important; }
-      .comp-table .opt-best td:last-child { color:#15803d; }
+      .comp-table .opt-best td { background:var(--green-bg) !important; color:var(--text) !important; }
+      .comp-table .opt-best td:last-child { color:var(--green) !important; }
     </style>`;
 }
 

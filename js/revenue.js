@@ -372,8 +372,8 @@ function renderRevenue(container) {
             </colgroup>
             <thead style="position:sticky;top:0;z-index:10">
               <tr>
-                <th style="background:#e0f2fe;z-index:15;padding:4px 2px;text-align:center;font-size:11px;color:#94a3b8">☰</th>
-                <th style="position:sticky;left:0;background:#e0f2fe;z-index:15">顧問先名</th>
+                <th style="background:var(--blue-100);z-index:15;padding:4px 2px;text-align:center;font-size:11px;color:var(--text-muted)">☰</th>
+                <th style="position:sticky;left:0;background:var(--blue-100);color:var(--text);z-index:15">顧問先名</th>
                 <th>区分</th>
                 <th>確定</th>
                 <th title="課税売上かどうか（消費税設定へ反映）">課税</th>
@@ -381,9 +381,9 @@ function renderRevenue(container) {
                 <th>解約年月</th>
                 <th>顧問料・決算</th>
                 ${months.map(m=>`<th>${m}</th>`).join('')}
-                <th style="position:sticky;right:156px;background:#e0f2fe;z-index:11">合計</th>
-                <th style="position:sticky;right:56px;background:#e0f2fe;z-index:11">メモ</th>
-                <th style="position:sticky;right:0;background:#e0f2fe;z-index:11"></th>
+                <th style="position:sticky;right:156px;background:var(--blue-100);color:var(--text);z-index:11">合計</th>
+                <th style="position:sticky;right:56px;background:var(--blue-100);color:var(--text);z-index:11">メモ</th>
+                <th style="position:sticky;right:0;background:var(--blue-100);z-index:11"></th>
               </tr>
             </thead>
             <tbody id="rev_tbody"></tbody>
@@ -456,7 +456,7 @@ function renderRevTable(startMonth, months) {
 
     const monthCells = monthly.map((v, mi) => {
       const isSpecial = v > (c.retainer || 0);
-      const style = isSpecial ? 'background:#fffbeb' : '';
+      const style = isSpecial ? 'background:var(--amber-bg)' : '';
       return `<td style="text-align:right;padding:4px 6px;font-size:11.5px;${style}">
         <div style="display:flex;flex-direction:column;align-items:flex-end">
           <span>${v !== 0 ? Math.round(v/1000).toLocaleString() : '–'}</span>
@@ -466,7 +466,7 @@ function renderRevTable(startMonth, months) {
     }).join('');
 
     const isConfirmed = c.confirmed !== false;
-    const rowBg = isConfirmed ? '' : 'background:#fffbeb';
+    const rowBg = isConfirmed ? '' : 'background:var(--amber-bg)';
     const catOpts = REV_CATEGORIES.map(cat =>
       `<option value="${cat.id}"${(c.category||'sales_advisory')===cat.id?' selected':''}>${cat.name}</option>`
     ).join('');
@@ -479,7 +479,7 @@ function renderRevTable(startMonth, months) {
       ondrop="event.preventDefault();this.style.background='';_revDropClient(${ci})">
       <td style="padding:4px 2px;text-align:center;cursor:grab;color:#94a3b8;user-select:none;font-size:14px"
         title="ドラッグして並び替え">☰</td>
-      <td style="padding:4px 6px;position:sticky;left:0;background:${isConfirmed?'#fff':'#fffbeb'};z-index:2">
+      <td style="padding:4px 6px;position:sticky;left:0;background:${isConfirmed?'var(--white)':'var(--amber-bg)'};color:var(--text);z-index:2">
         <div style="display:flex;align-items:center;gap:5px">
           <input class="form-input" style="flex:1;font-size:12px;padding:4px 6px"
             value="${escHtml(c.name)}" placeholder="顧問先名"
@@ -568,12 +568,12 @@ function renderRevTable(startMonth, months) {
   }).join('');
 
   tfoot.innerHTML = `
-    <tr style="background:#f0fdf4;font-weight:700">
-      <td colspan="8" style="padding:8px 10px;position:sticky;left:0;background:#f0fdf4;z-index:9">合計（千円）</td>
+    <tr style="background:var(--green-bg);font-weight:700;color:var(--text)">
+      <td colspan="8" style="padding:8px 10px;position:sticky;left:0;background:var(--green-bg);color:var(--text);z-index:9">合計（千円）</td>
       ${totalByMonth.map(v=>`<td style="text-align:right;padding:6px 8px">${v?Math.round(v/1000).toLocaleString():'–'}</td>`).join('')}
-      <td style="text-align:right;padding:6px 8px;color:var(--emerald-dark);position:sticky;right:156px;background:#f0fdf4;z-index:9">${Math.round(grandTotal/1000).toLocaleString()}</td>
-      <td style="position:sticky;right:56px;background:#f0fdf4;z-index:9"></td>
-      <td style="position:sticky;right:0;background:#f0fdf4;z-index:9"></td>
+      <td style="text-align:right;padding:6px 8px;color:var(--emerald-dark);position:sticky;right:156px;background:var(--green-bg);z-index:9">${Math.round(grandTotal/1000).toLocaleString()}</td>
+      <td style="position:sticky;right:56px;background:var(--green-bg);z-index:9"></td>
+      <td style="position:sticky;right:0;background:var(--green-bg);z-index:9"></td>
     </tr>`;
 
   // 右クリックコンテキストメニュー

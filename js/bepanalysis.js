@@ -74,7 +74,7 @@ function renderBEPAnalysis(container) {
   // テーブル行
   const row = (label, cV, cP, pV, pP, yoyV, bV, brV, opts = {}) => {
     const bold = opts.bold ? 'font-weight:700' : '';
-    const bg   = opts.total ? 'background:#e0f2fe' : opts.sub ? 'background:#f8fafc' : '';
+    const bg   = opts.total ? 'background:var(--blue-50)' : opts.sub ? 'background:var(--surface-2)' : '';
     const neg  = v => (typeof v === 'number' && v < 0) ? 'color:#dc2626' : '';
     return `<tr style="${bg}">
       <td class="bep-label" style="${bold}">${label}</td>
@@ -103,7 +103,7 @@ function renderBEPAnalysis(container) {
         <th class="bep-head">予　算</th>
         <th class="bep-head">予算比</th>
       </tr>
-      <tr style="font-size:10px;background:#f8fafc">
+      <tr style="font-size:10px;background:var(--surface-2)">
         <th></th>
         <th class="bep-num">金額(千円)</th><th class="bep-pct">構成比</th>
         <th class="bep-num">金額(千円)</th><th class="bep-pct">構成比</th>
@@ -177,11 +177,11 @@ function renderBEPAnalysis(container) {
 
   <style>
     .bep-table { font-size:12px; border-collapse:collapse; width:100%; min-width:700px }
-    .bep-table th, .bep-table td { border:1px solid var(--border,#e2e8f0); padding:5px 8px }
+    .bep-table th, .bep-table td { border:1px solid var(--border,#e2e8f0); padding:5px 8px; color:var(--text) }
     .bep-label { text-align:left; white-space:nowrap; min-width:120px }
     .bep-num   { text-align:right; font-variant-numeric:tabular-nums }
     .bep-pct   { text-align:right; color:var(--text-muted); font-size:11px; width:52px }
-    .bep-head  { text-align:center; background:#f1f5f9; font-size:12px }
+    .bep-head  { text-align:center; background:var(--blue-100); color:var(--primary); font-size:12px }
     @media print {
       aside, .main-header, button { display:none !important }
       .bizanalysis-wrap { padding:0 }

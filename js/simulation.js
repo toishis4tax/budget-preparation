@@ -573,6 +573,13 @@ function runCashFlow() {
   if (typeof Chart !== 'undefined') {
     const ctx = document.getElementById('cf_chart');
     if (ctx) {
+      const _dark = ['ocean','forest','poker','sakura','sunset','space','midnight']
+        .includes(document.documentElement.getAttribute('data-theme') || '');
+      const _a    = _dark ? '.8'  : '.5';
+      const _line = _dark ? '#94a3b8' : '#1e293b';
+      const _grid = _dark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.04)';
+      const _tick = _dark ? 'rgba(255,255,255,.5)' : undefined;
+
       if (ctx._chartInst) {
         const ds = ctx._chartInst.data.datasets;
         ctx._chartInst.data.labels = rows.map(r => r.label);
@@ -580,27 +587,34 @@ function runCashFlow() {
         ds[1].data = rows.map(r => r.finCF/1000);
         ds[2].data = rows.map(r => r.taxCF/1000);
         ds[3].data = rows.map(r => r.closeM/1000);
-        ds[3].pointBackgroundColor = rows.map(r => r.shortage ? '#dc2626' : '#0f172a');
+        ds[0].backgroundColor = `rgba(16,185,129,${_a})`;
+        ds[1].backgroundColor = `rgba(59,130,246,${_a})`;
+        ds[2].backgroundColor = `rgba(239,68,68,${_a})`;
+        ds[3].borderColor = _line;
+        ds[3].pointBackgroundColor = rows.map(r => r.shortage ? '#ef4444' : _line);
         ctx._chartInst.update('none');
       } else {
         ctx._chartInst = new Chart(ctx, {
           data: {
             labels: rows.map(r => r.label),
             datasets: [
-              { type:'bar', label:'営業CF', data: rows.map(r=>r.opCF/1000),  backgroundColor:'rgba(16,185,129,.5)', stack:'cf' },
-              { type:'bar', label:'財務CF', data: rows.map(r=>r.finCF/1000), backgroundColor:'rgba(59,130,246,.5)', stack:'cf' },
-              { type:'bar', label:'税金CF', data: rows.map(r=>r.taxCF/1000), backgroundColor:'rgba(239,68,68,.5)',  stack:'cf' },
+              { type:'bar', label:'営業CF', data: rows.map(r=>r.opCF/1000),  backgroundColor:`rgba(16,185,129,${_a})`, stack:'cf' },
+              { type:'bar', label:'財務CF', data: rows.map(r=>r.finCF/1000), backgroundColor:`rgba(59,130,246,${_a})`, stack:'cf' },
+              { type:'bar', label:'税金CF', data: rows.map(r=>r.taxCF/1000), backgroundColor:`rgba(239,68,68,${_a})`,  stack:'cf' },
               { type:'line',label:'月末現預金', data: rows.map(r=>r.closeM/1000),
-                borderColor:'#0f172a', borderWidth:2, pointBackgroundColor: rows.map(r=>r.shortage?'#dc2626':'#0f172a'),
+                borderColor:_line, borderWidth:2, pointBackgroundColor: rows.map(r=>r.shortage?'#ef4444':_line),
                 fill:false, yAxisID:'y2', tension:.3 },
             ]
           },
           options: {
             responsive:true,
-            plugins:{ legend:{ position:'bottom' }, title:{ display:true, text:'月次CF内訳と現預金残高（千円）' } },
+            plugins:{
+              legend:{ position:'bottom', labels:{ color: _dark ? '#e2e8f0' : undefined } },
+              title:{ display:true, text:'月次CF内訳と現預金残高（千円）', color: _dark ? '#e2e8f0' : undefined }
+            },
             scales:{
-              y:  { stacked:true, grid:{ color:'rgba(0,0,0,.04)' } },
-              y2: { position:'right', grid:{ display:false }, title:{ display:true, text:'残高（千円）' } }
+              y:  { stacked:true, grid:{ color:_grid }, ticks:{ color:_tick } },
+              y2: { position:'right', grid:{ display:false }, ticks:{ color:_tick }, title:{ display:true, text:'残高（千円）', color:_tick } }
             }
           }
         });

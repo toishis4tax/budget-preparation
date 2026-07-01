@@ -273,17 +273,17 @@ function renderSummaryPL(container) {
 
     <style>
       .sbs-table { font-size:12px; border-collapse:collapse; width:100%; min-width:680px }
-      .sbs-table th, .sbs-table td { border:1px solid var(--border, #e2e8f0); padding:5px 8px }
+      .sbs-table th, .sbs-table td { border:1px solid var(--border, #e2e8f0); padding:5px 8px; color:var(--text) }
       .sbs-table .sbs-label { text-align:left; white-space:nowrap }
       .sbs-table .num { text-align:right; font-variant-numeric:tabular-nums }
       .sbs-pct { color:var(--text-muted); width:54px }
-      .sbs-yhead { text-align:center; background:#f1f5f9 }
-      .sbs-group td { background:#eef2ff; font-weight:700; color:#3730a3 }
+      .sbs-yhead { text-align:center; background:var(--blue-100); color:var(--primary) }
+      .sbs-group td { background:var(--primary-light); font-weight:700; color:var(--primary) }
       .sbs-indent .sbs-label { padding-left:20px }
-      .sbs-subtotal { background:#f8fafc; font-weight:700 }
-      .sbs-total { background:#e0f2fe; font-weight:800 }
-      .sbs-ratiorow td { background:#fafafa }
-      .sbs-ratio { color:#0369a1; font-size:11px; font-weight:600; text-align:right }
+      .sbs-subtotal { background:var(--surface-3); font-weight:700 }
+      .sbs-total { background:var(--blue-100); font-weight:800 }
+      .sbs-ratiorow td { background:var(--surface-3) }
+      .sbs-ratio { color:var(--primary); font-size:11px; font-weight:600; text-align:right }
     </style>`;
 }
 
@@ -377,14 +377,14 @@ function renderSummaryBS(container) {
 
     <style>
       .sbs-table { font-size:12px; border-collapse:collapse; width:100%; min-width:680px }
-      .sbs-table th, .sbs-table td { border:1px solid var(--border, #e2e8f0); padding:5px 8px }
+      .sbs-table th, .sbs-table td { border:1px solid var(--border, #e2e8f0); padding:5px 8px; color:var(--text) }
       .sbs-table .sbs-label { text-align:left; white-space:nowrap }
       .sbs-table .num { text-align:right; font-variant-numeric:tabular-nums }
       .sbs-pct { color:var(--text-muted); width:54px }
-      .sbs-yhead { text-align:center; background:#f1f5f9 }
-      .sbs-group td { background:#eef2ff; font-weight:700; color:#3730a3 }
+      .sbs-yhead { text-align:center; background:var(--blue-100); color:var(--primary) }
+      .sbs-group td { background:var(--primary-light); font-weight:700; color:var(--primary) }
       .sbs-indent .sbs-label { padding-left:20px }
-      .sbs-subtotal { background:#f8fafc; font-weight:700 }
-      .sbs-total { background:#e0f2fe; font-weight:800 }
+      .sbs-subtotal { background:var(--surface-3); font-weight:700 }
+      .sbs-total { background:var(--blue-100); font-weight:800 }
     </style>`;
 }

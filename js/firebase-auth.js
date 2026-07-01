@@ -400,11 +400,11 @@ function _showUserBadge(profile) {
   const el = document.getElementById('fb-user-badge');
   if (!el) return;
   const adminBtn = profile.role === 'admin'
-    ? `<button onclick="showAdminPanel()" style="font-size:11px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;padding:3px 8px;border-radius:4px;cursor:pointer">👥 ユーザー管理</button>`
+    ? `<button onclick="showAdminPanel()" style="font-size:11px;background:var(--blue-100);border:1px solid var(--border);color:var(--primary);padding:3px 8px;border-radius:4px;cursor:pointer">👥 ユーザー管理</button>`
     : '';
   el.innerHTML = `
-    <span style="font-size:12px;color:#64748b">${escHtml(profile.name)}</span>
+    <span style="font-size:12px;color:var(--text-muted)">${escHtml(profile.name)}</span>
     ${adminBtn}
-    <button onclick="fbLogout()" style="font-size:11px;background:#f1f5f9;border:none;padding:3px 8px;border-radius:4px;cursor:pointer">ログアウト</button>`;
+    <button onclick="fbLogout()" style="font-size:11px;background:var(--surface-2);border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:4px;cursor:pointer">ログアウト</button>`;
   el.style.display = 'flex';
 }
