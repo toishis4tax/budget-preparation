@@ -141,14 +141,19 @@ function calcBankMetrics(budget) {
   const arr  = id => av[id] || new Array(13).fill(0);
   const last = id => arr(id)[closeIdx] || 0;
   const total = id => arr(id).slice(0, 13).reduce((a, b) => a + b, 0);
-  const leafSum = (re, mode) => {
-    const matching = accts.filter(a => a.type !== 'section' && re.test(a.name || ''));
+  const leafSum = (re, mode, sectionFilter) => {
+    const matching = accts.filter(a =>
+      a.type !== 'section' &&
+      re.test(a.name || '') &&
+      (!sectionFilter || a.section === sectionFilter)
+    );
     const matchingIds = new Set(matching.map(a => a.id));
     const deduped = matching.filter(a => !matchingIds.has(a.parentId));
     return deduped.reduce((s, a) => s + (mode === 'last' ? last(a.id) : total(a.id)), 0);
   };
 
-  const cash      = leafSum(/現金|預金/, 'last');
+  // 流動資産セクション限定で現預金を取得（負債科目「預金担保借入金」等を除外）
+  const cash      = leafSum(/現金|預金/, 'last', 'bs_cur_asset');
   const loans     = leafSum(/借入金/, 'last');
   const interest  = leafSum(/支払利息|支払利息割引料/, 'total');
   const depr      = leafSum(/減価償却/, 'total');

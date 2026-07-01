@@ -139,12 +139,12 @@ function renderCCCAnalysis(container) {
     return deduped.reduce((s, a) => s + (mode === 'last' ? last(a.id) : total(a.id)), 0);
   };
 
-  const sales    = total('sec_revenue');
-  const ar       = leafSum(/売掛|受取手形/, 'last');
-  const inv      = leafSum(/棚卸|商品|製品|仕掛|原材料/, 'last');
-  const ap       = leafSum(/買掛|支払手形/, 'last');
+  const sales    = Math.max(0, total('sec_revenue'));
+  const ar       = Math.max(0, leafSum(/売掛|受取手形/, 'last'));
+  const inv      = Math.max(0, leafSum(/棚卸|商品|製品|仕掛|原材料/, 'last'));
+  const ap       = Math.max(0, leafSum(/買掛|支払手形/, 'last'));
 
-  const dailySales = sales / 365;
+  const dailySales = sales > 0 ? sales / 365 : 0;
 
   const dso = dailySales > 0 ? ar / dailySales : 0;
   const dio = dailySales > 0 ? inv / dailySales : 0;
