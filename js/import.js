@@ -512,7 +512,7 @@ function parseMirokuMonthlySmart(data, startMonth) {
     '〔売上総利益〕':            { nextSection: 'sec_sga',         calc: { id:'calc_gross',  name:'売上総利益',       formula:'sec_revenue - sec_cogs',                    bold:true } },
     '【販売費及び一般管理費】':  {},
     '〔営業利益〕':              { nextSection: 'sec_non_op_inc',  calc: { id:'calc_op',     name:'営業利益',         formula:'calc_gross - sec_sga',                      bold:true } },
-    '【営業外収益】':            { nextSection: 'sec_non_op_exp' },
+    '【営業外収益】':            { nextSection: 'sec_non_op_inc' },
     '【営業外費用】':            {},
     '〔経常利益〕':              { nextSection: 'sec_extra_inc',   calc: { id:'calc_ord',    name:'経常利益',         formula:'calc_op + sec_non_op_inc - sec_non_op_exp', bold:true } },
     '【特別利益】':              {},

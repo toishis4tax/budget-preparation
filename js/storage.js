@@ -172,7 +172,7 @@ function createNextYearBudget(companyId, fromYear) {
   ids.forEach(id => {
     if (isBS(id)) {
       // 期末残高（最終実績月。無ければ期末=11月）を期首残高として全月へ
-      const closing = confirmed[id][closeIdx] || 0;
+      const closing = confirmed[id] ? (confirmed[id][closeIdx] ?? 0) : 0;
       newRows[id] = new Array(12).fill(closing);
     } else {
       newRows[id] = confirmed[id].slice();
