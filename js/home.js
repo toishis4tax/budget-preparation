@@ -1,5 +1,25 @@
 // ホーム画面（フェーズハブ＋各フェーズダッシュボード）
 
+// 財務健康診断ベースの総合格付け（A〜E）
+function _companyRating(company, budget) {
+  if (!company || !budget) return null;
+  try {
+    const cap = company.capital || 10000000;
+    const hasDyn = budget.dynamicAccounts && budget.dynamicAccounts.length;
+    if (!hasDyn && !(budget.rows && Object.keys(budget.rows).length)) return null;
+    const m = hasDyn && typeof calcHealthMetricsDynamic === 'function'
+      ? calcHealthMetricsDynamic(budget, cap)
+      : calcHealthMetrics(budget.rows || {}, cap);
+    const keys = ['equity_ratio', 'current_ratio', 'quick_ratio', 'op_margin', 'labor_ratio', 'loan_month_ratio'];
+    const scoreMap = { A: 5, B: 4, C: 3, D: 2, E: 1 };
+    const grades = keys.map(k => gradeMetric(k, m[k]));
+    const avg = grades.reduce((a, g) => a + (scoreMap[g] || 3), 0) / grades.length;
+    const grade = avg >= 4.5 ? 'A' : avg >= 3.5 ? 'B' : avg >= 2.5 ? 'C' : avg >= 1.5 ? 'D' : 'E';
+    const color = { A: '#10b981', B: '#3b82f6', C: '#f59e0b', D: '#f97316', E: '#ef4444' }[grade];
+    return { grade, color };
+  } catch (e) { return null; }
+}
+
 function renderClientDashboard(container) {
   const companies = window.App?.companies || [];
   const curYear = new Date().getFullYear();
@@ -33,10 +53,14 @@ function renderClientDashboard(container) {
           );
           const cashIds = new Set(cashAccs.map(a => a.id));
           const cashLeaf = cashAccs.filter(a => !cashIds.has(a.parentId));
+          const salesFull = sum12('sec_revenue');
+          const salesAct  = actIdxs.reduce((s, i) => s + ((allVals['sec_revenue'] || [])[i] || 0), 0);
           metrics = {
-            sales: sum12('sec_revenue'),
+            sales: salesFull,
             ord:   sum12('calc_ord'),
             cash:  cashLeaf.reduce((s, a) => s + lastCash(a.id), 0),
+            actMonths: actIdxs.length,
+            progress: salesFull > 0 && actIdxs.length > 0 ? (salesAct / salesFull * 100) : null,
           };
         } else {
           const pl = calcPL(budget.rows);
@@ -44,7 +68,18 @@ function renderClientDashboard(container) {
             sales: pl.sales.reduce((a, v) => a + v, 0),
             ord:   pl.ord_profit.reduce((a, v) => a + v, 0),
             cash:  (calcAllValues(budget.rows)['cash'] || new Array(12).fill(0))[cashIdx],
+            actMonths: actIdxs.length,
+            progress: null,
           };
+        }
+        // 前年比（前年度の売上）
+        const prevB = (typeof getBudget === 'function') ? getBudget(company.id, latestYear - 1) : null;
+        if (prevB) {
+          try {
+            const pv = prevB.dynamicAccounts ? calcAllValuesDynamic(prevB) : calcAllValues(prevB.rows || {});
+            const ps = (pv['sec_revenue'] || pv['sales'] || []).slice(0, 12).reduce((a, v) => a + v, 0);
+            metrics.yoy = ps > 0 ? (metrics.sales / ps * 100) : null;
+          } catch (e) {}
         }
       } catch(e) {}
     }
@@ -56,6 +91,13 @@ function renderClientDashboard(container) {
 
     const ordColor = (metrics?.ord || 0) >= 0 ? 'var(--emerald,#059669)' : '#e11d48';
     const hasData = !!budget;
+
+    // 格付けバッジ（財務健康診断ベースの総合評価 A〜E）
+    let ratingBadge = '';
+    const rating = _companyRating(company, budget);
+    if (rating) {
+      ratingBadge = `<span class="client-card-badge" title="財務総合評価" style="background:${rating.color};color:#fff;font-weight:800;min-width:22px;text-align:center">${rating.grade}</span>`;
+    }
 
     // 資金ショート警告バッジ
     let cashWarn = '';
@@ -74,7 +116,8 @@ function renderClientDashboard(container) {
            onkeydown="if(event.key==='Enter'||event.key===' '){selectCompany('${escHtml(company.id)}');showPage('home')}">
         <div class="client-card-top">
           <div class="client-card-name">${escHtml(company.name)}</div>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
+          <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
+            ${ratingBadge}
             ${cashWarn}
             <div class="client-card-badge">${latestYear}年度&nbsp;${company.fiscalMonth || 3}月決算</div>
           </div>
@@ -94,6 +137,17 @@ function renderClientDashboard(container) {
               <div class="client-metric-value">${fmtM(metrics.cash)}円</div>
             </div>
           </div>
+          ${metrics.progress != null ? `
+          <div style="margin-top:10px">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-bottom:3px">
+              <span>売上進捗（実績${metrics.actMonths}か月／通期見込）</span>
+              <span>${Math.round(metrics.progress)}%${metrics.yoy != null ? ` ・前年比${Math.round(metrics.yoy)}%` : ''}</span>
+            </div>
+            <div style="height:6px;background:var(--gray-100,#e5e7eb);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(100, Math.max(0, metrics.progress))}%;background:${rating ? rating.color : '#3b82f6'}"></div>
+            </div>
+          </div>` : (metrics.yoy != null ? `
+          <div style="margin-top:8px;font-size:10px;color:var(--text-muted);text-align:right">前年比 ${Math.round(metrics.yoy)}%</div>` : '')}
         ` : `<div class="client-card-nodata">データ未入力</div>`}
         <div class="client-card-footer">
           ${updatedStr ? `<span>更新 ${updatedStr}</span>` : '<span style="color:var(--text-muted)">未保存</span>'}
@@ -154,22 +208,39 @@ function _insertCashAlert(container, company, budget) {
   if (html) container.insertAdjacentHTML('afterbegin', html);
 }
 
-// 引き継ぎメモ・申し送り（会社単位・Firestore同期）
+// 引き継ぎメモ・申し送り（会社単位・複数件タイムライン・Firestore同期）
+// 旧 handoverNote(単一)は初回表示時に handoverNotes 配列へ移行する
+function _handoverNotesOf(company) {
+  if (!company) return [];
+  if (Array.isArray(company.handoverNotes)) return company.handoverNotes;
+  if (company.handoverNote) {
+    const meta = company.handoverNoteMeta || {};
+    return [{ id: 'legacy', text: company.handoverNote, by: meta.by || '', at: meta.at || Date.now() }];
+  }
+  return [];
+}
 function _handoverMemoHTML(company) {
   if (!company) return '';
-  const note = company.handoverNote || '';
-  const meta = company.handoverNoteMeta || null;
-  const metaStr = meta && meta.at
-    ? `最終更新: ${escHtml(meta.by || '')} ／ ${new Date(meta.at).toLocaleString('ja-JP')}`
-    : '未記入';
+  const notes = _handoverNotesOf(company).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+  const timeline = notes.length
+    ? notes.map(n => `
+        <div style="border-left:3px solid var(--blue-200,#bfdbfe);padding:6px 10px;margin-bottom:8px;background:var(--gray-50,#f8fafc);border-radius:0 6px 6px 0">
+          <div style="font-size:13px;white-space:pre-wrap;word-break:break-word">${escHtml(n.text || '')}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+            <span style="font-size:10.5px;color:var(--text-muted)">${escHtml(n.by || '')} ／ ${n.at ? new Date(n.at).toLocaleString('ja-JP') : ''}</span>
+            <button class="btn btn-sm btn-outline" style="padding:1px 8px;font-size:11px"
+              onclick="deleteHandoverNote('${company.id}','${n.id}')">削除</button>
+          </div>
+        </div>`).join('')
+    : '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">まだ申し送りはありません。</div>';
   return `<div class="home-card no-print" style="margin-bottom:14px">
     <div class="home-card-title">📝 引き継ぎメモ・申し送り</div>
-    <textarea id="handover_note" rows="4"
+    <div style="max-height:220px;overflow:auto;margin-bottom:10px">${timeline}</div>
+    <textarea id="handover_note_new" rows="2"
       style="width:100%;box-sizing:border-box;font-size:13px;padding:10px;border:1px solid var(--border);border-radius:8px;resize:vertical;font-family:inherit"
-      placeholder="担当者間の申し送り、顧問先の状況、次回対応事項など">${escHtml(note)}</textarea>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-      <span style="font-size:11px;color:var(--text-muted)">${metaStr}</span>
-      <button class="btn btn-sm btn-solid" onclick="saveHandoverNote('${company.id}')">💾 保存</button>
+      placeholder="申し送りを追記（例：4月に融資実行予定 / 決算賞与は12月 など）"></textarea>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-sm btn-solid" onclick="addHandoverNote('${company.id}')">＋ 追記</button>
     </div>
   </div>`;
 }
@@ -177,20 +248,40 @@ function _insertHandoverMemo(container, company) {
   const html = _handoverMemoHTML(company);
   if (html) container.insertAdjacentHTML('afterbegin', html);
 }
-function saveHandoverNote(companyId) {
-  const el = document.getElementById('handover_note');
-  if (!el) return;
+function _saveCompanyNotes(companyId, notes) {
   const data = loadData();
   const c = data.companies.find(x => x.id === companyId);
-  if (!c) return;
-  c.handoverNote = el.value;
-  const who = (window._currentFbUser && (window._currentFbUser.name || window._currentFbUser.email)) || '担当者';
-  c.handoverNoteMeta = { by: who, at: Date.now() };
+  if (!c) return null;
+  c.handoverNotes = notes;
+  delete c.handoverNote; delete c.handoverNoteMeta; // 旧単一フィールドは廃止
   saveCompany(c);
   if (window.App && window.App.currentCompany && window.App.currentCompany.id === companyId) {
     window.App.currentCompany = c;
   }
-  if (typeof showToast === 'function') showToast('引き継ぎメモを保存しました', 'success');
+  return c;
+}
+function addHandoverNote(companyId) {
+  const el = document.getElementById('handover_note_new');
+  if (!el) return;
+  const text = (el.value || '').trim();
+  if (!text) { if (typeof showToast === 'function') showToast('内容を入力してください', 'warn'); return; }
+  const data = loadData();
+  const c = data.companies.find(x => x.id === companyId);
+  if (!c) return;
+  const notes = _handoverNotesOf(c).slice();
+  const who = (window._currentFbUser && (window._currentFbUser.name || window._currentFbUser.email)) || '担当者';
+  notes.push({ id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text, by: who, at: Date.now() });
+  _saveCompanyNotes(companyId, notes);
+  if (typeof showToast === 'function') showToast('申し送りを追記しました', 'success');
+  if (typeof renderHome === 'function') renderHome(document.getElementById('main_content'));
+}
+function deleteHandoverNote(companyId, entryId) {
+  const data = loadData();
+  const c = data.companies.find(x => x.id === companyId);
+  if (!c) return;
+  const notes = _handoverNotesOf(c).filter(n => n.id !== entryId);
+  _saveCompanyNotes(companyId, notes);
+  if (typeof renderHome === 'function') renderHome(document.getElementById('main_content'));
 }
 
 function renderHome(container) {

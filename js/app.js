@@ -385,6 +385,7 @@ const PAGE_RENDERERS = {
   bankrating:     c      => renderBankRating(c),
   subsidy:        c      => renderSubsidy(c),
   cccanalysis:    c      => renderCCCAnalysis(c),
+  bankdoc:        c      => renderBankDoc(c),
   client_list:    c      => renderClientDashboard(c),
 };
 

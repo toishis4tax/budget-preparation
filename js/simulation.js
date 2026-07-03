@@ -707,7 +707,7 @@ function computeCashSeries(company, budget) {
     const finCF = newLoan - loanRepay - invest;
     const taxCF = -(m === 1 ? prevCorp : 0) - (m === tax1Month ? tax1Amt : 0);
     cash += opCF + finCF + taxCF;
-    rows.push({ m, calMonth: ((startMonth - 1 + m) % 12) + 1, cash });
+    rows.push({ m, calMonth: ((startMonth - 1 + m) % 12) + 1, opCF, finCF, taxCF, cash });
   }
   const shortages = rows.filter(r => r.cash < 0);
   const minRow = rows.reduce((a, b) => (b.cash < a.cash ? b : a), rows[0]);
