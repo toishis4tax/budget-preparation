@@ -234,7 +234,10 @@ function calcHealthMetricsDynamic(budget, capital) {
     .filter(a => a.section?.startsWith('pl') && a.type !== 'section' && (a.indent ?? 1) <= 1 && re.test(a.name || ''))
     .reduce((s, a) => s + total(a.id), 0);
 
-  const totalAssets   = last('calc_total_assets') || last('sec_cur_asset') + last('sec_fix_asset');
+  const curAssetSec = accts.find(a => a.type === 'section' && /流動資産/.test(a.name || ''));
+  const fixAssetSec = accts.find(a => a.type === 'section' && /固定資産/.test(a.name || ''));
+  const totalAssets = last('calc_total_assets') ||
+    (curAssetSec ? last(curAssetSec.id) : 0) + (fixAssetSec ? last(fixAssetSec.id) : 0);
   const totalEquity   = last('sec_equity');
   const currentAssets = last('sec_cur_asset');
   const currentLiab   = last('sec_cur_liab');
@@ -247,7 +250,7 @@ function calcHealthMetricsDynamic(budget, capital) {
   const interest      = leafSum(/支払利息|支払利息割引料/, 'total');
   const loans         = leafSum(/借入金/, 'last');
 
-  const opProfit2 = total('calc_op') || ordProfit;
+  const opProfit2 = total('calc_op') !== 0 ? total('calc_op') : ordProfit;
   const ebitda = opProfit2 + depr;
   return {
     equity_ratio:     totalAssets ? (totalEquity / totalAssets * 100) : 0,
