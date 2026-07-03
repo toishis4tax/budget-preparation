@@ -447,7 +447,7 @@ function renderCashFlow(container, budget) {
   // state 保存（localStorageにも保存して再レンダリング・リロード後も復元）
   const _cfKey = `cf_inputs_${company?.id || ''}_${budget?.year || ''}`;
   const _cfSaved = (() => { try { return JSON.parse(localStorage.getItem(_cfKey)); } catch { return null; } })();
-  const prev = _cfSaved || window._cfState || {};
+  const prev = _cfSaved || {};  // window._cfStateは他社の値を引き継ぐためフォールバックに使わない
   window._cfState = {
     allVals, deprArr, monthLabels, actualCols, budget,
     openCash:   prev.openCash   ?? autoCash,
