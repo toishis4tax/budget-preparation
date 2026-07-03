@@ -142,7 +142,7 @@ function renderNextYearPL(container) {
     };
     const monthCells = Array.from({length: 12}, (_, ci) => makeCell(stored[ci] || 0, ci)).join('');
     const adjCell   = makeCell(stored[12] || 0, 12);
-    const total = stored.reduce((s, v) => s + (v || 0), 0);
+    const total = stored.slice(0, 12).reduce((s, v) => s + (v || 0), 0);
 
     return `<tr data-acc-id="${acc.id}" class="input-row">
       <td class="acc-col sticky-col acc-name" style="font-size:12px;padding:4px 8px;${nameBg}">${indent}${escHtml(acc.name)}</td>
@@ -260,7 +260,7 @@ function _nyRecalc() {
     }
 
     const stored = _nyData.rows[acc.id] || [];
-    const total = stored.reduce((s, v) => s + (v || 0), 0);
+    const total = stored.slice(0, 12).reduce((s, v) => s + (v || 0), 0);
     const td = document.querySelector(`[data-ny-total="${acc.id}"]`);
     if (td) td.textContent = total ? Math.round(total).toLocaleString() : '';
   });

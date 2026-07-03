@@ -637,8 +637,10 @@ function applyExecToBudget() {
   if (!budget.rows.sga_exec)    budget.rows.sga_exec    = new Array(12).fill(0);
   if (!budget.rows.sga_welfare) budget.rows.sga_welfare = new Array(12).fill(0);
   budget.rows.sga_exec    = new Array(12).fill(Math.round(totalExec));
-  // 法定福利費（会社負担分）
-  const totalMonthlySI = scenarios.reduce((a, s) => a + s.companySI / 12, 0);
+  // 法定福利費（月次のみ・賞与月社保を均等化しない）
+  const pref2 = window.App?.currentCompany?.prefecture || '東京都';
+  const totalMonthlySI = _execState.officers.reduce((a, o) =>
+    a + calcSocialInsurance(o.monthly || 0, 0, o.age || 50, pref2).monthly, 0);
   budget.rows.sga_welfare = new Array(12).fill(Math.round(totalMonthlySI));
 
   saveBudget(budget);
