@@ -57,13 +57,27 @@ function renderClientDashboard(container) {
     const ordColor = (metrics?.ord || 0) >= 0 ? 'var(--emerald,#059669)' : '#e11d48';
     const hasData = !!budget;
 
+    // 資金ショート警告バッジ
+    let cashWarn = '';
+    try {
+      if (budget && typeof computeCashSeries === 'function') {
+        const s = computeCashSeries(company, budget);
+        if (s && s.hasShortage) {
+          cashWarn = `<span class="client-card-badge" style="background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;font-weight:700">⚠ ${s.shortages[0].calMonth}月 資金不足</span>`;
+        }
+      }
+    } catch (e) {}
+
     return `
       <div class="client-card" onclick="selectCompany('${escHtml(company.id)}');showPage('home')"
            role="button" tabindex="0"
            onkeydown="if(event.key==='Enter'||event.key===' '){selectCompany('${escHtml(company.id)}');showPage('home')}">
         <div class="client-card-top">
           <div class="client-card-name">${escHtml(company.name)}</div>
-          <div class="client-card-badge">${latestYear}年度&nbsp;${company.fiscalMonth || 3}月決算</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
+            ${cashWarn}
+            <div class="client-card-badge">${latestYear}年度&nbsp;${company.fiscalMonth || 3}月決算</div>
+          </div>
         </div>
         ${hasData && metrics ? `
           <div class="client-card-metrics">
