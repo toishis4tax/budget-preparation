@@ -23,12 +23,12 @@ const TAX_RATES = {
   local_corp:    0.103, // 地方法人税(法人税額の10.3%)
   inhabitant: {
     pref: {
-      small: 0.032,     // 道府県民税 法人税割 標準税率
-      large: 0.032,
+      small: 0.010,     // 道府県民税 法人税割 標準税率（令和元年10月以降）
+      large: 0.010,
     },
     city: {
-      small: 0.096,     // 市町村民税 法人税割 標準税率
-      large: 0.096,
+      small: 0.060,     // 市町村民税 法人税割 標準税率（令和元年10月以降）
+      large: 0.060,
     },
     per_capita_small: 70000,  // 均等割(中小)
     per_capita_large: 200000,

@@ -191,12 +191,13 @@ function renderHome(container) {
   const invoice  = company.invoiceRegistered ?? false;
   const kani     = company.kanijukazei ?? false;
   let ctaxJudge = '課税判定不明', ctaxColor = 'var(--text-muted)';
-  if (kijun > 0) {
-    if (kijun <= 10000000) { ctaxJudge = '免税事業者の可能性'; ctaxColor = '#f59e0b'; }
-    else if (kijun <= 50000000 && kani) { ctaxJudge = '簡易課税 適用可能'; ctaxColor = '#059669'; }
-    else { ctaxJudge = '原則課税'; ctaxColor = 'var(--emerald)'; }
+  if (invoice) {
+    ctaxJudge = 'インボイス登録→課税事業者'; ctaxColor = '#e11d48';
+  } else if (kijun > 0) {
+    if (kijun <= 10000000) { ctaxJudge = '免税事業者'; ctaxColor = '#22c55e'; }
+    else if (kijun <= 50000000 && kani) { ctaxJudge = '簡易課税'; ctaxColor = '#059669'; }
+    else { ctaxJudge = '本則課税'; ctaxColor = 'var(--emerald)'; }
   }
-  if (invoice && kijun <= 10000000) { ctaxJudge = 'インボイス登録→課税事業者'; ctaxColor = '#e11d48'; }
 
   // ===== 予算進捗 =====
   const progressItems = calcBudgetProgress(budget);
