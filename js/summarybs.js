@@ -44,11 +44,12 @@ function summarizePL(budget) {
   const nonOpIncSec = _sbsFindSec(accts, 'sec_non_op_inc', /営業外収益/);
   const nonOpExpSec = _sbsFindSec(accts, 'sec_non_op_exp', /営業外費用/);
 
-  const sales    = sum13('sec_revenue')    || (revSec     ? sum13(revSec.id)     : 0);
-  const cogs     = sum13('sec_cogs')       || (cogsSec    ? sum13(cogsSec.id)    : 0);
-  const sga      = sum13('sec_sga')        || (sgaSec     ? sum13(sgaSec.id)     : 0);
-  const nonOpInc = sum13('sec_non_op_inc') || (nonOpIncSec ? sum13(nonOpIncSec.id) : 0);
-  const nonOpExp = sum13('sec_non_op_exp') || (nonOpExpSec ? sum13(nonOpExpSec.id) : 0);
+  const _s13 = (key, sec) => (av[key] !== undefined ? sum13(key) : (sec ? sum13(sec.id) : 0));
+  const sales    = _s13('sec_revenue',    revSec);
+  const cogs     = _s13('sec_cogs',       cogsSec);
+  const sga      = _s13('sec_sga',        sgaSec);
+  const nonOpInc = _s13('sec_non_op_inc', nonOpIncSec);
+  const nonOpExp = _s13('sec_non_op_exp', nonOpExpSec);
   const ord      = sum13('calc_ord');
   const pretax   = sum13('calc_pretax');
   const net      = sum13('calc_net');
@@ -130,11 +131,12 @@ function summarizeBS(budget) {
   const fixLiabId  = fixLiabSec?.id  || 'sec_fix_liab';
   const equityId   = equitySec?.id   || 'sec_equity';
 
-  const curAsset = bal('sec_cur_asset') || bal(curAssetId);
-  const fixAsset = bal('sec_fix_asset') || bal(fixAssetId);
-  const curLiab  = bal('sec_cur_liab')  || bal(curLiabId);
-  const fixLiab  = bal('sec_fix_liab')  || bal(fixLiabId);
-  const equity   = bal('sec_equity')    || bal(equityId);
+  const _bal = (key, fallbackId) => (av[key] !== undefined ? bal(key) : bal(fallbackId));
+  const curAsset = _bal('sec_cur_asset', curAssetId);
+  const fixAsset = _bal('sec_fix_asset', fixAssetId);
+  const curLiab  = _bal('sec_cur_liab',  curLiabId);
+  const fixLiab  = _bal('sec_fix_liab',  fixLiabId);
+  const equity   = _bal('sec_equity',    equityId);
 
   const cash      = scDeep(curAssetId, /現金|預金/);
   const ar        = scDeep(curAssetId, /売掛金|受取手形|電子記録債権|売上債権/);
@@ -156,7 +158,7 @@ function summarizeBS(budget) {
     otherCurAsset: curAsset - cash - ar - inv,
     curAsset,
     land, depr, deprAccum,
-    otherFixAsset: fixAsset - land - depr - Math.abs(deprAccum),
+    otherFixAsset: fixAsset - land - depr + Math.abs(deprAccum),
     fixAsset,
     totalAssets,
     payable, shortLoan,

@@ -132,7 +132,7 @@ const SUBSIDIES = [
 // ──────────────────────────────────────────
 
 function renderSubsidy(container) {
-  const company = App.currentCompany;
+  const company = window.App?.currentCompany;
 
   const style = `<style>
 .sub-wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
