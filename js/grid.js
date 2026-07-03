@@ -666,6 +666,12 @@ function handlePaste(e) {
   const text = (e.clipboardData || window.clipboardData).getData('text');
   if (!text) return;
 
+  // 翌期月次予算入力のセルは専用処理へ委譲（当期グリッドを再描画して画面が飛ぶのを防ぐ）
+  if (input.classList.contains('ny-cell')) {
+    if (typeof _nyPaste === 'function') _nyPaste(input, text);
+    return;
+  }
+
   const pasteRows = text.trim().split(/\r?\n/).map(line =>
     line.split('\t').map(v => parseFloat(v.replace(/,/g,'')) || 0)
   );

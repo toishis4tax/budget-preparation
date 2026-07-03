@@ -195,6 +195,39 @@ function _nyCommit(input) {
   _nySave();
 }
 
+// ===== 貼り付け（Excel等のタブ区切り複数セル）。grid.js の handlePaste から委譲される =====
+function _nyPaste(input, text) {
+  if (!_nyData || !text) return;
+  const pasteRows = text.trim().split(/\r?\n/).map(line =>
+    line.split('\t').map(v => parseFloat(v.replace(/,/g, '')) || 0)
+  );
+  const startAccId = input.dataset.accId;
+  const startCol   = parseInt(input.dataset.col);
+  const inputAccs  = _nyData.accounts.filter(a => a.type === 'input');
+  const startIdx   = inputAccs.findIndex(a => a.id === startAccId);
+  if (startIdx < 0) return;
+
+  pasteRows.forEach((row, ri) => {
+    const acc = inputAccs[startIdx + ri];
+    if (!acc) return;
+    if (!_nyData.rows[acc.id]) _nyData.rows[acc.id] = new Array(13).fill(0);
+    row.forEach((val, ci) => {
+      const col = startCol + ci;
+      if (col <= 12) _nyData.rows[acc.id][col] = val; // 12=調整列まで
+    });
+  });
+
+  _nySave();
+  const container = document.getElementById('main_content');
+  const scrollTop = container ? container.scrollTop : 0;
+  if (container) renderNextYearPL(container);
+  if (container) container.scrollTop = scrollTop;
+  requestAnimationFrame(() => {
+    const sel = document.querySelector(`.ny-cell[data-acc-id="${startAccId}"][data-col="${startCol}"]`);
+    if (sel) { sel.focus(); sel.select(); }
+  });
+}
+
 // ===== キーボードナビ（Tab/Enter/矢印） =====
 function _nyKeyNav(e, input) {
   const col  = parseInt(input.dataset.col);
