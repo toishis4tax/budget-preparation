@@ -144,11 +144,13 @@ function renderCCCAnalysis(container) {
   const inv      = Math.max(0, leafSum(/棚卸|商品|製品|仕掛|原材料/, 'last'));
   const ap       = Math.max(0, leafSum(/買掛|支払手形/, 'last'));
 
+  const cogs      = Math.max(0, total('sec_cogs') || leafSum(/売上原価|仕入/, 'sum'));
   const dailySales = sales > 0 ? sales / 365 : 0;
+  const dailyCogs  = cogs  > 0 ? cogs  / 365 : dailySales;
 
-  const dso = dailySales > 0 ? ar / dailySales : 0;
-  const dio = dailySales > 0 ? inv / dailySales : 0;
-  const dpo = dailySales > 0 ? ap / dailySales : 0;
+  const dso = dailySales > 0 ? ar  / dailySales : 0;
+  const dio = dailyCogs  > 0 ? inv / dailyCogs  : 0;
+  const dpo = dailyCogs  > 0 ? ap  / dailyCogs  : 0;
   const ccc = dso + dio - dpo;
 
   const bm = CCC_BENCHMARKS[industryKey] || CCC_BENCHMARKS.other;
@@ -172,7 +174,7 @@ function renderCCCAnalysis(container) {
   // 必要運転資金の計算
   const requiredNWC = sales * (ccc / 365);
   const bmNWC       = sales * (bm.ccc / 365);
-  const nwcSaving   = bmNWC - requiredNWC; // マイナスなら改善余地あり
+  const nwcSaving   = requiredNWC - bmNWC; // プラスなら改善で解放できる資金
 
   // 信号判定
   const signals = [];
@@ -257,7 +259,7 @@ function renderCCCAnalysis(container) {
     </div>
     ${Math.abs(nwcSaving) > 100000 ? `<div style="margin-top:12px;font-size:13px;color:var(--text-muted)">
       業種平均水準に改善した場合の運転資金効果：
-      <span style="font-weight:700;color:${nwcSaving > 0 ? '#dc2626' : '#059669'}">${nwcSaving > 0 ? '約' + Math.round(Math.abs(nwcSaving)/10000).toLocaleString() + '万円の追加資金が必要' : '約' + Math.round(Math.abs(nwcSaving)/10000).toLocaleString() + '万円の資金を解放できる可能性'}</span>
+      <span style="font-weight:700;color:${nwcSaving > 0 ? '#059669' : '#dc2626'}">${nwcSaving > 0 ? '約' + Math.round(Math.abs(nwcSaving)/10000).toLocaleString() + '万円の資金を解放できる可能性' : '約' + Math.round(Math.abs(nwcSaving)/10000).toLocaleString() + '万円の追加資金が必要'}</span>
     </div>` : ''}
   </div>
 

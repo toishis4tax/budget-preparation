@@ -189,7 +189,7 @@ function calcBankMetrics(budget) {
 // ──────────────────────────────────────────
 
 function gradeMetricBR(metric, value) {
-  if (value === 99999) return 'E'; // 算定不能（赤字で返済年数計算不可）
+  if (value === 99999) return metric.inverted ? 'E' : 'A'; // inverted=支払利息なし→最良, inverted=true→算定不能
   const t = metric.thresholds;
   if (metric.inverted) {
     if (value <= t[0]) return 'A';
