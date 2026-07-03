@@ -198,7 +198,7 @@ function _lsUpdate() {
 
   // 年次サマリーを作成
   let yearRows = '';
-  for (let y = 1; y <= termYr; y++) {
+  for (let y = 1; y <= Math.ceil(n / 12); y++) {
     const startIdx = (y - 1) * 12;
     const endIdx   = Math.min(y * 12, schedule.length);
     const yearData = schedule.slice(startIdx, endIdx);

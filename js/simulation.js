@@ -51,7 +51,7 @@ function runNextYearSim() {
   // --- Static mode (動的科目なし) ---
   if (!budget.dynamicAccounts?.length) {
     const newRows = {};
-    Object.keys(budget.rows).forEach(id => {
+    Object.keys(budget.rows || {}).forEach(id => {
       const rate = getRate(id);
       newRows[id] = (budget.rows[id] || new Array(12).fill(0)).map(v => Math.round(v * rate));
     });
@@ -74,8 +74,12 @@ function runNextYearSim() {
   const newRows = {};
 
   // 各入力科目に科目名キーワードで増減率を適用
-  Object.keys(budget.rows).forEach(id => {
+  Object.keys(budget.rows || {}).forEach(id => {
     const acc = accts.find(a => a.id === id);
+    if (acc?.type === 'calculated') {
+      newRows[id] = budget.rows[id] || [];
+      return;
+    }
     const rate = _nyRate(acc, getRate);
     const orig = budget.rows[id] || [];
     // index 0-11 = 月次に率適用; index 12 = 調整欄はそのまま
@@ -236,7 +240,15 @@ function runFiveYearSim() {
     const loanRepay = getVal('fy_loan_r', y);
 
     // 概算CF
-    const depr = budget?.rows?.sga_depr ? annSum(budget.rows.sga_depr) : 0;
+    const depr = (() => {
+      if (budget?.dynamicAccounts?.length) {
+        const av = calcAllValuesDynamic(budget);
+        return budget.dynamicAccounts
+          .filter(a => /減価償却/.test(a.name || '') && a.type === 'input')
+          .reduce((s, a) => s + annSum(av[a.id] || []), 0);
+      }
+      return budget?.rows?.sga_depr ? annSum(budget.rows.sga_depr) : 0;
+    })();
     const opCF  = opP + depr;
     const invCF = -invest;
     const finCF = -loanRepay;
