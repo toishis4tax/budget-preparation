@@ -136,6 +136,7 @@ function calcAllTax(pretaxProfit, capital, { includeDefense = false } = {}) {
 }
 
 function renderTaxSimulator(container) {
+  window._lastTaxTotal = null;  // 会社切替時に前社の税額が引き継がれないようリセット
   const budget  = window.App?.currentBudget;
   const company = window.App?.currentCompany;
 
@@ -394,6 +395,9 @@ function runTaxSim() {
 function applyTaxToBudget() {
   const budget = window.App?.currentBudget;
   if (!budget) { alert('予算データがありません'); return; }
+  if (window._lastTaxTotal === null || window._lastTaxTotal === undefined) {
+    runTaxSim();  // 未計算なら先に計算してから反映
+  }
   const total = window._lastTaxTotal || 0;
   if (!budget.rows) budget.rows = {};
 

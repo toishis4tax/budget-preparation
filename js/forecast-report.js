@@ -152,9 +152,11 @@ function renderForecastReport(container) {
   // ※PLに法人税科目を計上していなくても、予測税額を差し引いて正しく表示する
   const corpTaxTotal     = tax     ? (tax.corp     + tax.localCorp     + tax.pref     + tax.city     + tax.business     + tax.special)     : 0;
   const prevCorpTaxTotal = prevTax ? (prevTax.corp + prevTax.localCorp + prevTax.pref + prevTax.city + prevTax.business + prevTax.special) : 0;
-  const aN2 = sumAct(pretaxArr);                              // 実績(A)：税引前実績（実績月は税未計上のため税引前＝税引後）
   const tN2 = landPretax - corpTaxTotal;                      // 当期決算予測(A+B)：通期税引前 − 予測法人税等
-  const fN2 = tN2 - aN2;                                      // 未経過月(B)：差分（予測税額を含む）
+  // 全月実績済みの場合：実績(A)に税引後純利益をそのまま表示、未経過月(B)は0
+  // 未経過月がある場合：実績(A)は税引前、未経過月(B)に税額調整を含む差分を表示
+  const aN2 = isYearComplete ? tN2 : sumAct(pretaxArr);
+  const fN2 = isYearComplete ? 0   : tN2 - sumAct(pretaxArr);
   const pN2 = (pPretax != null) ? (pPretax - prevCorpTaxTotal) : null; // 前期
   // 消費税：簡易課税届出ありなら③簡易課税計算、なければ②科目別簡易計算
   const useKani  = !!(company?.kanijukazei);

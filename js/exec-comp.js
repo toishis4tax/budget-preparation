@@ -169,6 +169,8 @@ function _execCalcBreakdown(pref, startMonth) {
 }
 
 function renderExecComp(container, budget) {
+  _execTab    = 'si';  // 会社切替時にタブ状態をリセット
+  _siBonuses  = [{ month: 6, amount: 0 }, { month: 12, amount: 0 }];  // 会社切替時に賞与データをリセット
   _execLoad();
   // 予算から税引前利益を取得
   const allVals = budget?.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget?.rows || {});
