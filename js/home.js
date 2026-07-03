@@ -399,15 +399,10 @@ function renderHome(container) {
     </div>`;
 
   // ===== 成果物モーダル =====
-  const outputBtn = (phase, phaseNum) => {
-    if (phase === 'kichu') {
-      return `<button class="phase-output-btn" onclick="setPhase(${phaseNum});showKichuOutput('forecast')">📄 成果物を出力</button>`;
-    }
-    if (phase === 'kessan') {
-      return `<button class="phase-output-btn" onclick="setPhase(${phaseNum});showKichuOutput('taxplanning')">📄 成果物を出力</button>`;
-    }
-    return `<button class="phase-output-btn" onclick="setPhase(${phaseNum});showOutputModal('${phase}')">📄 成果物を出力</button>`;
-  };
+  // 成果物出力ボタン：フェーズを切替えて成果物モーダル（月次業績など）を開く
+  // 旧実装は未実装タイプ(forecast/taxplanning)やキー不一致のshowOutputModalを呼び空振り/空白だった
+  const outputBtn = (phase, phaseNum) =>
+    `<button class="phase-output-btn" onclick="setPhase(${phaseNum});showKichuOutput('monthly')">📄 成果物を出力</button>`;
 
   const INDUSTRY_LABELS = { tax_accountant:'税理士・会計事務所', medical:'医療・福祉', real_estate:'不動産業', construction:'建設業', retail:'小売・EC', beauty:'美容業', wholesale:'物販・卸売業', restaurant:'飲食業', it:'IT・ソフトウェア', transport:'運輸・物流', education:'教育・学習支援', manufacturing:'製造業', agriculture:'農業・林業', hotel:'宿泊・旅行', finance:'金融・保険', other:'一般業種' };
 
@@ -560,7 +555,7 @@ function renderHome(container) {
             </div>
           </div>
 
-          ${outputBtn('申告', 3)}
+          ${outputBtn('申告', 2)}
         </div>
 
       </div>
@@ -965,7 +960,7 @@ function renderPhase2Home(container, budget, company) {
 
   container.innerHTML = `
     <div class="home-wrap">
-      ${phaseHomeTopbar(company, curYear, '#f59e0b', '② 決算フェーズ')}
+      ${phaseHomeTopbar(company, curYear, '#f59e0b', '② 申告・報告フェーズ')}
 
       <!-- 税額概算 -->
       <div class="home-summary-grid">
@@ -1013,19 +1008,20 @@ function renderPhase2Home(container, budget, company) {
       <div class="home-card">
         <div class="home-card-title">🚀 クイックアクション</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px">
-          <button class="btn-solid" style="background:#f59e0b" onclick="showPage('import')">📤 決算前推移表を取込む</button>
-          <button class="btn-outline" onclick="showPage('execcomp')">👔 役員報酬・賞与を最適化</button>
-          <button class="btn-outline" onclick="setPhase(3);showPage('home')">③ 申告フェーズへ →</button>
+          <button class="btn-solid" style="background:#f59e0b" onclick="showPage('import')">📤 確定値を取込む</button>
+          <button class="btn-outline" onclick="showPage('bizanalysis')">📊 3期比較経営分析</button>
+          <button class="btn-outline" onclick="setPhase(3);showPage('home')">③ 提案ツールへ →</button>
         </div>
       </div>
 
-      <!-- 成果物 -->
+      <!-- 成果物（申告・報告フェーズ） -->
       <div class="home-card">
         <div class="home-card-title">📄 成果物を出力</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('monthly')">月次業績報告書</button>
-          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('prevcomp')">前期比較表</button>
-          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showKichuOutput('cashflow')">資金繰り予測表</button>
+          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#1e40af" onclick="setPhase(1);showPage('forecastreport')">📋 当期決算予測報告</button>
+          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showPage('bizanalysis')">3期比較経営分析</button>
+          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showPage('summarypl')">要約PL/BS</button>
+          <button class="phase-output-btn" style="width:auto;padding:8px 20px;background:#f59e0b" onclick="showPage('bankdoc')">🏦 銀行提出資料</button>
         </div>
       </div>
     </div>`;
@@ -1094,7 +1090,7 @@ function renderPhase3Home(container, budget, company) {
 
   container.innerHTML = `
     <div class="home-wrap">
-      ${phaseHomeTopbar(company, curYear, '#10b981', '③ 申告・報告フェーズ')}
+      ${phaseHomeTopbar(company, curYear, '#10b981', '③ 提案ツール')}
 
       <!-- 3期比較ハイライト -->
       <div class="home-card home-card-wide">
