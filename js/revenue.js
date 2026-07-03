@@ -509,7 +509,7 @@ function renderRevTable(startMonth, months) {
         <div style="display:flex;gap:3px">
           <input type="number" class="form-input" style="width:52px;font-size:11px;padding:3px 4px;text-align:right"
             value="${cs.year||''}" placeholder="年" min="2020" max="2040"
-            oninput="_revClients[${ci}].contractStart={..._revClients[${ci}].contractStart,year:+this.value||''}"
+            oninput="_revClients[${ci}].contractStart={..._revClients[${ci}].contractStart,year:this.value===''?'':+this.value}"
             onblur="_revRefresh()">
           <select class="form-input" style="width:50px;font-size:11px;padding:3px 3px"
             onchange="_revClients[${ci}].contractStart={..._revClients[${ci}].contractStart,month:+this.value};_revRefresh()">
@@ -521,7 +521,7 @@ function renderRevTable(startMonth, months) {
         ${(()=>{const ce=c.contractEnd||{};return`<div style="display:flex;gap:3px">
           <input type="number" class="form-input" style="width:52px;font-size:11px;padding:3px 4px;text-align:right"
             value="${ce.year||''}" placeholder="年" min="2020" max="2040"
-            oninput="_revClients[${ci}].contractEnd={..._revClients[${ci}].contractEnd,year:+this.value||''}"
+            oninput="_revClients[${ci}].contractEnd={..._revClients[${ci}].contractEnd,year:this.value===''?'':+this.value}"
             onblur="_revRefresh()">
           <select class="form-input" style="width:50px;font-size:11px;padding:3px 3px"
             onchange="_revClients[${ci}].contractEnd={..._revClients[${ci}].contractEnd,month:+this.value};_revRefresh()">
@@ -1136,14 +1136,9 @@ function importRevenueExcel(file) {
 // ===== 顧問先メモ更新 =====
 function updateClientMemo(clientId, value) {
   const companyId = window.App?.currentCompany?.id;
-  const year = _revBudgetYear || App.currentYear;
+  const year = _revBudgetYear || window.App?.currentYear;
   if (!companyId) return;
-  const clients = loadRevenueClients(companyId, year);
-  const client = clients.find(c => c.id === clientId);
-  if (!client) return;
-  client.memo = value;
-  saveRevenueClients(companyId, year, clients);
-  // also update in-memory
   const inMem = _revClients.find(c => c.id === clientId);
   if (inMem) inMem.memo = value;
+  saveRevenueClients(companyId, year, _revClients);
 }

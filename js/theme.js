@@ -43,6 +43,18 @@ const THEMES = [
     emoji: '🏖️',
     colors: { bar: '#7c2d12', body: '#fff7ed', accent: '#ea580c', text: '#7c2d12' },
   },
+  {
+    id: 'poker',
+    label: 'ポーカー',
+    emoji: '♠',
+    colors: { bar: '#1a0505', body: '#fdf8f2', accent: '#c0392b', text: '#1a0a0a' },
+  },
+  {
+    id: 'soccer',
+    label: 'サッカー',
+    emoji: '⚽',
+    colors: { bar: '#14532d', body: '#f0fdf4', accent: '#16a34a', text: '#14532d' },
+  },
 ];
 
 // 現在のテーマキーを返す

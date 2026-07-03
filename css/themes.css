@@ -320,6 +320,112 @@ body[data-theme="lavender"] { background: #faf5ff; }
 body[data-theme="sand"] { background: #fff7ed; }
 
 /* ========================================
+   ♠ ポーカーテーマ (poker)
+======================================== */
+:root[data-theme="poker"] {
+  --surface-1: #fdf8f2;
+  --surface-2: #ffffff;
+  --surface-3: #f5ece0;
+  --sidebar-bg: #1a0505;
+  --header-bg:  #ffffff;
+  --white:      #ffffff;
+  --gray-50:    #fdf8f2;
+  --gray-100:   #f5ece0;
+  --gray-200:   #e8d5c4;
+  --gray-300:   #d4b8a0;
+  --gray-400:   #b89070;
+  --gray-500:   #8b6040;
+  --gray-600:   #6b3020;
+  --gray-700:   #4a1010;
+  --gray-800:   #2d0a0a;
+  --bg:         #fdf8f2;
+  --bg-card:    #ffffff;
+  --text:       #1a0a0a;
+  --text-sub:   #2d0a0a;
+  --text-muted: #6b3020;
+  --text-light: #8b6040;
+  --text-accent: #c0392b;
+  --text-secondary: #2d0a0a;
+  --border:       #e8d5c4;
+  --border-muted: #f5ece0;
+  --primary:       #c0392b;
+  --primary-hover: #a93226;
+  --primary-light: #fdedec;
+  --primary-muted: #f9d6d2;
+  --blue-50:  #fdf8f2;
+  --blue-100: #fdedec;
+  --blue-200: #f9d6d2;
+  --blue-300: #f0a89e;
+  --blue-400: #e07068;
+  --blue-500: #c0392b;
+  --blue-600: #a93226;
+  --green:    #059669;
+  --green-bg: #d1fae5;
+  --amber:    #d97706;
+  --amber-bg: #fffbeb;
+  --rose:     #e11d48;
+  --rose-bg:  #fff1f2;
+}
+body[data-theme="poker"] {
+  background-color: #fdf8f2;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Ctext x='8' y='30' font-size='22' font-family='serif' fill='%23c0392b' opacity='0.18'%3E%E2%99%A5%3C/text%3E%3Ctext x='48' y='30' font-size='22' font-family='serif' fill='%23333' opacity='0.10'%3E%E2%99%A0%3C/text%3E%3Ctext x='8' y='66' font-size='22' font-family='serif' fill='%23333' opacity='0.10'%3E%E2%99%A3%3C/text%3E%3Ctext x='48' y='66' font-size='22' font-family='serif' fill='%23c0392b' opacity='0.18'%3E%E2%99%A6%3C/text%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+/* ========================================
+   ⚽ サッカーテーマ (soccer)
+======================================== */
+:root[data-theme="soccer"] {
+  --surface-1: #f0fdf4;
+  --surface-2: #ffffff;
+  --surface-3: #dcfce7;
+  --sidebar-bg: #14532d;
+  --header-bg:  #ffffff;
+  --white:      #ffffff;
+  --gray-50:    #f0fdf4;
+  --gray-100:   #dcfce7;
+  --gray-200:   #bbf7d0;
+  --gray-300:   #86efac;
+  --gray-400:   #4ade80;
+  --gray-500:   #22c55e;
+  --gray-600:   #16a34a;
+  --gray-700:   #15803d;
+  --gray-800:   #166534;
+  --bg:         #f0fdf4;
+  --bg-card:    #ffffff;
+  --text:       #14532d;
+  --text-sub:   #15803d;
+  --text-muted: #16a34a;
+  --text-light: #22c55e;
+  --text-accent: #16a34a;
+  --text-secondary: #15803d;
+  --border:       #bbf7d0;
+  --border-muted: #dcfce7;
+  --primary:       #16a34a;
+  --primary-hover: #15803d;
+  --primary-light: #dcfce7;
+  --primary-muted: #bbf7d0;
+  --blue-50:  #f0fdf4;
+  --blue-100: #dcfce7;
+  --blue-200: #bbf7d0;
+  --blue-300: #86efac;
+  --blue-400: #4ade80;
+  --blue-500: #22c55e;
+  --blue-600: #16a34a;
+  --green:    #059669;
+  --green-bg: #d1fae5;
+  --amber:    #d97706;
+  --amber-bg: #fffbeb;
+  --rose:     #e11d48;
+  --rose-bg:  #fff1f2;
+}
+body[data-theme="soccer"] {
+  background-color: #f0fdf4;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='52'%3E%3Cpolygon points='15%2C2 25%2C2 29%2C10 25%2C18 15%2C18 11%2C10' fill='%2316a34a' opacity='0.09'/%3E%3Cpolygon points='45%2C2 55%2C2 59%2C10 55%2C18 45%2C18 41%2C10' fill='none' stroke='%2316a34a' stroke-width='1' opacity='0.07'/%3E%3Cpolygon points='30%2C19 40%2C19 44%2C27 40%2C35 30%2C35 26%2C27' fill='%2316a34a' opacity='0.06'/%3E%3Cpolygon points='15%2C36 25%2C36 29%2C44 25%2C52 15%2C52 11%2C44' fill='none' stroke='%2316a34a' stroke-width='1' opacity='0.07'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+/* ========================================
    テーマピッカー UI
 ======================================== */
 #theme-picker-btn {

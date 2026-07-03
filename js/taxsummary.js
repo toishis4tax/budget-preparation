@@ -4,15 +4,19 @@ const TAXSUM_KEY = 'taxsummary_v1';
 
 function loadTaxSummaryData(companyId, year) {
   if (!companyId) return {};
-  const all = JSON.parse(localStorage.getItem(TAXSUM_KEY) || '{}');
-  return all[`${companyId}_${year}`] || {};
+  try {
+    const all = JSON.parse(localStorage.getItem(TAXSUM_KEY) || '{}');
+    return all[`${companyId}_${year}`] || {};
+  } catch { return {}; }
 }
 
 function saveTaxSummaryData(companyId, year, data) {
   if (!companyId) return;
-  const all = JSON.parse(localStorage.getItem(TAXSUM_KEY) || '{}');
-  all[`${companyId}_${year}`] = data;
-  localStorage.setItem(TAXSUM_KEY, JSON.stringify(all));
+  try {
+    const all = JSON.parse(localStorage.getItem(TAXSUM_KEY) || '{}');
+    all[`${companyId}_${year}`] = data;
+    localStorage.setItem(TAXSUM_KEY, JSON.stringify(all));
+  } catch {}
 }
 
 // 月計算ヘルパー（1-12の範囲に正規化）
@@ -57,11 +61,11 @@ function calcInterimTax(prevBudget, prevCompany) {
   const localCorpInterim = prevTax && prevTax.corp >= 100_000 ? Math.floor(prevTax.localCorp / 2 / 100) * 100 : 0;
 
   const small = (prevCompany?.capital || 10_000_000) <= 100_000_000;
-  const prefKatsuInterim  = corpInterim ? Math.floor(corpInterim * 0.032 / 100) * 100 : 0;
+  const prefKatsuInterim  = corpInterim ? Math.floor(corpInterim * 0.010 / 100) * 100 : 0;
   const prefKintouInterim = corpInterim ? (small ? 10_000 : 50_000) : 0;
   const businessInterim   = prevTax && prevTax.business >= 100_000 ? Math.floor(prevTax.business / 2 / 100) * 100 : 0;
   const specialInterim    = prevTax && prevTax.special >= 100_000  ? Math.floor(prevTax.special  / 2 / 100) * 100 : 0;
-  const cityKatsuInterim  = corpInterim ? Math.floor(corpInterim * 0.096 / 100) * 100 : 0;
+  const cityKatsuInterim  = corpInterim ? Math.floor(corpInterim * 0.060 / 100) * 100 : 0;
   const cityKintouInterim = corpInterim ? (small ? 25_000 : 65_000) : 0;
 
   // 消費税中間（前期消費税額で回数が変わる）★1/3/11回
