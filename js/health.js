@@ -111,7 +111,10 @@ function renderHealthDiag(container, budget) {
     <div class="sim-panel">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
         <h2 class="section-title" style="margin-bottom:0">財務健康診断</h2>
-        <button class="btn btn-sm btn-outline" onclick="showPage('home')" style="margin-left:auto">← ホームに戻る</button>
+        <div style="display:flex;gap:8px;margin-left:auto">
+          <button class="btn btn-sm btn-solid" onclick="window.print()">🖨 印刷 / PDF</button>
+          <button class="btn btn-sm btn-outline" onclick="showPage('home')">← ホームに戻る</button>
+        </div>
       </div>
 
       <!-- 総合評価カード -->

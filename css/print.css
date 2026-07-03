@@ -1,0 +1,89 @@
+/* ===== 月次レポート印刷用CSS（顧問先提出資料 / PDF出力） ===== */
+@media print {
+  /* A4・余白 */
+  @page {
+    size: A4;
+    margin: 14mm 12mm 16mm 12mm;
+  }
+
+  /* 背景色・罫線を印刷に反映 */
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body {
+    background: #fff !important;
+    height: auto !important;
+    overflow: visible !important;
+    font-size: 10.5pt;
+    color: #111 !important;
+  }
+
+  /* 画面UI（ナビ・ヘッダー・ボタン・トースト等）は印刷しない */
+  .sidebar, .app-header, .hamburger, .sidebar-overlay,
+  #toast-container, .grid-toolbar, .kichu-output-toolbar,
+  .frp-toolbar, .no-print,
+  button, .btn, .btn-solid, .btn-outline, .btn-sm, .phase-output-btn {
+    display: none !important;
+  }
+
+  /* 本文領域を全幅に */
+  .main, #main_content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    overflow: visible !important;
+  }
+
+  /* カード類の影・角丸を消しフラットに */
+  .card, .card-h, .home-card, .sim-panel,
+  .bizanalysis-wrap, .bizanalysis-section, .frp-doc {
+    box-shadow: none !important;
+    border-color: #d0d0d0 !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 0 10px 0 !important;
+  }
+
+  /* スクロールコンテナを展開（表が切れないように） */
+  .table-scroll, .table-wrap, .frp-table-wrap,
+  [class*="overflow"], [style*="overflow"] {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* 表：改ページで途中分断しない・ヘッダーを各ページ先頭に繰り返す */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+  thead { display: table-header-group; }
+  tr, td, th { page-break-inside: avoid; }
+  th, td { border-color: #cfcfcf !important; }
+
+  /* 見出しの直後で改ページしない */
+  h1, h2, h3, h4,
+  .section-title, .bizanalysis-section-title,
+  .frp-section-label, .home-card-title, .kichu-section-title {
+    page-break-after: avoid;
+  }
+  .bizanalysis-section, .frp-table-wrap, .sbs-table, .frp-table {
+    page-break-inside: avoid;
+  }
+
+  /* リンクは黒・下線なし */
+  a { text-decoration: none !important; color: inherit !important; }
+
+  /* 印刷時だけ表示する要素 */
+  .print-only { display: block !important; }
+
+  /* グラフ（canvas）は用紙幅に収める */
+  canvas { max-width: 100% !important; height: auto !important; }
+}
+
+/* 画面表示中は print-only を隠す */
+.print-only { display: none; }

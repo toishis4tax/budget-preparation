@@ -267,7 +267,10 @@ function renderSummaryPL(container) {
           <div style="font-size:20px;font-weight:800;color:var(--text)">📈 要約損益計算書（3期比較）</div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${escHtml(company.name)} ／ 変動損益方式・構成比は売上高に対する割合</div>
         </div>
-        <button class="btn btn-sm btn-outline" onclick="showPage('home')">← ホームに戻る</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-solid" onclick="window.print()">🖨 印刷 / PDF</button>
+          <button class="btn btn-sm btn-outline" onclick="showPage('home')">← ホームに戻る</button>
+        </div>
       </div>
       <div class="card" style="padding:0;overflow-x:auto">${tbl}</div>
       <div class="wf-note">単位：千円。変動費＝売上原価、固定費＝販管費＋営業外費用−営業外収益。「他の〜」は残差です（限界利益・固定費合計・経常利益は必ず整合）。</div>
@@ -371,7 +374,10 @@ function renderSummaryBS(container) {
           <div style="font-size:20px;font-weight:800;color:var(--text)">🏦 要約貸借対照表（3期比較）</div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${escHtml(company.name)} ／ 構成比は総資産に対する割合</div>
         </div>
-        <button class="btn btn-sm btn-outline" onclick="showPage('home')">← ホームに戻る</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-solid" onclick="window.print()">🖨 印刷 / PDF</button>
+          <button class="btn btn-sm btn-outline" onclick="showPage('home')">← ホームに戻る</button>
+        </div>
       </div>
       <div class="card" style="padding:0;overflow-x:auto">${tbl}</div>
       <div class="wf-note">単位：千円。「他の〜」は各小計から名前判別できた科目を差し引いた残差です（合計は必ず一致します）。</div>

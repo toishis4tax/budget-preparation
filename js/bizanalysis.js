@@ -173,6 +173,7 @@ function renderBizAnalysis(container) {
           <div style="font-size:20px;font-weight:800;color:var(--text)">📊 3期比較経営分析表</div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${escHtml(company.name)} ／ ${yr2}年度〜${yr0}年度</div>
         </div>
+        <button class="btn btn-sm btn-solid" onclick="window.print()">🖨 印刷 / PDF</button>
       </div>
 
       <!-- PL サマリー -->
