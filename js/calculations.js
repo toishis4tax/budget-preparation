@@ -217,8 +217,8 @@ function calcHealthMetricsDynamic(budget, capital) {
 
   const arr   = id => av[id] || new Array(13).fill(0);
   const last  = id => arr(id)[closeIdx] || 0;
-  // PL: 月次12か月＋調整欄(index 12)を含む年間合計
-  const total = id => arr(id).slice(0, 13).reduce((a, b) => a + b, 0);
+  // PL: 月次12か月のみ（調整欄 index 12 は除く。calcHealthMetrics と同一ポリシー）
+  const total = id => arr(id).slice(0, 12).reduce((a, b) => a + b, 0);
 
   // 名前で科目を合算：inputのみ、または親が同じ正規表現にマッチしない最深レベルを優先
   // BSは残高(last)、PLは年計(total)

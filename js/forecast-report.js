@@ -242,7 +242,7 @@ function renderForecastReport(container) {
         <tbody>
           ${frpRow('(1) 売 上 高', '前年比', K(aS), K(fS), K(tS), K(pS), yoy(tS,pS), yoy(pS,null), neg(tS))}
           ${frpRow('(2) 限界利益', `限界利益率 ${pct(tG,tS)}`, K(aG), K(fG), K(tG), K(pG), pct(tG,tS), pct(pG,pS), neg(tG))}
-          ${frpRow('(3) 人 件 費', `労働分配率 ${pct(tL,tG||1)}`, K(aL), K(fL), K(tL), K(pL), pct(tL,tG||1), pct(pL,pG||1), '')}
+          ${frpRow('(3) 人 件 費', `労働分配率 ${pct(tL,tG)}`, K(aL), K(fL), K(tL), K(pL), pct(tL,tG), pct(pL,pG), '')}
           ${frpRow('(4) 経 常 利 益', `売上高経常利益率 ${pct(tO,tS)}`, K(aO), K(fO), K(tO), K(pO), pct(tO,tS), pct(pO,pS), neg(tO))}
           ${frpRow('(5) 税引後当期純利益', `前年比 ${yoy(tN2,pN2)}`, K(aN2), K(fN2), K(tN2), K(pN2), yoy(tN2,pN2), '', neg(tN2))}
         </tbody>

@@ -766,6 +766,7 @@ function renderPhase3Home(container, budget, company) {
 
   const diff = (cur, prev) => prev ? Math.round((cur - prev) / Math.abs(prev) * 100) : null;
   const diffBadge = (cur, prev) => {
+    if (cur === null || cur === undefined || prev === null || prev === undefined) return '<span class="yr3-nodata">—</span>';
     const d = diff(cur, prev);
     if (d === null) return '<span class="yr3-nodata">—</span>';
     return `<span style="color:${d>=0?'#059669':'#dc2626'}">${d>=0?'+':''}${d}%</span>`;

@@ -52,7 +52,7 @@ function calcInterimTax(prevBudget, prevCompany) {
 
   // 法人税中間 = 前期÷2（10万超のみ）★1回
   const corpInterim      = prevTax && prevTax.corp >= 100_000 ? Math.floor(prevTax.corp / 2 / 100) * 100 : 0;
-  const localCorpInterim = prevTax && prevTax.localCorp >= 10_000 ? Math.floor(prevTax.localCorp / 2 / 100) * 100 : 0;
+  const localCorpInterim = prevTax && prevTax.localCorp >= 100_000 ? Math.floor(prevTax.localCorp / 2 / 100) * 100 : 0;
 
   const prefKatsuInterim  = corpInterim ? Math.floor(corpInterim * 0.032 / 100) * 100 : 0;
   const prefKintouInterim = corpInterim ? 10_000 : 0; // 均等割20,000÷2（固定額）
