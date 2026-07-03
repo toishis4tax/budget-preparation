@@ -140,6 +140,45 @@ function _insertCashAlert(container, company, budget) {
   if (html) container.insertAdjacentHTML('afterbegin', html);
 }
 
+// 引き継ぎメモ・申し送り（会社単位・Firestore同期）
+function _handoverMemoHTML(company) {
+  if (!company) return '';
+  const note = company.handoverNote || '';
+  const meta = company.handoverNoteMeta || null;
+  const metaStr = meta && meta.at
+    ? `最終更新: ${escHtml(meta.by || '')} ／ ${new Date(meta.at).toLocaleString('ja-JP')}`
+    : '未記入';
+  return `<div class="home-card no-print" style="margin-bottom:14px">
+    <div class="home-card-title">📝 引き継ぎメモ・申し送り</div>
+    <textarea id="handover_note" rows="4"
+      style="width:100%;box-sizing:border-box;font-size:13px;padding:10px;border:1px solid var(--border);border-radius:8px;resize:vertical;font-family:inherit"
+      placeholder="担当者間の申し送り、顧問先の状況、次回対応事項など">${escHtml(note)}</textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+      <span style="font-size:11px;color:var(--text-muted)">${metaStr}</span>
+      <button class="btn btn-sm btn-solid" onclick="saveHandoverNote('${company.id}')">💾 保存</button>
+    </div>
+  </div>`;
+}
+function _insertHandoverMemo(container, company) {
+  const html = _handoverMemoHTML(company);
+  if (html) container.insertAdjacentHTML('afterbegin', html);
+}
+function saveHandoverNote(companyId) {
+  const el = document.getElementById('handover_note');
+  if (!el) return;
+  const data = loadData();
+  const c = data.companies.find(x => x.id === companyId);
+  if (!c) return;
+  c.handoverNote = el.value;
+  const who = (window._currentFbUser && (window._currentFbUser.name || window._currentFbUser.email)) || '担当者';
+  c.handoverNoteMeta = { by: who, at: Date.now() };
+  saveCompany(c);
+  if (window.App && window.App.currentCompany && window.App.currentCompany.id === companyId) {
+    window.App.currentCompany = c;
+  }
+  if (typeof showToast === 'function') showToast('引き継ぎメモを保存しました', 'success');
+}
+
 function renderHome(container) {
   const phase   = window.App?.currentPhase || 0;
   const budget  = window.App?.currentBudget;
@@ -156,9 +195,9 @@ function renderHome(container) {
   }
 
   // フェーズ別ダッシュボードに振り分け（各ダッシュボード先頭に資金ショートアラートを差し込む）
-  if (phase === 1) { renderPhase1Home(container, budget, company); _insertCashAlert(container, company, budget); return; }
-  if (phase === 2) { renderPhase2Home(container, budget, company); _insertCashAlert(container, company, budget); return; }
-  if (phase === 3) { renderPhase3Home(container, budget, company); _insertCashAlert(container, company, budget); return; }
+  if (phase === 1) { renderPhase1Home(container, budget, company); _insertHandoverMemo(container, company); _insertCashAlert(container, company, budget); return; }
+  if (phase === 2) { renderPhase2Home(container, budget, company); _insertHandoverMemo(container, company); _insertCashAlert(container, company, budget); return; }
+  if (phase === 3) { renderPhase3Home(container, budget, company); _insertHandoverMemo(container, company); _insertCashAlert(container, company, budget); return; }
 
   const capital   = company.capital || 10000000;
   const curYear   = window.App?.currentYear || new Date().getFullYear();
