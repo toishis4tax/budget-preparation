@@ -123,7 +123,7 @@ body {
 
 .sidebar-section {
   padding: 16px 14px 4px;
-  font-size: 9px; color: rgba(255,255,255,.22);
+  font-size: 9px; color: rgba(255,255,255,.55);
   text-transform: uppercase; letter-spacing: .12em; font-weight: 600;
 }
 
@@ -829,4 +829,16 @@ input[type=range]::-webkit-slider-thumb {
   .hamburger { display: flex; }
   .main { margin-left: 0 !important; }
   .sim-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .app-header { gap: 6px; padding: 0 10px; flex-wrap: wrap; min-height: 52px; height: auto; padding-top: 6px; padding-bottom: 6px; }
+  .header-select { max-width: 120px; font-size: 11px; }
+  #btn-next-year { display: none; }
+  .header-label { display: none; }
+  .header-spacer { display: none; }
+  .main { padding-top: 52px; }
+  .client-card-grid { grid-template-columns: 1fr !important; }
+  .client-card-metrics { grid-template-columns: repeat(3,1fr); }
+  .modal-box { padding: 16px; margin: 8px; }
 }

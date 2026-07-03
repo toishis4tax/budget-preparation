@@ -109,6 +109,12 @@ function loadApp() {
   setPhase(1);
   // ページ更新時は常に顧問先一覧から開始
   showPage('client_list');
+  // nav-itemのキーボードアクセシビリティを一括付与
+  document.querySelectorAll('.nav-item:not([tabindex])').forEach(el => {
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('role', 'button');
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
+  });
 }
 
 // ===== 会社管理 =====
@@ -119,6 +125,15 @@ function renderCompanyList() {
     App.companies.map(c =>
       `<option value="${c.id}" ${App.currentCompany?.id === c.id ? 'selected' : ''}>${escHtml(c.name)}</option>`
     ).join('');
+  _updateHeaderButtons();
+}
+
+function _updateHeaderButtons() {
+  const hasCo = !!App.currentCompany;
+  ['btn-next-year', 'btn-edit-company', 'btn-delete-company'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.disabled = !hasCo; el.style.opacity = hasCo ? '' : '.4'; }
+  });
 }
 
 function selectCompany(id) {

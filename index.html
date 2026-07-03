@@ -38,35 +38,35 @@
   </div>
 
   <!-- 顧問先一覧 -->
-  <div class="nav-item" data-page="client_list">
+  <div class="nav-item" data-page="client_list" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
     <span class="icon">🏢</span>顧問先一覧
   </div>
 
   <!-- フェーズ共通: ダッシュボード -->
-  <div class="nav-item" data-page="home" data-phase="0">
+  <div class="nav-item" data-page="home" data-phase="0" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
     <span class="icon">📋</span>ダッシュボード
   </div>
 
   <!-- 共通: 推移表アップロード -->
-  <div class="nav-item" data-page="import">
+  <div class="nav-item" data-page="import" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
     <span class="icon">📤</span>推移表アップロード
   </div>
 
   <!-- ① 期中 -->
   <div class="sidebar-phase" id="phase-section-1">
-    <div class="sidebar-phase-label phase1" onclick="togglePhase(1)">
+    <div class="sidebar-phase-label phase1" onclick="togglePhase(1)" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ')togglePhase(1)">
       <span class="phase-dot dot-1"></span>
       <span>① 期中・決算</span>
       <span class="phase-toggle-icon" id="phase-toggle-1">▾</span>
     </div>
     <div class="phase-nav-items" id="phase-nav-1">
-      <div class="nav-item nav-sub-item" data-page="home" data-phase="1">
+      <div class="nav-item nav-sub-item" data-page="home" data-phase="1" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
         <span class="icon">🏠</span>ホーム
       </div>
-      <div class="nav-item nav-sub-item" data-page="budget" data-phase="1">
+      <div class="nav-item nav-sub-item" data-page="budget" data-phase="1" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
         <span class="icon">📝</span>月次予算入力
       </div>
-      <div class="nav-item nav-sub-item" data-page="nextyear_pl" data-phase="1">
+      <div class="nav-item nav-sub-item" data-page="nextyear_pl" data-phase="1" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
         <span class="icon">📅</span>翌期月次予算入力
       </div>
       <div class="nav-item nav-sub-item" id="nav_revenue" data-page="revenue" data-phase="1" style="display:none">
@@ -98,7 +98,7 @@
 
   <!-- ② 申告・報告 -->
   <div class="sidebar-phase" id="phase-section-2">
-    <div class="sidebar-phase-label phase2" onclick="togglePhase(2)">
+    <div class="sidebar-phase-label phase2" onclick="togglePhase(2)" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ')togglePhase(2)">
       <span class="phase-dot dot-2"></span>
       <span>② 申告・報告</span>
       <span class="phase-toggle-icon" id="phase-toggle-2">▸</span>
@@ -140,7 +140,7 @@
 
   <!-- ③ 提案ツール -->
   <div class="sidebar-phase" id="phase-section-3">
-    <div class="sidebar-phase-label phase3" onclick="togglePhase(3)">
+    <div class="sidebar-phase-label phase3" onclick="togglePhase(3)" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ')togglePhase(3)">
       <span class="phase-dot dot-3"></span>
       <span>③ 提案ツール</span>
       <span class="phase-toggle-icon" id="phase-toggle-3">▸</span>
@@ -177,11 +177,11 @@
     <select id="year_select" class="header-select">
       <option value="2025">2025年度</option>
     </select>
-    <button class="btn btn-sm" title="当年度の実績をベースに翌年度を作成します" onclick="createNextYear()">▶ 次年度を作成</button>
+    <button id="btn-next-year" class="btn btn-sm" title="当年度の実績をベースに翌年度を作成します" onclick="createNextYear()" disabled>▶ 次年度を作成</button>
     <span id="carry_badge" style="display:none;font-size:11px;font-weight:600;color:#0369a1;background:#e0f2fe;border:1px solid #bae6fd;border-radius:10px;padding:2px 10px;margin-left:4px"></span>
     <button class="btn btn-sm" onclick="openCompanyModal('')">＋会社追加</button>
-    <button class="btn btn-sm" onclick="openCompanyModal(App.currentCompany?.id)">編集</button>
-    <button class="btn btn-sm" style="border-color:rgba(255,100,100,.5);color:#ffaaaa" onclick="deleteCurrentCompany()">削除</button>
+    <button id="btn-edit-company" class="btn btn-sm" onclick="openCompanyModal(App.currentCompany?.id)" disabled>編集</button>
+    <button id="btn-delete-company" class="btn btn-sm" style="border-color:rgba(255,100,100,.5);color:#ffaaaa" onclick="deleteCurrentCompany()" disabled>削除</button>
     <span class="header-spacer"></span>
     <div id="fb-user-badge" style="display:none;align-items:center;gap:8px"></div>
     <span class="header-label">税理士向け予算管理システム</span>
@@ -208,15 +208,15 @@
     <h2>会社情報</h2>
     <input type="hidden" id="modal_company_id">
     <div class="form-group">
-      <label>会社名 *</label>
-      <input type="text" id="modal_company_name" class="form-input" placeholder="株式会社○○">
+      <label for="modal_company_name">会社名 *</label>
+      <input type="text" id="modal_company_name" class="form-input" placeholder="株式会社○○" required>
     </div>
     <div class="form-group">
-      <label>資本金（円）</label>
+      <label for="modal_capital">資本金（円）</label>
       <input type="number" id="modal_capital" class="form-input" value="10000000" step="100000">
     </div>
     <div class="form-group">
-      <label>協会けんぽ（都道府県）</label>
+      <label for="modal_pref">協会けんぽ（都道府県）</label>
       <select id="modal_pref" class="form-input">
         <option>北海道</option><option>青森県</option><option>岩手県</option>
         <option>宮城県</option><option>秋田県</option><option>山形県</option>
@@ -237,7 +237,7 @@
       </select>
     </div>
     <div class="form-group">
-      <label>業種</label>
+      <label for="modal_industry">業種</label>
       <select id="modal_industry" class="form-input">
         <option value="other">一般業種</option>
         <option value="tax_accountant">税理士業</option>
@@ -258,11 +258,11 @@
       </select>
     </div>
     <div class="form-group">
-      <label>従業員数（人）</label>
+      <label for="modal_employees">従業員数（人）</label>
       <input type="number" id="modal_employees" class="form-input" value="1" min="1" step="1">
     </div>
     <div class="form-group">
-      <label>決算月</label>
+      <label for="modal_fiscal">決算月</label>
       <select id="modal_fiscal" class="form-input">
         <option value="1">1月</option><option value="2">2月</option>
         <option value="3" selected>3月</option><option value="4">4月</option>
@@ -276,14 +276,14 @@
       <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:10px">消費税・予定納税</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="form-group" style="margin:0">
-          <label>インボイス登録</label>
+          <label for="modal_invoice">インボイス登録</label>
           <select id="modal_invoice" class="form-input">
             <option value="0">未登録</option>
             <option value="1">登録済</option>
           </select>
         </div>
         <div class="form-group" style="margin:0">
-          <label>簡易課税届出</label>
+          <label for="modal_kani">簡易課税届出</label>
           <select id="modal_kani" class="form-input">
             <option value="0">未届出</option>
             <option value="1">届出済</option>
@@ -292,11 +292,11 @@
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
         <div class="form-group" style="margin:0">
-          <label>基準期間売上高（円）</label>
+          <label for="modal_kijun">基準期間売上高（円）</label>
           <input type="number" id="modal_kijun" class="form-input" value="0" step="100000">
         </div>
         <div class="form-group" style="margin:0">
-          <label>業種区分（簡易課税用）</label>
+          <label for="modal_business_type">業種区分（簡易課税用）</label>
           <select id="modal_business_type" class="form-input">
             <option value="1">第1種：卸売業（90%）</option>
             <option value="2">第2種：小売業（80%）</option>
@@ -309,11 +309,11 @@
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
         <div class="form-group" style="margin:0">
-          <label>法人税 中間申告（年1回・円）</label>
+          <label for="modal_prepaid1">法人税 中間申告（年1回・円）</label>
           <input type="number" id="modal_prepaid1" class="form-input" value="0" step="10000">
         </div>
         <div class="form-group" style="margin:0">
-          <label>消費税中間納付（円）</label>
+          <label for="modal_ctax_prepaid">消費税中間納付（円）</label>
           <input type="number" id="modal_ctax_prepaid" class="form-input" value="0" step="10000">
         </div>
       </div>
