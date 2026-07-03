@@ -108,6 +108,38 @@ function renderClientDashboard(container) {
     </div>`;
 }
 
+// 資金ショートアラート用バナー（資金繰り予測から12か月の現預金残高を判定）
+function _cashAlertHTML(company, budget) {
+  if (!company || !budget || typeof computeCashSeries !== 'function') return '';
+  let s;
+  try { s = computeCashSeries(company, budget); } catch (e) { return ''; }
+  if (!s || !s.rows || !s.rows.length) return '';
+  const k = v => Math.round(v / 1000).toLocaleString('ja-JP');
+  const base = 'display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;margin-bottom:14px;cursor:pointer;font-size:13px';
+  if (s.hasShortage) {
+    const first = s.shortages[0];
+    return `<div class="cash-alert" style="${base};background:#fef2f2;border:1px solid #fca5a5;color:#991b1b" onclick="showPage('cashflow')" title="資金繰り予測を開く">
+      <span style="font-size:20px">⚠️</span>
+      <div><strong>${first.calMonth}月に資金が不足する見込みです</strong>
+        <span style="opacity:.85;margin-left:8px">最低残高 ${k(s.minRow.cash)}千円（${s.minRow.calMonth}月）／ 期首 ${k(s.openCash)}千円</span></div>
+      <span style="margin-left:auto;font-weight:600;white-space:nowrap">資金繰りを確認 →</span>
+    </div>`;
+  }
+  if (s.minRow && s.minRow.cash < Math.max(1_000_000, s.openCash * 0.2)) {
+    return `<div class="cash-alert" style="${base};background:#fffbeb;border:1px solid #fcd34d;color:#92400e" onclick="showPage('cashflow')">
+      <span style="font-size:18px">🟡</span>
+      <div><strong>資金残高が薄くなる月があります</strong>
+        <span style="opacity:.85;margin-left:8px">最低残高 ${k(s.minRow.cash)}千円（${s.minRow.calMonth}月）</span></div>
+      <span style="margin-left:auto;font-weight:600;white-space:nowrap">資金繰りを確認 →</span>
+    </div>`;
+  }
+  return '';
+}
+function _insertCashAlert(container, company, budget) {
+  const html = _cashAlertHTML(company, budget);
+  if (html) container.insertAdjacentHTML('afterbegin', html);
+}
+
 function renderHome(container) {
   const phase   = window.App?.currentPhase || 0;
   const budget  = window.App?.currentBudget;
@@ -123,10 +155,10 @@ function renderHome(container) {
     return;
   }
 
-  // フェーズ別ダッシュボードに振り分け
-  if (phase === 1) return renderPhase1Home(container, budget, company);
-  if (phase === 2) return renderPhase2Home(container, budget, company);
-  if (phase === 3) return renderPhase3Home(container, budget, company);
+  // フェーズ別ダッシュボードに振り分け（各ダッシュボード先頭に資金ショートアラートを差し込む）
+  if (phase === 1) { renderPhase1Home(container, budget, company); _insertCashAlert(container, company, budget); return; }
+  if (phase === 2) { renderPhase2Home(container, budget, company); _insertCashAlert(container, company, budget); return; }
+  if (phase === 3) { renderPhase3Home(container, budget, company); _insertCashAlert(container, company, budget); return; }
 
   const capital   = company.capital || 10000000;
   const curYear   = window.App?.currentYear || new Date().getFullYear();

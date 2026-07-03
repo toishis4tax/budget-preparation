@@ -654,3 +654,62 @@ function runCashFlow() {
     }
   }
 }
+
+// ===== 資金ショート判定（DOM非依存・ホーム画面のアラート用） =====
+// 資金繰りページと同じ考え方で12か月の現預金残高を計算し、マイナスになる月を検出する
+function computeCashSeries(company, budget) {
+  if (!company || !budget) return null;
+  const startMonth = budget.startMonth || 4;
+  const curYear = budget.year;
+  let allVals;
+  try { allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : (typeof calcPL === 'function' ? null : {}); }
+  catch (e) { allVals = null; }
+
+  // 期首現預金：前期末(index11) → 当期首(index0) の順で自動取得
+  const findCash = b => {
+    if (!b || !b.dynamicAccounts) return null;
+    const cg = b.dynamicAccounts.find(a => a.cashGroup && a.section && a.section.startsWith('bs'));
+    if (cg) return cg;
+    return b.dynamicAccounts.find(a => a.name && a.name.replace(/\s/g, '').match(/現金|預金|現預金|信金|銀行|信用組合/) && a.section && a.section.startsWith('bs'));
+  };
+  let autoCash = 0;
+  const prev = (typeof getBudget === 'function') ? getBudget(company.id, curYear - 1) : null;
+  const pc = findCash(prev);
+  if (pc) { const src = prev.actualRows || prev.rows || {}; autoCash = (src[pc.id] || [])[11] || 0; }
+  if (!autoCash) { const cc = findCash(budget); if (cc) { const src = budget.actualRows || budget.rows || {}; autoCash = (src[cc.id] || [])[0] || 0; } }
+
+  // 月次当期純利益＋減価償却（＝営業CF）
+  let netArr = new Array(12).fill(0), deprArr = new Array(12).fill(0);
+  if (budget.dynamicAccounts && allVals) {
+    netArr = allVals['calc_net'] || new Array(12).fill(0);
+    const deprAccs = budget.dynamicAccounts.filter(a => a.name && a.name.replace(/\s/g, '').match(/減価償却/) && a.type === 'input');
+    deprArr = Array.from({ length: 12 }, (_, i) => deprAccs.reduce((s, a) => s + ((allVals[a.id] || [])[i] || 0), 0));
+  } else if (typeof calcPL === 'function' && budget.rows) {
+    try { netArr = calcPL(budget.rows).net_profit || new Array(12).fill(0); } catch (e) {}
+    deprArr = budget.rows.sga_depr || new Array(12).fill(0);
+  }
+
+  // 資金繰りページで保存した財務・税金の入力値を反映（消費税はパススルーのため対象外）
+  let inp = {};
+  try { inp = JSON.parse(localStorage.getItem(`cf_inputs_${company.id}_${curYear}`)) || {}; } catch (e) {}
+  const openCash  = inp.openCash != null ? inp.openCash : autoCash;
+  const loanRepay = inp.loanRepay || 0;
+  const newLoan   = (inp.newLoan || 0) / 12;
+  const invest    = (inp.invest || 0) / 12;
+  const prevCorp  = inp.prevCorp || 0;
+  const tax1Amt   = inp.tax1Amt || 0;
+  const tax1Month = inp.tax1Month != null ? inp.tax1Month : 4;
+
+  let cash = openCash;
+  const rows = [];
+  for (let m = 0; m < 12; m++) {
+    const opCF = (netArr[m] || 0) + (deprArr[m] || 0);
+    const finCF = newLoan - loanRepay - invest;
+    const taxCF = -(m === 1 ? prevCorp : 0) - (m === tax1Month ? tax1Amt : 0);
+    cash += opCF + finCF + taxCF;
+    rows.push({ m, calMonth: ((startMonth - 1 + m) % 12) + 1, cash });
+  }
+  const shortages = rows.filter(r => r.cash < 0);
+  const minRow = rows.reduce((a, b) => (b.cash < a.cash ? b : a), rows[0]);
+  return { rows, openCash, shortages, minRow, hasShortage: shortages.length > 0 };
+}
