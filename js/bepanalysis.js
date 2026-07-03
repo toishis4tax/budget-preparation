@@ -61,7 +61,7 @@ function renderBEPAnalysis(container) {
   }
 
   // 表示年度ラベル
-  const rYear = y => `R${y - 2018}.${fiscalMonth}`;
+  const rYear = y => `${y}年${fiscalMonth}月期`;
   const curLabel  = rYear(curYear);
   const prevLabel = rYear(curYear - 1);
 
@@ -166,7 +166,7 @@ function renderBEPAnalysis(container) {
     <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px">
       <div>
         <div style="font-size:20px;font-weight:800;color:var(--text)">📉 損益分岐点分析図表</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${escHtml(company.name)} ／ ${curYear + 1}年${fiscalMonth}月期</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${escHtml(company.name)} ／ ${curYear}年${fiscalMonth}月期</div>
       </div>
       <button class="btn btn-sm btn-outline" onclick="window.print()">🖨 印刷</button>
     </div>

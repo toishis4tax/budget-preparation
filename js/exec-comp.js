@@ -618,7 +618,7 @@ function renderExecCompareTable(officer, pref, capital, pretax) {
 // 予算へ反映
 function applyExecToBudget() {
   const budget = window.App?.currentBudget;
-  if (!budget) { alert('予算データがありません'); return; }
+  if (!budget) { showAlert('予算データがありません', 'warn'); return; }
 
   const last = _execState._last;
   if (!last) return;
@@ -644,7 +644,7 @@ function applyExecToBudget() {
   saveBudget(budget);
   window.App.currentBudget = budget;
 
-  alert(`予算を更新しました。\n役員報酬：${fmt(totalExec)}/月\n法定福利費（社会保険）：${fmt(Math.round(totalMonthlySI))}/月`);
+  showToast(`予算を更新しました（役員報酬：${fmt(totalExec)}/月）`, 'success', 4000);
   showPage('budget');
 }
 
@@ -799,7 +799,7 @@ function renderExecSITable() {
 
 function _execApplySIToBudget() {
   const budget = window.App?.currentBudget;
-  if (!budget) { alert('予算データがありません'); return; }
+  if (!budget) { showAlert('予算データがありません', 'warn'); return; }
   const pref       = window.App?.currentCompany?.prefecture || '東京都';
   const startMonth = budget.startMonth || 4;
   const { regularSI, bonusSI, bonusSalary } = _execCalcBreakdown(pref, startMonth);
@@ -830,13 +830,7 @@ function _execApplySIToBudget() {
   }
   saveBudget(budget);
   window.App.currentBudget = budget;
-  alert(
-    `予算に反映しました。\n` +
-    `役員報酬：${Math.round(_execState.officers.reduce((s,o)=>s+(o.monthly||0),0)).toLocaleString()}円/月\n` +
-    `法定福利費（役員賞与分）：${Math.round(bonusSI.reduce((s,v)=>s+v,0)).toLocaleString()}\n` +
-    `役員賞与合計：${Math.round(bonusSalary.reduce((s,v)=>s+v,0)).toLocaleString()}\n` +
-    `→ 「法定福利費（反映）」「賞与（反映）」グループに書き込みました`
-  );
+  showToast('予算に反映しました（役員賞与・法定福利費）', 'success', 4000);
 }
 
 let _siBonuses = [{ month: 6, amount: 0 }, { month: 12, amount: 0 }];
@@ -1061,7 +1055,7 @@ function calcZeroOut() {
 // 調整列（col 12）へ反映
 function applyZeroOutToAdj(bonus, welfare) {
   const budget = window.App?.currentBudget;
-  if (!budget) { alert('予算データがありません'); return; }
+  if (!budget) { showAlert('予算データがありません', 'warn'); return; }
 
   // 役員賞与アカウントを探す（動的 or 静的）
   let bonusAccId   = null;
@@ -1096,13 +1090,13 @@ function applyZeroOutToAdj(bonus, welfare) {
   saveBudget(budget);
   window.App.currentBudget = budget;
 
-  alert(`調整列に反映しました。\n役員賞与：${Math.round(bonus).toLocaleString()}円\n法定福利費：${Math.round(welfare).toLocaleString()}円`);
+  showToast('調整列に反映しました（役員賞与・法定福利費）', 'success', 4000);
   showPage('budget');
 }
 
 function _execApplyZeroToBudget(bonus1, bonus2, welfare1, welfare2) {
   const budget = window.App?.currentBudget;
-  if (!budget) { alert('予算データがありません'); return; }
+  if (!budget) { showAlert('予算データがありません', 'warn'); return; }
   const pref = window.App?.currentCompany?.prefecture || '東京都';
   const startMonth = budget.startMonth || 4;
   if (!budget.rows) budget.rows = {};
@@ -1128,7 +1122,7 @@ function _execApplyZeroToBudget(bonus1, bonus2, welfare1, welfare2) {
 
   saveBudget(budget);
   window.App.currentBudget = budget;
-  alert(`役員賞与を12月に計上しました。\n合計賞与：${(bonus1+bonus2).toLocaleString()}円\n賞与法定福利費：${(welfare1+welfare2).toLocaleString()}円`);
+  showToast('役員賞与を計上しました', 'success', 3000);
 }
 
 function annualTotal(arr) { return (arr || []).reduce((a,b)=>a+b,0); }

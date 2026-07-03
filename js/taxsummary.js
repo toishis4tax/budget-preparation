@@ -3,11 +3,13 @@
 const TAXSUM_KEY = 'taxsummary_v1';
 
 function loadTaxSummaryData(companyId, year) {
+  if (!companyId) return {};
   const all = JSON.parse(localStorage.getItem(TAXSUM_KEY) || '{}');
   return all[`${companyId}_${year}`] || {};
 }
 
 function saveTaxSummaryData(companyId, year, data) {
+  if (!companyId) return;
   const all = JSON.parse(localStorage.getItem(TAXSUM_KEY) || '{}');
   all[`${companyId}_${year}`] = data;
   localStorage.setItem(TAXSUM_KEY, JSON.stringify(all));
@@ -52,14 +54,15 @@ function calcInterimTax(prevBudget, prevCompany) {
 
   // 法人税中間 = 前期÷2（10万超のみ）★1回
   const corpInterim      = prevTax && prevTax.corp >= 100_000 ? Math.floor(prevTax.corp / 2 / 100) * 100 : 0;
-  const localCorpInterim = prevTax && prevTax.localCorp >= 100_000 ? Math.floor(prevTax.localCorp / 2 / 100) * 100 : 0;
+  const localCorpInterim = prevTax && prevTax.corp >= 100_000 ? Math.floor(prevTax.localCorp / 2 / 100) * 100 : 0;
 
+  const small = (prevCompany?.capital || 10_000_000) <= 100_000_000;
   const prefKatsuInterim  = corpInterim ? Math.floor(corpInterim * 0.032 / 100) * 100 : 0;
-  const prefKintouInterim = corpInterim ? 10_000 : 0; // 均等割20,000÷2（固定額）
+  const prefKintouInterim = corpInterim ? (small ? 10_000 : 50_000) : 0;
   const businessInterim   = prevTax && prevTax.business >= 100_000 ? Math.floor(prevTax.business / 2 / 100) * 100 : 0;
   const specialInterim    = prevTax && prevTax.special >= 100_000  ? Math.floor(prevTax.special  / 2 / 100) * 100 : 0;
   const cityKatsuInterim  = corpInterim ? Math.floor(corpInterim * 0.096 / 100) * 100 : 0;
-  const cityKintouInterim = corpInterim ? 25_000 : 0; // 均等割50,000÷2（固定額）
+  const cityKintouInterim = corpInterim ? (small ? 25_000 : 65_000) : 0;
 
   // 消費税中間（前期消費税額で回数が変わる）★1/3/11回
   let ctaxPerPayment = 0, ctaxTimes = 0, localCtaxPerPayment = 0;
@@ -148,7 +151,7 @@ function renderTaxSummary(container) {
 
   // 消費税の納付月ラベル
   const ctaxMonthLabel = sched.ctaxInterimMonths.map(m => m + '月').join('･');
-  const ctaxDivN = interim?.ctaxTimes === 11 ? 12 : interim?.ctaxTimes === 3 ? 4 : 2;
+  const ctaxDivN = interim?.ctaxTimes === 11 ? 12 : interim?.ctaxTimes === 3 ? 4 : interim?.ctaxTimes === 1 ? 2 : 0;
 
   // 合計
   const annKeys = ['corp','localCorp','prefKatsu','prefKintou','business','special','cityKatsu','cityKintou','ctax','localCtax'];
@@ -166,7 +169,7 @@ function renderTaxSummary(container) {
       <div class="taxsum-title">📑 納付税額確認書</div>
       <div class="taxsum-sub">
         ${escHtml(company.name)} ／
-        令和${reiwaYear - 1}年${fyStart}月〜令和${reiwaYear}年${fiscal}月 ／
+        令和${fyStart > fiscal ? reiwaYear - 1 : reiwaYear}年${fyStart}月〜令和${reiwaYear}年${fiscal}月 ／
         <strong style="color:#dc2626">確定申告期限：${sched.finalMonth}月末</strong>
       </div>
 
@@ -237,7 +240,7 @@ function rerenderTaxSumCalc(saved) {
   const curYear = window.App?.currentYear || new Date().getFullYear();
   const prevBudget = getBudget(company?.id, curYear - 1);
   const interim = calcInterimTax(prevBudget, company);
-  const ctaxDivN = interim?.ctaxTimes === 11 ? 12 : interim?.ctaxTimes === 3 ? 4 : 2;
+  const ctaxDivN = interim?.ctaxTimes === 11 ? 12 : interim?.ctaxTimes === 3 ? 4 : interim?.ctaxTimes === 1 ? 2 : 0;
 
   const annKeys = ['corp','localCorp','prefKatsu','prefKintou','business','special','cityKatsu','cityKintou','ctax','localCtax'];
   const divNMap = { ctax: ctaxDivN, localCtax: ctaxDivN };
@@ -265,8 +268,8 @@ function rerenderTaxSumCalc(saved) {
     // 翌期予定
     const nextEl = document.getElementById(`tsn_${k}`);
     if (nextEl) {
-      const divN = divNMap[k] || 2;
-      const next = annual >= 100_000 ? Math.floor(annual / divN / 100) * 100 : 0;
+      const divN = k in divNMap ? divNMap[k] : 2;
+      const next = divN > 0 && annual >= 100_000 ? Math.floor(annual / divN / 100) * 100 : 0;
       nextEl.textContent = next > 0 ? next.toLocaleString('ja-JP') : '—';
     }
   });
@@ -286,5 +289,5 @@ function rerenderTaxSumCalc(saved) {
 }
 
 function exportTaxSummaryPDF() {
-  alert('PDF出力は準備中です');
+  showToast('PDF出力は準備中です', 'info', 3000);
 }

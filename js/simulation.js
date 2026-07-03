@@ -199,7 +199,8 @@ function runFiveYearSim() {
       const ids = new Set(matching.map(a => a.id));
       return matching.filter(a => !ids.has(a.parentId)).reduce((s,a) => s + dynSum(a.id), 0);
     };
-    const closeIdx = Math.max(0, ...(budget.actualCols||[]).map((v,i)=>v?i:-1));
+    const _actIdxs = (budget.actualCols||[]).map((v,i)=>v?i:-1).filter(i=>i>=0);
+    const closeIdx = _actIdxs.length > 0 ? Math.max(..._actIdxs) : 11;
     curSales  = dynSum('sec_revenue') || dynSum('sales');
     curCogs   = dynSum('sec_cogs')    || dynSum('cogs');
     curSalary = matchSum(/給与|給料|賃金|役員報酬|役員賞与|賞与|法定福利|人件費|雑給/);
@@ -326,7 +327,7 @@ function renderCashFlow(container, budget) {
     const av = calcAllValuesDynamic(b);
     const CASH_RE = /現金|預金|信金|銀行|信用組合/;
     const matching = b.dynamicAccounts.filter(a =>
-      a.section?.startsWith('bs') &&
+      a.section === 'bs_asset' &&
       a.type !== 'section' &&
       CASH_RE.test((a.name || '').replace(/\s/g,''))
     );
@@ -379,7 +380,9 @@ function renderCashFlow(container, budget) {
 
   container.innerHTML = `
     <div class="sim-panel">
-      <h2 class="section-title">キャッシュフロー予測</h2>
+      <h2 class="section-title">キャッシュフロー予測
+        <span style="font-size:13px;font-weight:normal;color:var(--text-muted);margin-left:12px">【${company?.name || ''}　${budget.year}年度】</span>
+      </h2>
       <p class="section-sub">営業CF（利益＋減価償却）＋ 財務CF（借入返済・新規借入）＋ 法人税支払　※消費税はパススルー（計上せず）</p>
 
       <div class="sim-grid">
@@ -388,7 +391,9 @@ function renderCashFlow(container, budget) {
 
           <div class="tax-block-label">開始残高</div>
           <div class="form-group">
-            <label>期首現預金残高（円）<span class="ctax-auto-badge">${cashSource}</span></label>
+            <label>期首現預金残高（円）<span class="ctax-auto-badge">${cashSource}</span>
+              <button type="button" onclick="cfResetOpenCash(${autoCash})" style="margin-left:8px;font-size:11px;padding:2px 7px;border:1px solid var(--primary);border-radius:4px;background:none;color:var(--primary);cursor:pointer">BSから再取得（${(autoCash/1000).toFixed(0)}千円）</button>
+            </label>
             <input type="number" id="cf_open_cash" value="${autoCash}" step="100000" class="form-input" oninput="runCashFlow()">
           </div>
 
@@ -445,8 +450,9 @@ function renderCashFlow(container, budget) {
     </div>`;
 
   // state 保存（localStorageにも保存して再レンダリング・リロード後も復元）
-  const _cfKey = `cf_inputs_${company?.id || ''}_${budget?.year || ''}`;
-  const _cfSaved = (() => { try { return JSON.parse(localStorage.getItem(_cfKey)); } catch { return null; } })();
+  // company.id が空の場合は degenerate キーになるので localStorage を使わない
+  const _cfKey = company?.id ? `cf_inputs_${company.id}_${budget?.year || ''}` : null;
+  const _cfSaved = _cfKey ? (() => { try { return JSON.parse(localStorage.getItem(_cfKey)); } catch { return null; } })() : null;
   const prev = _cfSaved || {};  // window._cfStateは他社の値を引き継ぐためフォールバックに使わない
   window._cfState = {
     allVals, deprArr, monthLabels, actualCols, budget,
@@ -470,6 +476,20 @@ function renderCashFlow(container, budget) {
   setV('cf_tax1_amt',   s.tax1Amt);
   setV('cf_tax1_month', s.tax1Month);
   runCashFlow();
+}
+
+function cfResetOpenCash(autoCash) {
+  const el = document.getElementById('cf_open_cash');
+  if (el) { el.value = autoCash; runCashFlow(); }
+  // localStorageの汚染値を上書き
+  const state = window._cfState;
+  if (state?._cfKey) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(state._cfKey) || '{}');
+      saved.openCash = autoCash;
+      localStorage.setItem(state._cfKey, JSON.stringify(saved));
+    } catch {}
+  }
 }
 
 function runCashFlow() {

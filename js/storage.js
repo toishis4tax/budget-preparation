@@ -41,7 +41,7 @@ function saveData(data) {
 function getCompanies() { return loadData().companies; }
 
 function saveCompany(company) {
-  company.updatedAt = company.updatedAt || Date.now();
+  company.updatedAt = Date.now();
   const data = loadData();
   const idx = data.companies.findIndex(c => c.id === company.id);
   if (idx >= 0) data.companies[idx] = company;
@@ -210,7 +210,7 @@ function createNextYearBudget(companyId, fromYear) {
 }
 
 function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 }
 
 // インポート履歴

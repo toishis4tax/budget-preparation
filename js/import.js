@@ -988,7 +988,8 @@ function runImportPreview() {
   // 動的科目プレビュー（動的インポートの場合）
   let mappedRows = '', unmappedRows = '';
   if (result.dynamicAccounts && result.dynamicAccounts.length > 0) {
-    const allVals = calcAllValuesDynamic({ dynamicAccounts: result.dynamicAccounts, rows: result.rows });
+    let allVals = {};
+    try { allVals = calcAllValuesDynamic({ dynamicAccounts: result.dynamicAccounts, rows: result.rows }); } catch(e) { console.warn('プレビュー計算エラー:', e); }
     mappedRows = result.dynamicAccounts.map(acc => {
       const vals = allVals[acc.id] || new Array(12).fill(0);
       const total = vals.reduce((s,v)=>s+v,0);
@@ -1032,7 +1033,7 @@ function runImportPreview() {
   el.innerHTML = `
     <div class="card-h">
       <div class="flex-between" style="margin-bottom:14px">
-        <h3>📋 インポートプレビュー：${_importState.fileName} <span class="tag tag-indigo" style="font-size:10px;margin-left:6px">${_importState.detectedFormat || ''}</span></h3>
+        <h3>📋 インポートプレビュー：${escHtml(_importState.fileName || '')} <span class="tag tag-indigo" style="font-size:10px;margin-left:6px">${escHtml(_importState.detectedFormat || '')}</span></h3>
         <div style="display:flex;gap:8px;align-items:center">
           <span class="tag tag-green">認識済み ${mappedCount}科目</span>
           ${unmappedCount ? `<span class="tag tag-orange">未マッピング ${unmappedCount}科目</span>` : ''}
@@ -1066,7 +1067,7 @@ function runImportPreview() {
               未マッピング科目（${unmappedCount}件）の詳細
             </summary>
             <ul style="margin-top:8px;padding-left:20px;font-size:11px;color:var(--gray-400);line-height:2">
-              ${result.unmapped.map(u=>`<li>${u.name}（合計：${fmtK(u.values.reduce((a,b)=>a+b,0))}千円）</li>`).join('')}
+              ${result.unmapped.map(u=>`<li>${escHtml(u.name || '')}（合計：${fmtK(u.values.reduce((a,b)=>a+b,0))}千円）</li>`).join('')}
             </ul>
           </details>
         </div>` : ''}
@@ -1085,7 +1086,7 @@ function executeImport() {
   if (!result || result.error) return;
 
   const company = window.App?.currentCompany;
-  if (!company) { alert('会社を選択してください'); return; }
+  if (!company) { showAlert('会社を選択してください', 'warn'); return; }
 
   const year      = parseInt(document.getElementById('import_target_year')?.value) || window.App?.currentYear || new Date().getFullYear();
   const startMonth = result.startMonth || 4;

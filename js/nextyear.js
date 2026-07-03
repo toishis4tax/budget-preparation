@@ -188,7 +188,7 @@ function _nyCommit(input) {
   const colIdx = parseInt(input.dataset.col);
   const raw = input.value.replace(/,/g, '');
   const v = parseFloat(raw) || 0;
-  if (!_nyData.rows[accId]) _nyData.rows[accId] = new Array(12).fill(0);
+  if (!_nyData.rows[accId]) _nyData.rows[accId] = new Array(13).fill(0);
   _nyData.rows[accId][colIdx] = v;
   input.value = v ? Math.round(v).toLocaleString() : '';
   _nyRecalc();
@@ -311,8 +311,8 @@ function _nyFillAll(accId, v) {
 }
 
 // ===== 全クリア =====
-function _nyClear() {
-  if (!confirm('翌期の入力内容をすべてクリアしますか？')) return;
+async function _nyClear() {
+  if (!await showConfirm('翌期の入力内容をすべてクリアしますか？', { okText: 'クリア', danger: true })) return;
   if (_nyData) _nyData.rows = {};
   document.querySelectorAll('.ny-cell').forEach(inp => inp.value = '');
   _nyRecalc();

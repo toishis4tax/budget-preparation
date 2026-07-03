@@ -21,7 +21,7 @@ function renderCashPlan(container) {
     const av2 = calcAllValuesDynamic(b);
     const CASH_RE = /現金|預金|信金|銀行|信用組合/;
     const all = b.dynamicAccounts.filter(a =>
-      (a.section?.startsWith('bs') || a.type === 'input') &&
+      a.section?.startsWith('bs') &&
       a.type !== 'section' &&
       CASH_RE.test((a.name || '').replace(/\s/g, ''))
     );

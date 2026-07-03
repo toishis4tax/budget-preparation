@@ -153,11 +153,11 @@ function calcBankMetrics(budget) {
   };
 
   // 流動資産セクション限定で現預金を取得（負債科目「預金担保借入金」等を除外）
-  const cash      = leafSum(/現金|預金/, 'last', 'bs_cur_asset');
+  const cash      = leafSum(/現金|預金/, 'last', 'bs_asset');
   const loans     = leafSum(/借入金/, 'last');
   const interest  = leafSum(/支払利息|支払利息割引料/, 'total');
   const depr      = leafSum(/減価償却/, 'total');
-  const opProfit  = total('calc_op') || total('calc_ord');
+  const opProfit  = total('calc_op');
   const ordProfit = total('calc_ord');
   const sales     = total('sec_revenue');
   const ebitda    = opProfit + depr;

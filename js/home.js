@@ -1,5 +1,113 @@
 // ホーム画面（フェーズハブ＋各フェーズダッシュボード）
 
+function renderClientDashboard(container) {
+  const companies = window.App?.companies || [];
+  const curYear = new Date().getFullYear();
+  const isAdmin = window._currentFbUser?.role === 'admin';
+
+  const fmtM = v => {
+    const abs = Math.abs(v || 0);
+    const sign = (v || 0) < 0 ? '▼' : '';
+    if (abs >= 100_000_000) return sign + (abs / 100_000_000).toFixed(1) + '億';
+    return sign + Math.round(abs / 10_000).toLocaleString() + '万';
+  };
+
+  const cards = companies.map(company => {
+    const years = (typeof getYearsForCompany === 'function') ? getYearsForCompany(company.id) : [];
+    const latestYear = years[0] || curYear;
+    const budget = (typeof getBudget === 'function') ? getBudget(company.id, latestYear) : null;
+
+    let metrics = null;
+    if (budget) {
+      try {
+        const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
+        const sum12 = id => (allVals[id] || []).slice(0, 12).reduce((a, v) => a + v, 0);
+        // 最新の実績月を使う（実績なければ期末=index11）
+        const actIdxs = (budget.actualCols || []).map((v, i) => v ? i : -1).filter(i => i >= 0);
+        const cashIdx = actIdxs.length > 0 ? Math.max(...actIdxs) : 11;
+        const lastCash = id => (allVals[id] || new Array(12).fill(0))[cashIdx];
+        if (budget.dynamicAccounts) {
+          const CASH_RE = /現金|預金|現預金/;
+          const cashAccs = budget.dynamicAccounts.filter(a =>
+            a.section === 'bs_asset' && a.type !== 'section' && CASH_RE.test((a.name || '').replace(/\s/g,''))
+          );
+          const cashIds = new Set(cashAccs.map(a => a.id));
+          const cashLeaf = cashAccs.filter(a => !cashIds.has(a.parentId));
+          metrics = {
+            sales: sum12('sec_revenue'),
+            ord:   sum12('calc_ord'),
+            cash:  cashLeaf.reduce((s, a) => s + lastCash(a.id), 0),
+          };
+        } else {
+          const pl = calcPL(budget.rows);
+          metrics = {
+            sales: pl.sales.reduce((a, v) => a + v, 0),
+            ord:   pl.ord_profit.reduce((a, v) => a + v, 0),
+            cash:  (calcAllValues(budget.rows)['cash'] || new Array(12).fill(0))[cashIdx],
+          };
+        }
+      } catch(e) {}
+    }
+
+    const updatedAt = budget?.updatedAt ? new Date(budget.updatedAt) : null;
+    const updatedStr = updatedAt
+      ? `${updatedAt.getFullYear()}/${String(updatedAt.getMonth()+1).padStart(2,'0')}/${String(updatedAt.getDate()).padStart(2,'0')}`
+      : null;
+
+    const ordColor = (metrics?.ord || 0) >= 0 ? 'var(--emerald,#059669)' : '#e11d48';
+    const hasData = !!budget;
+
+    return `
+      <div class="client-card" onclick="selectCompany('${escHtml(company.id)}');showPage('home')"
+           role="button" tabindex="0"
+           onkeydown="if(event.key==='Enter'||event.key===' '){selectCompany('${escHtml(company.id)}');showPage('home')}">
+        <div class="client-card-top">
+          <div class="client-card-name">${escHtml(company.name)}</div>
+          <div class="client-card-badge">${latestYear}年度&nbsp;${company.fiscalMonth || 3}月決算</div>
+        </div>
+        ${hasData && metrics ? `
+          <div class="client-card-metrics">
+            <div class="client-metric">
+              <div class="client-metric-label">売上高</div>
+              <div class="client-metric-value">${fmtM(metrics.sales)}円</div>
+            </div>
+            <div class="client-metric">
+              <div class="client-metric-label">経常利益</div>
+              <div class="client-metric-value" style="color:${ordColor}">${fmtM(metrics.ord)}円</div>
+            </div>
+            <div class="client-metric">
+              <div class="client-metric-label">現金残高</div>
+              <div class="client-metric-value">${fmtM(metrics.cash)}円</div>
+            </div>
+          </div>
+        ` : `<div class="client-card-nodata">データ未入力</div>`}
+        <div class="client-card-footer">
+          ${updatedStr ? `<span>更新 ${updatedStr}</span>` : '<span style="color:var(--text-muted)">未保存</span>'}
+          <span class="client-card-arrow">→</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  const addBtn = isAdmin
+    ? `<button class="btn-solid btn-sm" onclick="openCompanyModal('')">＋ 顧問先を追加</button>`
+    : '';
+
+  container.innerHTML = `
+    <div class="client-dashboard">
+      <div class="client-dashboard-header">
+        <h2 class="client-dashboard-title">顧問先一覧</h2>
+        ${addBtn}
+      </div>
+      ${companies.length === 0
+        ? `<div class="home-empty">
+             <div style="font-size:48px;margin-bottom:16px">📋</div>
+             <div style="font-size:16px;margin-bottom:8px;font-weight:600">顧問先がまだ登録されていません</div>
+             ${isAdmin ? `<button class="btn-solid" onclick="openCompanyModal('')" style="margin-top:16px">＋ 顧問先を追加する</button>` : ''}
+           </div>`
+        : `<div class="client-card-grid">${cards}</div>`}
+    </div>`;
+}
+
 function renderHome(container) {
   const phase   = window.App?.currentPhase || 0;
   const budget  = window.App?.currentBudget;
@@ -9,9 +117,8 @@ function renderHome(container) {
     container.innerHTML = `
       <div class="home-empty">
         <div style="font-size:56px;margin-bottom:20px">📊</div>
-        <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:10px">予算・資金繰りシミュレーター</div>
-        <div style="color:var(--text-muted);margin-bottom:28px;font-size:14px">顧問先を追加して予算入力を始めてください</div>
-        <button class="btn-solid" onclick="openCompanyModal('')">＋ 顧問先を追加する</button>
+        <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:10px">顧問先を選択してください</div>
+        <button class="btn-solid" onclick="showPage('client_list')">顧問先一覧へ</button>
       </div>`;
     return;
   }
@@ -19,6 +126,7 @@ function renderHome(container) {
   // フェーズ別ダッシュボードに振り分け
   if (phase === 1) return renderPhase1Home(container, budget, company);
   if (phase === 2) return renderPhase2Home(container, budget, company);
+  if (phase === 3) return renderPhase3Home(container, budget, company);
 
   const capital   = company.capital || 10000000;
   const curYear   = window.App?.currentYear || new Date().getFullYear();
@@ -37,14 +145,17 @@ function renderHome(container) {
     const sum12 = id => (allVals[id] || []).reduce((a, v) => a + v, 0);
     const last  = id => (allVals[id] || new Array(12).fill(0))[11];
     if (b.dynamicAccounts) {
-      const cashAcc = b.dynamicAccounts.find(a =>
-        a.section?.startsWith('bs') && a.name.replace(/\s/g,'').match(/現金|預金|現預金/)
+      const CASH_RE = /現金|預金|現預金/;
+      const cashAccs = b.dynamicAccounts.filter(a =>
+        a.section?.startsWith('bs') && a.type !== 'section' && CASH_RE.test((a.name || '').replace(/\s/g,''))
       );
+      const cashIds  = new Set(cashAccs.map(a => a.id));
+      const cashLeaf = cashAccs.filter(a => !cashIds.has(a.parentId));
       return {
         sales: sum12('sec_revenue'), gross: sum12('calc_gross'),
         op: sum12('calc_op'), ord: sum12('calc_ord'),
         pretax: sum12('calc_pretax'), net: sum12('calc_net'),
-        cashEnd: cashAcc ? last(cashAcc.id) : 0,
+        cashEnd: cashLeaf.reduce((s, a) => s + last(a.id), 0),
       };
     }
     const pl = calcPL(b.rows);
@@ -352,26 +463,26 @@ function showOutputModal(phase) {
     kichu: {
       label: '① 期中 — 成果物',
       outputs: [
-        { label: '月次予算表（Excel）',   icon:'📊', fn: "alert('月次予算表 Excel出力（準備中）')" },
-        { label: '月次予算表（PDF）',     icon:'📄', fn: "alert('月次予算表 PDF出力（準備中）')" },
-        { label: '資金繰り予測表（PDF）', icon:'💰', fn: "alert('資金繰り PDF出力（準備中）')" },
-        { label: '5か年計画書（Excel）',  icon:'🔮', fn: "alert('5か年計画 Excel出力（準備中）')" },
+        { label: '月次予算表（Excel）',   icon:'📊', fn: "showToast('月次予算表 Excel出力は準備中です','info',3000)" },
+        { label: '月次予算表（PDF）',     icon:'📄', fn: "showToast('月次予算表 PDF出力は準備中です','info',3000)" },
+        { label: '資金繰り予測表（PDF）', icon:'💰', fn: "showToast('資金繰り PDF出力は準備中です','info',3000)" },
+        { label: '5か年計画書（Excel）',  icon:'🔮', fn: "showToast('5か年計画 Excel出力は準備中です','info',3000)" },
       ]
     },
     kessan: {
       label: '② 決算 — 成果物',
       outputs: [
-        { label: '税額概算書（PDF）',       icon:'🧮', fn: "alert('税額概算書 PDF出力（準備中）')" },
-        { label: '役員報酬設計書（PDF）',   icon:'👤', fn: "alert('役員報酬設計書 PDF出力（準備中）')" },
+        { label: '税額概算書（PDF）',       icon:'🧮', fn: "showToast('税額概算書 PDF出力は準備中です','info',3000)" },
+        { label: '役員報酬設計書（PDF）',   icon:'👤', fn: "showToast('役員報酬設計書 PDF出力は準備中です','info',3000)" },
       ]
     },
     申告: {
       label: '② 申告・報告 — 成果物',
       outputs: [
-        { label: '決算報告書パック（PDF）',  icon:'📋', fn: "alert('決算報告書 PDF出力（準備中）')" },
-        { label: '3期比較表（Excel）',       icon:'📊', fn: "alert('3期比較 Excel出力（準備中）')" },
-        { label: '5か年計画書（Excel）',     icon:'🔮', fn: "alert('5か年計画 Excel出力（準備中）')" },
-        { label: '5か年計画書（PDF）',       icon:'📄', fn: "alert('5か年計画 PDF出力（準備中）')" },
+        { label: '決算報告書パック（PDF）',  icon:'📋', fn: "showToast('決算報告書 PDF出力は準備中です','info',3000)" },
+        { label: '3期比較表（Excel）',       icon:'📊', fn: "showToast('3期比較 Excel出力は準備中です','info',3000)" },
+        { label: '5か年計画書（Excel）',     icon:'🔮', fn: "showToast('5か年計画 Excel出力は準備中です','info',3000)" },
+        { label: '5か年計画書（PDF）',       icon:'📄', fn: "showToast('5か年計画 PDF出力は準備中です','info',3000)" },
       ]
     }
   };

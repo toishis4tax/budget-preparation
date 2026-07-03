@@ -310,7 +310,7 @@ function renderGridRows(budget, allVals, months) {
     // 科目名セル
     const indent = '　'.repeat(acc.indent || 0);
     const collapseBtn = hasKids
-      ? `<button class="collapse-btn" onclick="toggleCollapse('${acc.id}',event)" title="${isCollapsed?'展開':'折りたたむ'}">${isCollapsed?'▶':'▼'}</button>`
+      ? `<button class="collapse-btn" data-accid="${escHtml(acc.id)}" onclick="toggleCollapse(this.dataset.accid,event)" title="${isCollapsed?'展開':'折りたたむ'}">${isCollapsed?'▶':'▼'}</button>`
       : '<span class="collapse-spacer"></span>';
 
     const isTaxRow = /tax|corp|法人税/.test(acc.id) || (acc.name || '').includes('法人税');
@@ -716,7 +716,7 @@ function applyFill() {
   } else if (input) {
     targetIds = [input.dataset.accId];
   } else {
-    alert('適用するセルまたは行を選択してください');
+    showAlert('適用するセルまたは行を選択してください', 'warn');
     return;
   }
 
@@ -815,7 +815,7 @@ function fillFromPrevYear() {
 
   const prevBudget = getBudget(budget.companyId, budget.year - 1);
   if (!prevBudget) {
-    alert('前期（' + (budget.year - 1) + '年度）のデータが見つかりません。');
+    showAlert('前期（' + (budget.year - 1) + '年度）のデータが見つかりません。', 'warn');
     return;
   }
 
@@ -846,14 +846,14 @@ function fillFromPrevYear() {
   });
 
   if (copied === 0) {
-    alert('前期データと一致する科目が見つかりませんでした。');
+    showAlert('前期データと一致する科目が見つかりませんでした。', 'warn');
     return;
   }
 
   saveBudget(budget);
   const allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(getMergedRows(budget));
   renderGridRows(budget, allVals, getMonthLabels(budget.startMonth || 4));
-  alert(copied + '科目の前期実績を予算にコピーしました。');
+  showToast(copied + '科目の前期実績を予算にコピーしました', 'success', 3000);
 }
 
 // ===== 科目名編集 =====
@@ -1097,14 +1097,14 @@ function clearRowSelection() {
   updateFillHint();
 }
 
-function deleteSelectedRow(targetAccId) {
+async function deleteSelectedRow(targetAccId) {
   const budget = window.App?.currentBudget;
   const accounts = budget?.dynamicAccounts || ACCOUNTS;
 
   let accId = targetAccId;
   if (!accId) {
     const input = document.querySelector('#grid_tbody .cell-input:focus') || _selectedCell;
-    if (!input) { alert('削除する行のセルを選択してください'); return; }
+    if (!input) { showAlert('削除する行のセルを選択してください', 'warn'); return; }
     accId = input.dataset.accId;
   }
 
@@ -1115,16 +1115,16 @@ function deleteSelectedRow(targetAccId) {
   const actualVals = budget?.actualRows?.[accId] || [];
   const hasActual = actualVals.some(v => v !== 0 && v != null);
   if (hasActual) {
-    alert(`「${acc.name}」には実績値があるため削除できません`);
+    showAlert(`「${acc.name}」には実績値があるため削除できません`, 'warn');
     return;
   }
 
   if (!acc.custom && !budget?.dynamicAccounts) {
-    alert('デフォルト科目は削除できません');
+    showAlert('デフォルト科目は削除できません', 'warn');
     return;
   }
 
-  if (!confirm(`「${acc.name}」を削除しますか?`)) return;
+  if (!await showConfirm(`「${acc.name}」を削除しますか?`, { okText: '削除する', danger: true })) return;
 
   const idx = accounts.findIndex(a => a.id === accId);
   accounts.splice(idx, 1);
@@ -1151,10 +1151,10 @@ function showContextMenu(x, y, accId) {
   menu.style.left = x + 'px';
   menu.style.top  = y + 'px';
   menu.innerHTML = `
-    <div class="ctx-item" onclick="addAccountBelow('sub','${accId}')">＋ 補助科目を下に追加</div>
-    <div class="ctx-item" onclick="addAccountBelow('peer','${accId}')">＋ 新規科目を下に追加（同列）</div>
+    <div class="ctx-item" onclick="addAccountBelow('sub',_ctxMenuAccId)">＋ 補助科目を下に追加</div>
+    <div class="ctx-item" onclick="addAccountBelow('peer',_ctxMenuAccId)">＋ 新規科目を下に追加（同列）</div>
     <div class="ctx-sep"></div>
-    <div class="ctx-item" onclick="deleteSelectedRow('${accId}')">行を削除</div>
+    <div class="ctx-item" onclick="deleteSelectedRow(_ctxMenuAccId)">行を削除</div>
     <div class="ctx-sep"></div>
     <div class="ctx-item" onclick="applyFillFromMenu('copy')">右にコピー（横引き）</div>
     <div class="ctx-item" onclick="applyFillFromMenu('fixed')">一定額で全月埋める</div>

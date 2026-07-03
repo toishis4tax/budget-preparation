@@ -1,17 +1,57 @@
 // ===== トースト通知 =====
 function showToast(msg, type = 'info', duration = 3000) {
   const container = document.getElementById('toast-container');
-  if (!container) { alert(msg); return; }
+  if (!container) { return; }
   const icons = { success: '✓', error: '✕', info: 'ℹ', warn: '⚠' };
   const el = document.createElement('div');
   el.className = `toast ${type}`;
   const icon = document.createElement('span');
   icon.textContent = icons[type] || 'ℹ';
   const text = document.createElement('span');
+  text.style.flex = '1';
   text.textContent = String(msg);
-  el.append(icon, text);
+  const close = document.createElement('button');
+  close.textContent = '×';
+  close.style.cssText = 'background:none;border:none;cursor:pointer;font-size:14px;padding:0 0 0 8px;opacity:.7;line-height:1;color:inherit';
+  const dismiss = () => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); };
+  close.onclick = dismiss;
+  el.append(icon, text, close);
   container.appendChild(el);
-  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, duration);
+  if (duration > 0) setTimeout(dismiss, duration);
+}
+
+// ===== カスタム確認ダイアログ =====
+function showConfirm(msg, opts = {}) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:14px;padding:28px 28px 20px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:inherit';
+    const title = opts.title ? `<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:10px">${escHtml(opts.title)}</div>` : '';
+    const msgEl = document.createElement('div');
+    msgEl.innerHTML = title + `<div style="font-size:13px;color:var(--text-muted);white-space:pre-wrap;line-height:1.7">${escHtml(msg)}</div>`;
+    const btns = document.createElement('div');
+    btns.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;margin-top:20px';
+    const cancel = document.createElement('button');
+    cancel.className = 'btn-ghost btn-sm';
+    cancel.textContent = opts.cancelText || 'キャンセル';
+    const ok = document.createElement('button');
+    ok.className = opts.danger ? 'btn-danger btn-sm' : 'btn-solid btn-sm';
+    ok.textContent = opts.okText || 'OK';
+    const done = v => { overlay.remove(); resolve(v); };
+    cancel.onclick = () => done(false);
+    ok.onclick = () => done(true);
+    overlay.onclick = e => { if (e.target === overlay) done(false); };
+    btns.append(cancel, ok);
+    box.append(msgEl, btns);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    ok.focus();
+  });
+}
+
+function showAlert(msg, type = 'info') {
+  showToast(msg, type, type === 'error' ? 0 : 4000);
 }
 
 // メインアプリケーション
@@ -61,20 +101,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-const _LAST_COMPANY_KEY = 'budget_app_last_company';
+const _getLastCompanyKey = () => `budget_app_last_company_${window._currentFbUser?.uid || 'local'}`;
 
 function loadApp() {
   App.companies = getCompanies();
   renderCompanyList();
   setPhase(1);
-  const lastId = localStorage.getItem(_LAST_COMPANY_KEY);
-  const restore = lastId && App.companies.find(c => c.id === lastId);
-  if (restore) {
-    selectCompany(restore.id);
-  } else {
-    // 会社未選択のまま表示（自動選択しない）
-    showPage('home');
-  }
+  // ページ更新時は常に顧問先一覧から開始
+  showPage('client_list');
 }
 
 // ===== 会社管理 =====
@@ -97,7 +131,7 @@ function selectCompany(id) {
     return;
   }
   App.currentCompany = company;
-  localStorage.setItem(_LAST_COMPANY_KEY, company.id);
+  localStorage.setItem(_getLastCompanyKey(), company.id);
   updateNavForIndustry(company);
   const years = getYearsForCompany(id);
   const year  = years.includes(App.currentYear) ? App.currentYear : (years[0] || new Date().getFullYear());
@@ -131,32 +165,29 @@ function renderYearSelect(years) {
 }
 
 // 「次年度を作成」: 当年度実績ベースで翌年度を生成し、その年度へ切替
-function createNextYear() {
+async function createNextYear() {
   const company = App.currentCompany;
-  if (!company) { alert('先に会社を選択してください'); return; }
+  if (!company) { showAlert('先に会社を選択してください', 'warn'); return; }
   const fromYear = App.currentYear;
   const toYear   = fromYear + 1;
 
   if (!hasBudgetData(company.id, fromYear)) {
-    alert(`${fromYear}年度にデータがありません。先に当年度の予算・実績を入力してから次年度を作成してください。`);
+    showAlert(`${fromYear}年度にデータがありません。先に当年度の予算・実績を入力してから次年度を作成してください。`, 'warn');
     return;
   }
   if (hasBudgetData(company.id, toYear)) {
-    const ok = confirm(`${toYear}年度には既にデータがあります。\n${fromYear}年度の実績で上書きして作り直しますか？\n（OK=上書き / キャンセル=中止）`);
+    const ok = await showConfirm(`${toYear}年度には既にデータがあります。\n${fromYear}年度の実績で上書きして作り直しますか？`, { title: '上書き確認', okText: '上書きする', cancelText: '中止', danger: true });
     if (!ok) return;
   } else {
-    const ok = confirm(
-      `${fromYear}年度の実績をベースに ${toYear}年度 を作成します。\n\n` +
-      `・勘定科目の構成を引き継ぎます\n` +
-      `・BSの期末残高を ${toYear}年度の期首残高として引き継ぎます\n` +
-      `・PL予算は ${fromYear}年度の実績で初期化します\n\n` +
-      `よろしいですか？`
+    const ok = await showConfirm(
+      `勘定科目の構成を引き継ぎます\nBSの期末残高を${toYear}年度の期首残高として引き継ぎます\nPL予算は${fromYear}年度の実績で初期化します`,
+      { title: `${fromYear}年度の実績をベースに ${toYear}年度 を作成します`, okText: '作成する' }
     );
     if (!ok) return;
   }
 
   const nb = createNextYearBudget(company.id, fromYear);
-  if (!nb) { alert('作成に失敗しました'); return; }
+  if (!nb) { showAlert('作成に失敗しました', 'error'); return; }
 
   // 税理士法人：顧問先売上・課税設定も翌年度へ引き継ぐ
   let revMsg = '';
@@ -170,7 +201,7 @@ function createNextYear() {
   renderYearSelect(getYearsForCompany(company.id));
   updateCarryBadge();
   showPage(App.currentPage);
-  alert(`${toYear}年度を作成しました。\n${fromYear}年度の実績をベースに予算が初期化されています。${revMsg}`);
+  showToast(`${toYear}年度を作成しました`, 'success', 4000);
 }
 
 function loadBudget(companyId, year) {
@@ -222,12 +253,12 @@ function closeCompanyModal() {
 }
 
 function saveCompanyForm() {
-  const id      = document.getElementById('modal_company_id').value;
-  const name    = document.getElementById('modal_company_name').value.trim();
-  const capital = parseFloat(document.getElementById('modal_capital').value) || 10000000;
-  const pref    = document.getElementById('modal_pref').value;
-  const fiscal  = parseInt(document.getElementById('modal_fiscal').value) || 3;
-  if (!name) { alert('会社名を入力してください'); return; }
+  const id      = document.getElementById('modal_company_id')?.value || '';
+  const name    = (document.getElementById('modal_company_name')?.value || '').trim();
+  const capital = parseFloat(document.getElementById('modal_capital')?.value) || 10000000;
+  const pref    = document.getElementById('modal_pref')?.value || '東京都';
+  const fiscal  = parseInt(document.getElementById('modal_fiscal')?.value) || 3;
+  if (!name) { showAlert('会社名を入力してください', 'warn'); return; }
 
   const invoice       = document.getElementById('modal_invoice')?.value === '1';
   const kani          = document.getElementById('modal_kani')?.value === '1';
@@ -249,9 +280,9 @@ function saveCompanyForm() {
   closeCompanyModal();
 }
 
-function deleteCurrentCompany() {
+async function deleteCurrentCompany() {
   if (!App.currentCompany) return;
-  if (!confirm(`「${App.currentCompany.name}」を削除しますか?`)) return;
+  if (!await showConfirm(`「${App.currentCompany.name}」のすべてのデータが削除されます。この操作は取り消せません。`, { title: '顧問先を削除しますか?', okText: '削除する', danger: true })) return;
   deleteCompany(App.currentCompany.id);
   App.companies      = getCompanies();
   App.currentCompany = null;
@@ -339,6 +370,7 @@ const PAGE_RENDERERS = {
   bankrating:     c      => renderBankRating(c),
   subsidy:        c      => renderSubsidy(c),
   cccanalysis:    c      => renderCCCAnalysis(c),
+  client_list:    c      => renderClientDashboard(c),
 };
 
 function showPage(page) {
@@ -430,12 +462,15 @@ function renderSimulation(container, budget) {
     const totalLiab = _liabSum !== 0 ? _liabSum : last('sec_total_liab');
     const equity    = last('sec_equity');
 
-    // 現預金を動的科目から探す
-    const cashAcc = budget.dynamicAccounts.find(a => a.cashGroup && a.section?.startsWith('bs'))
-      || budget.dynamicAccounts.find(a =>
-        a.name.replace(/\s/g,'').match(/現金|預金|現預金|信金|信用組合/) && a.section === 'bs_cur_asset'
-      );
-    const cash = cashAcc ? last(cashAcc.id) : 0;
+    // 現預金を動的科目から探す（leaf科目のみ合算して二重計上を防ぐ）
+    const CASH_RE_HOME = /現金|預金|現預金|信金|信用組合/;
+    const cashAccs = budget.dynamicAccounts.filter(a =>
+      a.section === 'bs_asset' && a.type !== 'section' &&
+      CASH_RE_HOME.test((a.name || '').replace(/\s/g,''))
+    );
+    const cashIds = new Set(cashAccs.map(a => a.id));
+    const cashLeaf = cashAccs.filter(a => !cashIds.has(a.parentId));
+    const cash = cashLeaf.reduce((s, a) => s + last(a.id), 0);
 
     bsAssetsRows = [
       cash > 0 ? ['現金預金', cash, false] : null,

@@ -6,17 +6,18 @@ function _frCalcDetailedTax(pretax, capital) {
   const base      = Math.floor(pretax / 1000) * 1000;
   const corp      = calcCorpTax(base, capital);
   const localCorp = calcLocalCorpTax(corp);
-  // 住民税を都道府県・市町村に分割
   const prefWari  = Math.floor(corp * 0.032 / 100) * 100;
   const cityWari  = Math.floor(corp * 0.096 / 100) * 100;
+  const small     = (capital || 10_000_000) <= 100_000_000;
+  const prefKintou = small ? 20_000 : 100_000;
+  const cityKintou = small ? 50_000 : 130_000;
   const { income: business, special } = calcBusinessTax(base, capital);
   return {
     corp, localCorp,
-    pref: prefWari + 20000,   // 均等割2万 + 法人税割
-    city: cityWari + 50000,   // 均等割5万 + 法人税割
+    pref: prefWari + prefKintou,
+    city: cityWari + cityKintou,
     business, special,
-    // inhabitant合計（法人税概算の「法人住民税」と一致）
-    inhabitant: prefWari + cityWari + 70000,
+    inhabitant: prefWari + cityWari + prefKintou + cityKintou,
   };
 }
 
@@ -154,9 +155,11 @@ function renderForecastReport(container) {
   const prevCorpTaxTotal = prevTax ? (prevTax.corp + prevTax.localCorp + prevTax.pref + prevTax.city + prevTax.business + prevTax.special) : 0;
   const tN2 = landPretax - corpTaxTotal;                      // 当期決算予測(A+B)：通期税引前 − 予測法人税等
   // 全月実績済みの場合：実績(A)に税引後純利益をそのまま表示、未経過月(B)は0
-  // 未経過月がある場合：実績(A)は税引前、未経過月(B)に税額調整を含む差分を表示
-  const aN2 = isYearComplete ? tN2 : sumAct(pretaxArr);
-  const fN2 = isYearComplete ? 0   : tN2 - sumAct(pretaxArr);
+  // 未経過月がある場合：実績(A)は実績月分の税引前から按分税額を差引、未経過月(B)に残りを表示
+  const actPretax = sumAct(pretaxArr);
+  const actTaxShare = landPretax > 0 ? corpTaxTotal * (actPretax / landPretax) : 0;
+  const aN2 = isYearComplete ? tN2 : actPretax - actTaxShare;
+  const fN2 = isYearComplete ? 0   : tN2 - aN2;
   const pN2 = (pPretax != null) ? (pPretax - prevCorpTaxTotal) : null; // 前期
   // 消費税：簡易課税届出ありなら③簡易課税計算、なければ②科目別簡易計算
   const useKani  = !!(company?.kanijukazei);
@@ -174,11 +177,12 @@ function renderForecastReport(container) {
   // 中間納付：taxsummary_v1 から税目別に読み込み（法人税概算ページの入力値と連動）
   const tsaved = (typeof loadTaxSummaryData === 'function') ? loadTaxSummaryData(company?.id, curYear) : {};
   const n = k => parseFloat(tsaved[k]) || 0;
-  const corpPrepaid  = n('i_corp') + n('i_localCorp') || company.prepaid1 || 0;
+  const hasTaxSumData = Object.keys(tsaved).length > 0;
+  const corpPrepaid  = hasTaxSumData ? n('i_corp') + n('i_localCorp') : (company.prepaid1 || 0);
   const prefPrepaid  = n('i_prefKatsu') + n('i_prefKintou');
   const cityPrepaid  = n('i_cityKatsu') + n('i_cityKintou');
   const bizPrepaid   = n('i_business') + n('i_special');
-  const ctaxPrepaid  = n('i_ctax') + n('i_localCtax') || company.ctaxPrepaid || 0;
+  const ctaxPrepaid  = hasTaxSumData ? n('i_ctax') + n('i_localCtax') : (company.ctaxPrepaid || 0);
 
   const taxRows = [
     { label: '法人税・地方法人税',     annual: tax ? tax.corp + tax.localCorp : 0,      prepaid: corpPrepaid, prev: prevTax ? prevTax.corp + prevTax.localCorp : 0 },

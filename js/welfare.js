@@ -249,9 +249,9 @@ function _wfAddEmployee() {
   _wfRender();
 }
 
-function _wfRemoveEmployee(idx) {
-  if (_wfEmployees.length <= 1) { alert('最低1名は必要です'); return; }
-  if (!confirm(`「${_wfEmployees[idx].name || '(未入力)'}」を削除しますか？`)) return;
+async function _wfRemoveEmployee(idx) {
+  if (_wfEmployees.length <= 1) { showAlert('最低1名は必要です', 'warn'); return; }
+  if (!await showConfirm(`「${_wfEmployees[idx].name || '(未入力)'}」を削除しますか？`, { okText: '削除する', danger: true })) return;
   _wfEmployees.splice(idx, 1);
   _wfSave();
   _wfRender();
@@ -522,7 +522,10 @@ function _wfEnsureChildOf(budget, childId, childName, parentId) {
 
 function _wfApplyToBudget() {
   const budget = window.App?.currentBudget;
-  if (!budget) { alert('予算データがありません'); return; }
+  if (!budget) { showAlert('予算データがありません', 'warn'); return; }
+  if (_wfCompanyId && _wfCompanyId !== window.App?.currentCompany?.id) {
+    showAlert('会社が切り替わっています。ページを再読み込みしてください。', 'warn'); return;
+  }
 
   const pref       = window.App?.currentCompany?.prefecture || '東京都';
   const startMonth = budget.startMonth || 4;
@@ -551,12 +554,7 @@ function _wfApplyToBudget() {
 
   saveBudget(budget);
   window.App.currentBudget = budget;
-  alert(
-    `予算に反映しました。\n` +
-    `法定福利費（従業員賞与分）：${fmt(bonusSI.reduce((s,v)=>s+v,0))}\n` +
-    `従業員賞与合計：${fmt(bonusSalary.reduce((s,v)=>s+v,0))}\n` +
-    `→ 「法定福利費（反映）」「賞与（反映）」グループに書き込みました`
-  );
+  showToast('予算に反映しました（従業員賞与・法定福利費）', 'success', 4000);
 }
 
 function fmt(n) {

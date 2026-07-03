@@ -62,9 +62,12 @@ async function _onLoggedIn(fbUser) {
 
   let profile;
   if (!userSnap.exists) {
-    // 初回ログイン: ユーザーが0人なら自動でadmin
-    const allUsers = await db.collection('users').limit(1).get();
-    const isFirst  = allUsers.empty;
+    // 初回ログイン: setup/initialized が存在しない場合のみadmin（書き込み前にチェックして競合を最小化）
+    const initSnap = await db.collection('setup').doc('initialized').get();
+    const isFirst  = !initSnap.exists;
+    if (isFirst) {
+      await db.collection('setup').doc('initialized').set({ at: Date.now(), adminUid: fbUser.uid });
+    }
     profile = {
       uid:   fbUser.uid,
       email: fbUser.email,
@@ -74,10 +77,6 @@ async function _onLoggedIn(fbUser) {
       createdAt: Date.now(),
     };
     await userRef.set(profile);
-    // 初回admin作成後にsetup/initializedを書き込み（以降のadmin自己昇格を防止）
-    if (isFirst) {
-      await db.collection('setup').doc('initialized').set({ at: Date.now(), adminUid: fbUser.uid });
-    }
   } else {
     profile = userSnap.data();
   }
@@ -108,6 +107,10 @@ async function _onLoggedIn(fbUser) {
 // ===== Firestoreからデータ取得 → localStorage =====
 async function _pullFromFirestore(profile) {
   const db = window._fbDb;
+  try { await _pullFromFirestoreInner(profile, db); }
+  catch(e) { console.warn('[firebase] Firestore pull失敗、ローカルデータを維持します:', e); }
+}
+async function _pullFromFirestoreInner(profile, db) {
 
   // 会社一覧
   // admin → 全件
@@ -207,8 +210,10 @@ async function _pullRevenueFromFirestore(companyIds) {
     snap.forEach(doc => {
       const d = doc.data();
       const key = `${d.companyId}_${d.year}`;
-      const localUpdatedAt = (local[key] || [])[0]?._updatedAt || 0;
+      const localMeta = local[`_meta_${key}`] || {};
+      const localUpdatedAt = localMeta.updatedAt || 0;
       if ((d.updatedAt || 0) >= localUpdatedAt) {
+        local[`_meta_${key}`] = { updatedAt: d.updatedAt };
         local[key] = d.clients || [];
       }
     });
@@ -244,10 +249,8 @@ function fbSaveRevenue(companyId, year, clients) {
   if (!window._fbDb) return;
   const key = `${companyId}_${year}`;
   const updatedAt = Date.now();
-  // 更新日時を先頭クライアントに埋め込む（比較用）
-  const enriched = clients.map((c, i) => i === 0 ? { ...c, _updatedAt: updatedAt } : c);
   window._fbDb.collection('revenues').doc(key).set({
-    companyId, year, clients: enriched, updatedAt,
+    companyId, year, clients, updatedAt,
   }).catch(e => console.warn('Firestore revenue save error:', e));
 }
 

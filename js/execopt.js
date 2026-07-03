@@ -198,7 +198,7 @@ function _eoUpdate() {
           <div style="font-size:2.2rem">✅</div>
           <div>
             <div style="font-size:14px;font-weight:700;color:#065f46">現在の報酬が最適です</div>
-            <div style="font-size:12px;color:#047857;margin-top:4px">月額 ${_eoFmt(monthly * 10_000)}万円 の設定が、税負担を最小化します</div>
+            <div style="font-size:12px;color:#047857;margin-top:4px">月額 ${_eoFmt(monthly)}万円 の設定が、税負担を最小化します</div>
           </div>
           <div style="margin-left:auto;text-align:right">
             <div style="font-size:11px;color:#065f46">年間総税負担</div>
@@ -208,8 +208,8 @@ function _eoUpdate() {
       : `<div style="background:linear-gradient(135deg,#fef3c7,#fde68a);border:1px solid #fcd34d;border-radius:14px;padding:1.25rem 1.5rem;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
           <div style="font-size:2.2rem">💡</div>
           <div>
-            <div style="font-size:14px;font-weight:700;color:#78350f">最適月額は <span style="font-size:20px;color:#92400e">${_eoFmt(optMonthly * 10_000)}万円/月</span></div>
-            <div style="font-size:12px;color:#92400e;margin-top:4px">現在（${_eoFmt(monthly * 10_000)}万円）から変更すると、年間 <strong>${_eoFmt(saving)}万円</strong> の節税効果</div>
+            <div style="font-size:14px;font-weight:700;color:#78350f">最適月額は <span style="font-size:20px;color:#92400e">${_eoFmt(optMonthly)}万円/月</span></div>
+            <div style="font-size:12px;color:#92400e;margin-top:4px">現在（${_eoFmt(monthly)}万円）から変更すると、年間 <strong>${_eoFmt(saving)}万円</strong> の節税効果</div>
           </div>
           <div style="margin-left:auto;text-align:right;min-width:130px">
             <div style="font-size:11px;color:#78350f">節税額/年</div>
@@ -254,8 +254,8 @@ function _eoUpdate() {
       </div>`;
     compareEl.innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        ${_card(`現在の設定（${_eoFmt(monthly * 10_000)}万円/月）`, cur, false)}
-        ${_card(`★ 最適設定（${_eoFmt(optMonthly * 10_000)}万円/月）`, optResult, true)}
+        ${_card(`現在の設定（${_eoFmt(monthly)}万円/月）`, cur, false)}
+        ${_card(`★ 最適設定（${_eoFmt(optMonthly)}万円/月）`, optResult, true)}
       </div>`;
   }
 
@@ -306,7 +306,7 @@ function _eoUpdate() {
           const isCur  = Math.abs(m - monthly) < 12_500;
           const isOpt  = Math.abs(m - optMonthly) < 12_500;
           const rowBg  = isOpt ? 'background:#fefce8;' : isCur ? 'background:#eff6ff;' : '';
-          const label  = isOpt ? `★ ${_eoFmt(m * 10_000)}万円` : isCur ? `▶ ${_eoFmt(m * 10_000)}万円` : `${_eoFmt(m * 10_000)}万円`;
+          const label  = isOpt ? `★ ${_eoFmt(m)}万円` : isCur ? `▶ ${_eoFmt(m)}万円` : `${_eoFmt(m)}万円`;
           const lColor = isOpt ? '#92400e' : isCur ? '#1e40af' : 'var(--text)';
           return `<tr style="${rowBg}border-bottom:0.5px solid var(--border)">
             <td style="padding:5px 10px;font-weight:${isOpt||isCur?'700':'400'};color:${lColor}">${label}</td>
@@ -345,7 +345,7 @@ function _eoReasons(optM, optR, curR, curM, pretax) {
       body: `役員報酬が利益を超えると会社は赤字となり、繰越欠損金として将来の節税に使えますが、継続的な赤字は財務健全性を損ないます。` });
   }
 
-  reasons.push({ icon: '📋', title: `給与所得控除 ${_eoFmt(_eoSalaryDeduction(annualOpt) * 10_000)}万円が実質的な個人の経費に`,
+  reasons.push({ icon: '📋', title: `給与所得控除 ${_eoFmt(_eoSalaryDeduction(annualOpt))}万円が実質的な個人の経費に`,
     body: `役員報酬には給与所得控除が適用されます。この控除額が実質的な個人の「経費」となり、所得税・住民税の課税対象を減らします。` });
 
   const saving = curR.totalTax - optR.totalTax;

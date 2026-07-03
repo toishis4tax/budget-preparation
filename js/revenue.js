@@ -732,8 +732,8 @@ function addRevenueClient() {
   _revRefresh();
 }
 
-function removeRevenueClient(ci) {
-  if (!confirm(`「${_revClients[ci].name || '(未入力)'}」を削除しますか？`)) return;
+async function removeRevenueClient(ci) {
+  if (!await showConfirm(`「${_revClients[ci].name || '(未入力)'}」を削除しますか？`, { okText: '削除する', danger: true })) return;
   _revClients.splice(ci, 1);
   _revRefresh();
 }
@@ -1008,12 +1008,12 @@ function exportRevenueExcel() {
 function importRevenueExcel(file) {
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = e => {
+  reader.onload = async e => {
     try {
       const wb = XLSX.read(e.target.result, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-      if (data.length < 2) { alert('データが見つかりません'); return; }
+      if (data.length < 2) { showAlert('データが見つかりません', 'warn'); return; }
 
       const header = data[0].map(h => String(h).trim());
       const nameIdx      = header.findIndex(h => h.includes('顧問先名'));
@@ -1114,11 +1114,7 @@ function importRevenueExcel(file) {
 
 
       if (_revClients.length) {
-        const choice = confirm(
-          `既存の顧問先が${_revClients.length}社あります。\n\n` +
-          `【OK】　　上書き（既存データを全て置き換え）\n` +
-          `【キャンセル】　追加（既存データに追記）`
-        );
+        const choice = await showConfirm(`既存の顧問先が${_revClients.length}社あります。`, { title: 'インポート方法を選択', okText: '上書き', cancelText: '追加' });
         if (choice) {
           _revClients = imported;
         } else {
@@ -1139,7 +1135,7 @@ function importRevenueExcel(file) {
 
 // ===== 顧問先メモ更新 =====
 function updateClientMemo(clientId, value) {
-  const companyId = App.currentCompany?.id;
+  const companyId = window.App?.currentCompany?.id;
   const year = _revBudgetYear || App.currentYear;
   if (!companyId) return;
   const clients = loadRevenueClients(companyId, year);

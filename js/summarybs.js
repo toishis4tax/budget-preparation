@@ -156,7 +156,7 @@ function summarizeBS(budget) {
     otherCurAsset: curAsset - cash - ar - inv,
     curAsset,
     land, depr, deprAccum,
-    otherFixAsset: fixAsset - land - depr - deprAccum,
+    otherFixAsset: fixAsset - land - depr - Math.abs(deprAccum),
     fixAsset,
     totalAssets,
     payable, shortLoan,
@@ -193,7 +193,7 @@ function renderSummaryPL(container) {
   }
 
   const colHead = years.map((y, i) => {
-    const tag = i === 0 ? '3年前実績' : i === 1 ? '2年前実績' : '当期予算';
+    const tag = i === 0 ? '前々期実績' : i === 1 ? '前期実績' : '当期予算';
     return `<th colspan="2" class="sbs-yhead">${tag}<br><span style="font-weight:400">（${y + 1}年${fiscalMonth}月期）</span></th>`;
   }).join('');
 
@@ -309,7 +309,7 @@ function renderSummaryBS(container) {
 
   const colHead = years.map((y, i) => {
     const endYear = y + 1;
-    const tag = i === 0 ? '3年前実績' : i === 1 ? '2年前実績' : '当期予算';
+    const tag = i === 0 ? '前々期実績' : i === 1 ? '前期実績' : '当期予算';
     return `<th colspan="2" class="sbs-yhead">${tag}<br><span style="font-weight:400">（${endYear}年${fiscalMonth}月期）</span></th>`;
   }).join('');
 
