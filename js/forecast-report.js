@@ -56,7 +56,7 @@ function renderForecastReport(container) {
 
   const getArr = (...keys) => {
     for (const k of keys) { const a = av[k]; if (a?.some(v => v !== 0)) return a; }
-    return new Array(12).fill(0);
+    return new Array(13).fill(0);
   };
 
   // 人件費: 販売費及び一般管理費セクションの直接子（勘定科目レベル）から労務費関連を集計

@@ -32,7 +32,7 @@ function exportExcel(budget) {
       if (acc.type === 'separator') { rows.push([]); return; }
       const raw   = allVals[acc.id] || new Array(13).fill(0);
       const vals  = raw.slice(0, 12);
-      const adj   = raw[12] || 0;
+      const adj   = raw[12] ?? 0;
       const total = vals.reduce((a, b) => a + (b || 0), 0) + adj;
       const indent = '　'.repeat(acc.indent || 0);
       rows.push([

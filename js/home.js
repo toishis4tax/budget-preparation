@@ -550,7 +550,7 @@ function calcCtaxEstimate(budget, company) {
   const _actMon = _ac.filter(Boolean).length;
   let filledMonths = _actMon > 0 ? _actMon : 12;
   if (filledMonths === 12) {
-    const salesArr = allVals['sec_revenue'] || allVals['sales'] || [];
+    const salesArr = (allVals['sec_revenue'] || allVals['sales'] || []).slice(0, 12);
     const nonZero  = salesArr.filter(v => v !== 0).length;
     if (nonZero > 0 && nonZero < 12) filledMonths = nonZero;
   }
@@ -561,7 +561,7 @@ function calcCtaxEstimate(budget, company) {
     const MINAS = { 1: 0.90, 2: 0.80, 3: 0.70, 4: 0.60, 5: 0.50, 6: 0.40 };
     const businessType = company.businessType || 5;
     const minasRate    = MINAS[businessType] || 0.50;
-    const salesArr     = allVals['sec_revenue'] || allVals['sales'] || [];
+    const salesArr     = (allVals['sec_revenue'] || allVals['sales'] || []).slice(0, 12);
     const salesTotal   = salesArr.reduce((a, v) => a + v, 0) * annualFactor;
     const outputTax    = salesTotal * 0.10;
     const ctax         = outputTax * (1 - minasRate);
