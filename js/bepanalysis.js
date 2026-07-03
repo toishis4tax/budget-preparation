@@ -24,9 +24,9 @@ function _bepSummarizeBudgetOnly(budget) {
   const nonOpExpSec = _sbsFindSec(accts, 'sec_non_op_exp', /営業外費用/);
   const sales    = sum13('sec_revenue');
   const cogs     = sum13('sec_cogs');
-  const sga      = sum13('sec_sga')        || (sgaSec     ? sum13(sgaSec.id)     : 0);
-  const nonOpInc = sum13('sec_non_op_inc') || (nonOpIncSec ? sum13(nonOpIncSec.id) : 0);
-  const nonOpExp = sum13('sec_non_op_exp') || (nonOpExpSec ? sum13(nonOpExpSec.id) : 0);
+  const sga      = sum13('sec_sga')        ?? (sgaSec     ? sum13(sgaSec.id)     : 0);
+  const nonOpInc = sum13('sec_non_op_inc') ?? (nonOpIncSec ? sum13(nonOpIncSec.id) : 0);
+  const nonOpExp = sum13('sec_non_op_exp') ?? (nonOpExpSec ? sum13(nonOpExpSec.id) : 0);
   const ord      = sum13('calc_ord');
   return {
     sales, varTotal: cogs, marginal: sales - cogs,
@@ -196,7 +196,7 @@ function _bepDrawChart(cur, prev, bud, curLabel, prevLabel, fiscalMonth) {
   const ch = H - pad.t - pad.b;
 
   // スケール
-  const maxSales = (Math.max(cur.sales, prev?.sales || 0, bud?.sales || 0, cur.bep || 0) * 1.15) || 1;
+  const maxSales = (Math.max(cur.sales, prev?.sales || 0, bud?.sales || 0, cur.bep || 0, cur.fixed || 0) * 1.15) || 1;
   const xS = v => pad.l + (v / maxSales) * cw;
   const yS = v => pad.t + ch - (v / maxSales) * ch;
 

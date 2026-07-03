@@ -333,6 +333,7 @@ function renderBankRating(container) {
     if (unit === '%') return v.toFixed(1) + '%';
     if (unit === '倍') {
       if (v >= 99999) return key === 'interest_coverage' ? '∞（支払利息なし）' : '算定不能（赤字）';
+      if (v < 0) return '算定不能（赤字）';
       return v.toFixed(1) + '倍';
     }
     return v.toFixed(1) + unit;

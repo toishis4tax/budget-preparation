@@ -6,7 +6,7 @@ function extractBizMetrics(budget, company) {
   try {
     av = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
   } catch(e) { return null; }
-  const sum = id => ((av[id] || []).reduce((a, v) => a + (v || 0), 0));
+  const sum = id => ((av[id] || []).slice(0, 12).reduce((a, v) => a + (v || 0), 0));
 
   let sales, cogs, gross, sga, op, otherInc, otherExp, ord, pretax, net;
 
@@ -38,7 +38,7 @@ function extractBizMetrics(budget, company) {
   }
 
   const marginalProfit = gross;
-  const fixedCost      = sga;
+  const fixedCost      = sga + otherExp - otherInc;
   const employees      = budget.employees || company.employees || 1;
 
   // 減価償却費を取得
