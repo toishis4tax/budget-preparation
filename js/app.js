@@ -386,6 +386,7 @@ const PAGE_RENDERERS = {
   health:         (c, b) => renderHealthDiag(c, b),
   taxsummary:     c      => renderTaxSummary(c),
   forecastreport: c      => renderForecastReport(c),
+  monthlyreport:  c      => renderMonthlyReport(c),
   bizanalysis:    c      => renderBizAnalysis(c),
   summarypl:      c      => renderSummaryPL(c),
   summarybs:      c      => renderSummaryBS(c),
