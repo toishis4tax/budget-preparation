@@ -89,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.getElementById('year_select')?.addEventListener('change', e => {
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
     App.currentYear = parseInt(e.target.value);
     if (App.currentCompany) {
       loadBudget(App.currentCompany.id, App.currentYear);
@@ -180,6 +181,7 @@ function renderYearSelect(years) {
 
 // 「次年度を作成」: 当年度実績ベースで翌年度を生成し、その年度へ切替
 async function createNextYear() {
+  if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
   const company = App.currentCompany;
   if (!company) { showAlert('先に会社を選択してください', 'warn'); return; }
   const fromYear = App.currentYear;
@@ -399,6 +401,10 @@ const PAGE_RENDERERS = {
 };
 
 function showPage(page) {
+  // 編集中のセルがあればコミットしてから遷移
+  if (document.activeElement && document.activeElement !== document.body) {
+    document.activeElement.blur();
+  }
   App.currentPage = page;
   document.querySelectorAll('[data-page]').forEach(el =>
     el.classList.toggle('active', el.dataset.page === page && (!el.dataset.phase || parseInt(el.dataset.phase) === App.currentPhase))
@@ -617,10 +623,12 @@ function renderSimulation(container, budget) {
 let _memoSaveTimer = null;
 function _memoSaveDebounce() {
   clearTimeout(_memoSaveTimer);
+  const el = document.getElementById('company_memo_area');
+  const cid = el?.dataset?.companyId;
   _memoSaveTimer = setTimeout(() => {
-    const c = window.App?.currentCompany;
-    const el = document.getElementById('company_memo_area');
-    if (!c || !el) return;
+    if (!el) return;
+    const c = (cid && window.App?.companies?.find(x => x.id === cid)) || window.App?.currentCompany;
+    if (!c) return;
     c.memo = el.value;
     saveCompany(c);
   }, 800);

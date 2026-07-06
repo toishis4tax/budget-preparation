@@ -13,6 +13,22 @@ function _bdSaveMemo(companyId, memo) {
   localStorage.setItem(_bdMemoKey(companyId), JSON.stringify(memo));
 }
 
+let _bdAutoSaveTimer = null;
+function _bdAutoSave() {
+  clearTimeout(_bdAutoSaveTimer);
+  _bdAutoSaveTimer = setTimeout(() => {
+    const company = window.App?.currentCompany;
+    if (!company) return;
+    const memo = {
+      business: document.getElementById('bd_business')?.value || '',
+      purpose:  document.getElementById('bd_purpose')?.value  || '',
+    };
+    _bdSaveMemo(company.id, memo);
+    const msg = document.getElementById('bd_autosave_msg');
+    if (msg) { msg.textContent = '自動保存済み'; setTimeout(() => { msg.textContent = ''; }, 2000); }
+  }, 600);
+}
+
 // --- 財務指標計算 ---
 function _bdCalcRatios(plData, bsData, cfSeries) {
   if (!bsData) return null;
@@ -229,16 +245,19 @@ function _renderBankDocFull(container, company, budget, curYear, fiscalMonth, me
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--text-muted)">事業内容・強み</label>
           <textarea id="bd_business" rows="3" class="form-input" style="width:100%;margin-top:4px;font-size:12px"
-            placeholder="例：飲食店の経営。都内3店舗。コアな固定客が多く安定収益。">${escHtml(memo.business||'')}</textarea>
+            placeholder="例：飲食店の経営。都内3店舗。コアな固定客が多く安定収益。"
+            oninput="_bdAutoSave()">${escHtml(memo.business||'')}</textarea>
         </div>
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--text-muted)">資金使途・返済財源</label>
           <textarea id="bd_purpose" rows="3" class="form-input" style="width:100%;margin-top:4px;font-size:12px"
-            placeholder="例：設備投資（厨房機器更新）に充当。返済財源は営業利益＋減価償却費にて充当予定。">${escHtml(memo.purpose||'')}</textarea>
+            placeholder="例：設備投資（厨房機器更新）に充当。返済財源は営業利益＋減価償却費にて充当予定。"
+            oninput="_bdAutoSave()">${escHtml(memo.purpose||'')}</textarea>
         </div>
       </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:8px">
-        <button class="btn btn-sm btn-solid" onclick="_bdSaveAndRender()">保存して反映</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+        <span id="bd_autosave_msg" style="font-size:11px;color:var(--text-muted)"></span>
+        <button class="btn btn-sm btn-solid" onclick="_bdSaveAndRender()">印刷資料に反映</button>
       </div>
     </div>
 

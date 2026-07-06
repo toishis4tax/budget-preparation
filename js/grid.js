@@ -179,7 +179,9 @@ function renderGrid(container, budget) {
     container.innerHTML = '<div class="no-data">会社と年度を選択してください。</div>';
     return;
   }
-  _gridMode = 'pl'; // ページ切替時は常にPLにリセット
+  // グリッドが初めて描画される場合（ページ遷移）のみPLにリセット
+  // 同一ページ内の再描画（科目追加・削除・ペーストなど）ではタブ状態を維持
+  if (!document.getElementById('budget_grid')) _gridMode = 'pl';
   _gridContainer = container;
 
   const months = getMonthLabels(budget.startMonth || 4);
@@ -686,15 +688,20 @@ function handlePaste(e) {
   const startIdx   = inputAccs.findIndex(a => a.id === startAccId);
 
   const actualCols = getActualCols(budget);
+  let skippedCols = 0;
   pasteRows.forEach((row, ri) => {
     const acc = inputAccs[startIdx + ri];
     if (!acc) return;
     if (!budget.rows[acc.id]) budget.rows[acc.id] = new Array(12).fill(0);
     row.forEach((val, ci) => {
       const col = startCol + ci;
-      if (col < 12 && !actualCols[col]) budget.rows[acc.id][col] = val;
+      if (col < 12) {
+        if (actualCols[col]) { skippedCols++; }
+        else { budget.rows[acc.id][col] = val; }
+      }
     });
   });
+  if (skippedCols > 0) showToast('実績確定月へのペーストはスキップされました', 'warn', 3000);
 
   _isPasting = true;
   saveBudget(budget);
