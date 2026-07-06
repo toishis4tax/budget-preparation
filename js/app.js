@@ -387,7 +387,6 @@ const PAGE_RENDERERS = {
   taxsummary:     c      => renderTaxSummary(c),
   forecastreport: c      => renderForecastReport(c),
   monthlyreport:  c      => renderMonthlyReport(c),
-  mfactual:       c      => renderMFActual(c),
   bizanalysis:    c      => renderBizAnalysis(c),
   summarypl:      c      => renderSummaryPL(c),
   summarybs:      c      => renderSummaryBS(c),
