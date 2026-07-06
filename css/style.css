@@ -190,12 +190,14 @@ body {
 .header-spacer { flex: 1; }
 .header-label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
 .header-company-name {
-  font-size: 14px; font-weight: 700; color: var(--white);
-  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 14px; font-weight: 700; color: var(--primary);
+  max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   padding: 4px 10px; border-radius: var(--radius-sm);
+  border-left: 3px solid var(--primary); background: var(--primary-light);
   transition: background .15s;
 }
-.header-company-name:hover { background: rgba(255,255,255,.12); }
+.header-company-name:empty { display: none; }
+.header-company-name:hover { background: var(--primary-muted); }
 
 /* ===== BUTTONS ===== */
 .btn-solid {
