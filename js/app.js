@@ -88,7 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadApp(); // Firebase未導入時はそのまま起動
   }
 
-  document.getElementById('company_select')?.addEventListener('change', e => selectCompany(e.target.value));
   document.getElementById('year_select')?.addEventListener('change', e => {
     App.currentYear = parseInt(e.target.value);
     if (App.currentCompany) {
@@ -119,21 +118,20 @@ function loadApp() {
 
 // ===== 会社管理 =====
 function renderCompanyList() {
-  const sel = document.getElementById('company_select');
-  if (!sel) return;
-  sel.innerHTML = '<option value="">-- 会社を選択 --</option>' +
-    App.companies.map(c =>
-      `<option value="${c.id}" ${App.currentCompany?.id === c.id ? 'selected' : ''}>${escHtml(c.name)}</option>`
-    ).join('');
+  _updateHeaderCompanyName();
   _updateHeaderButtons();
+}
+
+function _updateHeaderCompanyName() {
+  const el = document.getElementById('header-company-name');
+  if (!el) return;
+  el.textContent = App.currentCompany?.name || '';
 }
 
 function _updateHeaderButtons() {
   const hasCo = !!App.currentCompany;
-  ['btn-next-year', 'btn-edit-company', 'btn-delete-company'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el.disabled = !hasCo; el.style.opacity = hasCo ? '' : '.4'; }
-  });
+  const el = document.getElementById('btn-next-year');
+  if (el) { el.disabled = !hasCo; el.style.opacity = hasCo ? '' : '.4'; }
 }
 
 function selectCompany(id) {
@@ -141,12 +139,13 @@ function selectCompany(id) {
   if (!company) {
     App.currentCompany = null;
     App.currentBudget  = null;
-    document.getElementById('company_select').value = '';
+    _updateHeaderCompanyName();
     showPage(App.currentPage);
     return;
   }
   App.currentCompany = company;
   localStorage.setItem(_getLastCompanyKey(), company.id);
+  _updateHeaderCompanyName();
   updateNavForIndustry(company);
   const years = getYearsForCompany(id);
   const year  = years.includes(App.currentYear) ? App.currentYear : (years[0] || new Date().getFullYear());
@@ -297,11 +296,20 @@ function saveCompanyForm() {
 
 async function deleteCurrentCompany() {
   if (!App.currentCompany) return;
-  if (!await showConfirm(`「${App.currentCompany.name}」のすべてのデータが削除されます。この操作は取り消せません。`, { title: '顧問先を削除しますか?', okText: '削除する', danger: true })) return;
-  deleteCompany(App.currentCompany.id);
-  App.companies      = getCompanies();
-  App.currentCompany = null;
-  App.currentBudget  = null;
+  await _deleteCompanyFromCard(App.currentCompany.id);
+}
+
+async function _deleteCompanyFromCard(id) {
+  const company = App.companies.find(c => c.id === id);
+  if (!company) return;
+  if (!await showConfirm(`「${company.name}」のすべてのデータが削除されます。この操作は取り消せません。`, { title: '顧問先を削除しますか?', okText: '削除する', danger: true })) return;
+  deleteCompany(id);
+  App.companies = getCompanies();
+  if (App.currentCompany?.id === id) {
+    App.currentCompany = null;
+    App.currentBudget  = null;
+    _updateHeaderCompanyName();
+  }
   renderCompanyList();
   showPage(App.currentPage);
 }

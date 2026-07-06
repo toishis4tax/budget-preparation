@@ -151,7 +151,11 @@ function renderClientDashboard(container) {
         ` : `<div class="client-card-nodata">データ未入力</div>`}
         <div class="client-card-footer">
           ${updatedStr ? `<span>更新 ${updatedStr}</span>` : '<span style="color:var(--text-muted)">未保存</span>'}
-          <span class="client-card-arrow">→</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="btn btn-sm" style="font-size:11px;padding:2px 8px" onclick="event.stopPropagation();openCompanyModal('${escHtml(company.id)}')">編集</button>
+            <button class="btn btn-sm" style="font-size:11px;padding:2px 8px;border-color:rgba(255,100,100,.5);color:#e11d48" onclick="event.stopPropagation();_deleteCompanyFromCard('${escHtml(company.id)}')">削除</button>
+            <span class="client-card-arrow">→</span>
+          </div>
         </div>
       </div>`;
   }).join('');
