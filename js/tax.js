@@ -392,7 +392,8 @@ function renderTaxSimulator(container) {
             <tbody id="tax_tbody"></tbody>
           </table>
           <div id="tax_summary" class="tax-summary" style="margin-top:14px"></div>
-          <div style="margin-top:18px;text-align:right">
+          <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <button class="btn-outline" onclick="fillTaxSummaryFromCalc()" style="font-size:13px">📋 納付税額確認書へ</button>
             <button class="btn-solid" onclick="applyTaxToBudget()">📊 法人税等へ反映</button>
           </div>
         </div>
@@ -596,8 +597,33 @@ function runTaxSim() {
     `;
   }
 
-  // グローバルに最新税額を保持（applyTaxToBudget で参照）
+  // グローバルに最新税額を保持（applyTaxToBudget / fillTaxSummaryFromCalc で参照）
   window._lastTaxTotal = taxes.total;
+  window._lastTaxes    = taxes;
+}
+
+function fillTaxSummaryFromCalc() {
+  const company = window.App?.currentCompany;
+  const curYear = window.App?.currentYear || new Date().getFullYear();
+  if (!company) { showAlert('会社を選択してください', 'warn'); return; }
+  if (!window._lastTaxes || window._lastTaxCompanyId !== company.id) runTaxSim();
+  const t = window._lastTaxes;
+  if (!t) return;
+
+  const existing = loadTaxSummaryData(company.id, curYear);
+  const merged = {
+    ...existing,
+    corp:       Math.round(t.corp),
+    localCorp:  Math.round(t.localCorp),
+    prefKatsu:  Math.round(t.prefWari),
+    prefKintou: Math.round(t.prefKintou),
+    business:   Math.round(t.business),
+    special:    Math.round(t.special),
+    cityKatsu:  Math.round(t.cityWari),
+    cityKintou: Math.round(t.cityKintou),
+  };
+  saveTaxSummaryData(company.id, curYear, merged);
+  showPage('taxsummary');
 }
 
 function applyTaxToBudget() {
