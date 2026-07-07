@@ -140,7 +140,7 @@ function calcBankMetrics(budget) {
   if (closeIdx < 0) closeIdx = 11;
   const arr  = id => av[id] || new Array(13).fill(0);
   const last = id => arr(id)[closeIdx] || 0;
-  const total = id => arr(id).slice(0, 13).reduce((a, b) => a + b, 0);
+  const total = id => arr(id).slice(0, 13).reduce((a, b) => a + (b || 0), 0);
   const leafSum = (re, mode, sectionFilter) => {
     const matching = accts.filter(a =>
       a.type !== 'section' &&

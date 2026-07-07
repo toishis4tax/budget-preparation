@@ -518,7 +518,7 @@ function runCashFlow() {
   const invest    = parseFloat(document.getElementById('cf_invest')?.value     || 0) / 12;
   const prevCorp  = parseFloat(document.getElementById('cf_prev_corp')?.value  || 0);
   const tax1Amt   = parseFloat(document.getElementById('cf_tax1_amt')?.value   || 0);
-  const tax1Month = parseInt(document.getElementById('cf_tax1_month')?.value   ?? 4);
+  const tax1Month = parseInt(document.getElementById('cf_tax1_month')?.value   || 4);
 
   // 入力値を保存（window + localStorage）。消費税はパススルーのため保持しない
   Object.assign(state, {

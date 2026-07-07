@@ -131,7 +131,7 @@ function renderCCCAnalysis(container) {
 
   const arr   = id => av[id] || new Array(13).fill(0);
   const last  = id => arr(id)[closeIdx] || 0;
-  const total = id => arr(id).slice(0, 12).reduce((a, b) => a + b, 0);
+  const total = id => arr(id).slice(0, 12).reduce((a, b) => a + (b || 0), 0);
   const leafSum = (re, mode) => {
     const matching = accts.filter(a => a.type !== 'section' && re.test(a.name || ''));
     const matchingIds = new Set(matching.map(a => a.id));

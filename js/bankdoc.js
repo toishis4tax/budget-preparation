@@ -63,7 +63,7 @@ function _bdCalcRatios(plData, bsData, cfSeries) {
 // --- 5か年計画計算 ---
 function _bdFiveYear(budget, rates) {
   if (!budget) return null;
-  const annSum = arr => (arr ? arr.slice(0, 13).reduce((a, b) => a + b, 0) : 0);
+  const annSum = arr => (arr ? arr.slice(0, 13).reduce((a, b) => a + (b || 0), 0) : 0);
   let curSales, curCogs, curSalary, curRent, curOther, curDepr;
 
   if (budget.dynamicAccounts?.length) {

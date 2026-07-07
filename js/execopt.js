@@ -130,7 +130,7 @@ function _eoIncomeTax(taxable) {
     [Infinity,   0.45, 4_796_000],
   ];
   for (const [lim, rate, deduct] of brackets) {
-    if (taxable <= lim) return Math.round(taxable * rate - deduct) * 1.021;
+    if (taxable <= lim) return Math.round((taxable * rate - deduct) * 1.021);
   }
   return 0;
 }

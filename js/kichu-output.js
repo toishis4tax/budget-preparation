@@ -686,10 +686,11 @@ function renderKichuForecast(container, budget, company) {
 
 // ===== ④ 役員報酬提案書 =====
 function estimateIncomeTax(annualIncome) {
-  var deduction = annualIncome <= 1800000   ? annualIncome * 0.4 :
-                  annualIncome <= 3600000   ? annualIncome * 0.3  + 180000 :
-                  annualIncome <= 6600000   ? annualIncome * 0.2  + 540000 :
-                  annualIncome <= 8500000   ? annualIncome * 0.1  + 1200000 : 1950000;
+  var deduction = annualIncome <= 1625000   ? 550000 :
+                  annualIncome <= 1800000   ? Math.floor(annualIncome * 0.4)  - 100000 :
+                  annualIncome <= 3600000   ? Math.floor(annualIncome * 0.3)  + 80000 :
+                  annualIncome <= 6600000   ? Math.floor(annualIncome * 0.2)  + 440000 :
+                  annualIncome <= 8500000   ? Math.floor(annualIncome * 0.1)  + 1100000 : 1950000;
   var taxableIncome = Math.max(0, annualIncome - deduction - 480000);
   var tax = taxableIncome <= 1950000   ? taxableIncome * 0.05 :
             taxableIncome <= 3300000   ? taxableIncome * 0.10 - 97500 :
