@@ -14,31 +14,51 @@ function _showToast(msg, duration = 2500) {
   el._t = setTimeout(() => { el.style.opacity = '0'; }, duration);
 }
 
+// デフォルト税率（全国標準）
+const TAX_RATES_DEFAULT = {
+  corp_small_low:   0.150,  // 法人税 中小・年800万以下
+  corp_small_high:  0.232,  // 法人税 中小・年800万超
+  corp_large:       0.232,  // 法人税 大法人
+  local_corp:       0.103,  // 地方法人税（法人税額の10.3%）
+  pref_wari:        0.010,  // 道府県民税 法人税割
+  city_wari:        0.060,  // 市町村民税 法人税割
+  pref_kintou_small:  20000, // 道府県民税 均等割（中小）
+  city_kintou_small:  50000, // 市町村民税 均等割（中小）
+  pref_kintou_large:  70000, // 道府県民税 均等割（大法人）
+  city_kintou_large: 130000, // 市町村民税 均等割（大法人）
+  biz_low:          0.035,  // 法人事業税 年400万以下
+  biz_mid:          0.053,  // 法人事業税 年400万〜800万
+  biz_high:         0.070,  // 法人事業税 年800万超
+  biz_special:      0.374,  // 特別法人事業税（所得割×37.4%）
+};
+
+// 会社別税率設定のロード/セーブ
+function loadTaxSettings(companyId) {
+  try {
+    const raw = localStorage.getItem(`taxSettings_v1_${companyId || ''}`);
+    return raw ? { ...TAX_RATES_DEFAULT, ...JSON.parse(raw) } : { ...TAX_RATES_DEFAULT };
+  } catch(e) { return { ...TAX_RATES_DEFAULT }; }
+}
+function saveTaxSettings(companyId, settings) {
+  localStorage.setItem(`taxSettings_v1_${companyId || ''}`, JSON.stringify(settings));
+}
+
+function loadTaxAdj(companyId, year) {
+  try {
+    const raw = localStorage.getItem(`taxAdj_v1_${companyId || ''}_${year || ''}`);
+    return raw ? JSON.parse(raw) : {};
+  } catch(e) { return {}; }
+}
+function saveTaxAdj(companyId, year, data) {
+  localStorage.setItem(`taxAdj_v1_${companyId || ''}_${year || ''}`, JSON.stringify(data));
+}
+
+// 後方互換用エイリアス（calcCorpTax等から参照）
 const TAX_RATES = {
-  corp: {
-    small_low:   0.15,  // 資本金1億円以下・年800万円以下
-    small_high:  0.234, // 資本金1億円以下・年800万円超
-    large:       0.234, // 大法人
-  },
-  local_corp:    0.103, // 地方法人税(法人税額の10.3%)
-  inhabitant: {
-    pref: {
-      small: 0.010,     // 道府県民税 法人税割 標準税率（令和元年10月以降）
-      large: 0.010,
-    },
-    city: {
-      small: 0.060,     // 市町村民税 法人税割 標準税率（令和元年10月以降）
-      large: 0.060,
-    },
-    per_capita_small: 70000,  // 均等割(中小)
-    per_capita_large: 200000,
-  },
-  business: {
-    small_low:  0.035,  // 法人事業税 所得割 (年400万以下)
-    small_mid:  0.053,  // 年400万超800万以下
-    small_high: 0.070,  // 年800万超（外形非対象）
-    special:    0.374,  // 特別法人事業税 (所得割×37.4%)
-  },
+  corp: { small_low: TAX_RATES_DEFAULT.corp_small_low, small_high: TAX_RATES_DEFAULT.corp_small_high, large: TAX_RATES_DEFAULT.corp_large },
+  local_corp: TAX_RATES_DEFAULT.local_corp,
+  inhabitant: { pref: { small: TAX_RATES_DEFAULT.pref_wari }, city: { small: TAX_RATES_DEFAULT.city_wari } },
+  business: { small_low: TAX_RATES_DEFAULT.biz_low, small_mid: TAX_RATES_DEFAULT.biz_mid, small_high: TAX_RATES_DEFAULT.biz_high, special: TAX_RATES_DEFAULT.biz_special },
 };
 
 const THRESHOLD_800 = 8_000_000;
@@ -53,58 +73,77 @@ function isSmall(capital) {
 const trunc100  = v => v <= 0 ? 0 : Math.floor(v / 100)  * 100;
 const trunc1000 = v => v <= 0 ? 0 : Math.floor(v / 1000) * 1000;
 
-function calcCorpTax(pretaxProfit, capital) {
+// 税額控除・切捨て前の法人税額（地方法人税の課税標準算定用）
+function _calcCorpTaxRaw(pretaxProfit, capital, r) {
+  r = r || TAX_RATES_DEFAULT;
   if (pretaxProfit <= 0) return 0;
   const small = isSmall(capital);
-  let tax;
   if (small) {
     if (pretaxProfit <= THRESHOLD_800) {
-      tax = pretaxProfit * TAX_RATES.corp.small_low;
+      return pretaxProfit * r.corp_small_low;
     } else {
-      tax = THRESHOLD_800 * TAX_RATES.corp.small_low
-          + (pretaxProfit - THRESHOLD_800) * TAX_RATES.corp.small_high;
+      return THRESHOLD_800 * r.corp_small_low
+           + (pretaxProfit - THRESHOLD_800) * r.corp_small_high;
     }
   } else {
-    tax = pretaxProfit * TAX_RATES.corp.large;
+    return pretaxProfit * r.corp_large;
   }
-  return trunc100(tax);
 }
 
-function calcLocalCorpTax(corpTax) {
-  return trunc100(corpTax * TAX_RATES.local_corp);
+function calcCorpTax(pretaxProfit, capital, r, taxCredit = 0) {
+  // 税額控除は百円未満切捨ての前に控除する
+  return trunc100(Math.max(0, _calcCorpTaxRaw(pretaxProfit, capital, r) - taxCredit));
 }
 
-function calcInhabitantTax(corpTax, capital) {
-  const small = isSmall(capital);
-  const perCapita = small
-    ? TAX_RATES.inhabitant.per_capita_small
-    : TAX_RATES.inhabitant.per_capita_large;
-  const prefWari  = trunc100(corpTax * TAX_RATES.inhabitant.pref.small);
-  const cityWari  = trunc100(corpTax * TAX_RATES.inhabitant.city.small);
-  return perCapita + prefWari + cityWari;
+function calcLocalCorpTax(corpTax, r) {
+  r = r || TAX_RATES_DEFAULT;
+  return trunc100(corpTax * r.local_corp);
 }
 
-function calcBusinessTax(pretaxProfit, capital) {
+function calcBusinessTax(pretaxProfit, capital, r) {
+  r = r || TAX_RATES_DEFAULT;
   if (pretaxProfit <= 0) return { income: 0, special: 0 };
   const small = isSmall(capital);
+
+  // 法人事業税（都道府県の実際税率 = 超過税率を反映したr使用）
   let income;
   if (small) {
     if (pretaxProfit <= THRESHOLD_400) {
-      income = pretaxProfit * TAX_RATES.business.small_low;
+      income = pretaxProfit * r.biz_low;
     } else if (pretaxProfit <= THRESHOLD_800) {
-      income = THRESHOLD_400 * TAX_RATES.business.small_low
-             + (pretaxProfit - THRESHOLD_400) * TAX_RATES.business.small_mid;
+      income = THRESHOLD_400 * r.biz_low
+             + (pretaxProfit - THRESHOLD_400) * r.biz_mid;
     } else {
-      income = THRESHOLD_400 * TAX_RATES.business.small_low
-             + THRESHOLD_400 * TAX_RATES.business.small_mid
-             + (pretaxProfit - THRESHOLD_800) * TAX_RATES.business.small_high;
+      income = THRESHOLD_400 * r.biz_low
+             + THRESHOLD_400 * r.biz_mid
+             + (pretaxProfit - THRESHOLD_800) * r.biz_high;
     }
   } else {
-    income = pretaxProfit * TAX_RATES.business.small_high;
+    income = pretaxProfit * r.biz_high;
   }
   income = trunc100(income);
-  const special = trunc100(income * TAX_RATES.business.special);
-  return { income, special };
+
+  // 特別法人事業税は国定の軽減税率ベースで計算（超過税率は含めない）
+  const D = TAX_RATES_DEFAULT;
+  let specialBase;
+  if (small) {
+    if (pretaxProfit <= THRESHOLD_400) {
+      specialBase = pretaxProfit * D.biz_low;
+    } else if (pretaxProfit <= THRESHOLD_800) {
+      specialBase = THRESHOLD_400 * D.biz_low
+                  + (pretaxProfit - THRESHOLD_400) * D.biz_mid;
+    } else {
+      specialBase = THRESHOLD_400 * D.biz_low
+                  + THRESHOLD_400 * D.biz_mid
+                  + (pretaxProfit - THRESHOLD_800) * D.biz_high;
+    }
+  } else {
+    specialBase = pretaxProfit * D.biz_high;
+  }
+  specialBase = trunc100(specialBase);
+  const special = trunc100(specialBase * r.biz_special);
+
+  return { income, special, specialBase };
 }
 
 // 防衛特別法人税（令和7年法律第13号、2026年4月1日以降開始事業年度から適用）
@@ -117,22 +156,33 @@ function calcDefenseTax(corp) {
   return trunc100(base * DEFENSE_TAX_RATE);
 }
 
-function calcAllTax(pretaxProfit, capital, { includeDefense = false } = {}) {
+function calcAllTax(pretaxProfit, capital, { includeDefense = false, rates = null, taxCredit = 0 } = {}) {
+  const r = rates || TAX_RATES_DEFAULT;
   // 課税標準（所得）は1,000円未満切捨て
-  const taxBase    = trunc1000(pretaxProfit);
-  const corp       = calcCorpTax(taxBase, capital);
-  const localCorp  = calcLocalCorpTax(corp);
-  const small      = isSmall(capital);
-  // 住民税内訳
-  const prefWari   = trunc100(corp * TAX_RATES.inhabitant.pref.small);
-  const cityWari   = trunc100(corp * TAX_RATES.inhabitant.city.small);
-  const prefKintou = small ? 20000 : 70000;   // 道府県民税均等割
-  const cityKintou = small ? 50000 : 130000;  // 市町村民税均等割
+  const taxBase = trunc1000(pretaxProfit);
+
+  // 法人税額（税額控除前・切捨て前）→ 地方法人税の課税標準算定に使用
+  const corpRaw = _calcCorpTaxRaw(taxBase, capital, r);
+  // 差引法人税額（税額控除後・百円未満切捨て）
+  const corp = trunc100(Math.max(0, corpRaw - taxCredit));
+
+  // 地方法人税: 課税標準 = 税額控除前法人税額を千円未満切捨て（別表一 Row28→30）
+  const localCorpBase = trunc1000(corpRaw);
+  const localCorp = trunc100(localCorpBase * r.local_corp);
+
+  const small = isSmall(capital);
+  // 住民税法人税割: 課税標準 = 差引法人税額を千円未満切捨て
+  const wariBase = trunc1000(corp);
+  const prefWari   = trunc100(wariBase * r.pref_wari);
+  const cityWari   = trunc100(wariBase * r.city_wari);
+  const prefKintou = small ? r.pref_kintou_small : r.pref_kintou_large;
+  const cityKintou = small ? r.city_kintou_small : r.city_kintou_large;
   const inhabitant = prefWari + cityWari + prefKintou + cityKintou;
-  const { income: business, special } = calcBusinessTax(taxBase, capital);
-  const defense    = includeDefense ? calcDefenseTax(corp) : 0;
-  const total      = corp + localCorp + inhabitant + business + special + defense;
-  return { corp, localCorp, inhabitant, prefWari, prefKintou, cityWari, cityKintou, business, special, defense, total };
+
+  const { income: business, special, specialBase } = calcBusinessTax(taxBase, capital, r);
+  const defense = includeDefense ? calcDefenseTax(corp) : 0;
+  const total   = corp + localCorp + inhabitant + business + special + defense;
+  return { corp, localCorpBase, wariBase, localCorp, inhabitant, prefWari, prefKintou, cityWari, cityKintou, business, special, specialBase, defense, total };
 }
 
 function renderTaxSimulator(container) {
@@ -157,6 +207,7 @@ function renderTaxSimulator(container) {
 
   // 中間納付 — taxsummary_v1 と同じストレージから読み込み（税金一覧表と連動）
   const curYear = window.App?.currentYear || new Date().getFullYear();
+  const savedAdj = loadTaxAdj(company?.id, curYear);
   const tsaved  = loadTaxSummaryData(company?.id, curYear);
   const corpInterimKeys = [
     { key: 'i_corp',      label: '法人税',                 indent: false },
@@ -175,9 +226,101 @@ function renderTaxSimulator(container) {
         oninput="updateCorpInterim('${key}', this.value)">
     </div>`).join('');
 
+  const r = loadTaxSettings(company?.id);
+  const pctV = v => parseFloat((v * 100).toFixed(3)).toString();
+  const taxSettingsHtml = `
+    <details id="tax_settings_details" style="margin-bottom:16px">
+      <summary style="cursor:pointer;font-weight:700;font-size:13px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;list-style:none;display:flex;justify-content:space-between;align-items:center">
+        <span>⚙️ 税率・均等割設定</span>
+        <span style="font-size:11px;color:var(--text-muted);font-weight:400">会社別にカスタマイズできます（デフォルト＝全国標準税率）</span>
+      </summary>
+      <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px;background:var(--bg)">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">法人税率</div>
+            <div class="form-group" style="margin-bottom:6px">
+              <label style="font-size:12px">年800万円以下（中小）%</label>
+              <input type="number" id="tr_corp_small_low" class="form-input" value="${pctV(r.corp_small_low)}" step="0.001" min="0" max="50" oninput="runTaxSim()">
+            </div>
+            <div class="form-group" style="margin-bottom:6px">
+              <label style="font-size:12px">年800万円超（中小）%</label>
+              <input type="number" id="tr_corp_small_high" class="form-input" value="${pctV(r.corp_small_high)}" step="0.001" min="0" max="50" oninput="runTaxSim()">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label style="font-size:12px">大法人 %</label>
+              <input type="number" id="tr_corp_large" class="form-input" value="${pctV(r.corp_large)}" step="0.001" min="0" max="50" oninput="runTaxSim()">
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">地方法人税・住民税（法人税割）</div>
+            <div class="form-group" style="margin-bottom:6px">
+              <label style="font-size:12px">地方法人税（法人税額の）%</label>
+              <input type="number" id="tr_local_corp" class="form-input" value="${pctV(r.local_corp)}" step="0.001" min="0" max="50" oninput="runTaxSim()">
+            </div>
+            <div class="form-group" style="margin-bottom:6px">
+              <label style="font-size:12px">道府県民税 法人税割 %</label>
+              <input type="number" id="tr_pref_wari" class="form-input" value="${pctV(r.pref_wari)}" step="0.001" min="0" max="20" oninput="runTaxSim()">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label style="font-size:12px">市町村民税 法人税割 %</label>
+              <input type="number" id="tr_city_wari" class="form-input" value="${pctV(r.city_wari)}" step="0.001" min="0" max="20" oninput="runTaxSim()">
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">均等割（円）</div>
+            <div class="form-group" style="margin-bottom:6px">
+              <label style="font-size:12px">道府県民税 均等割（中小）</label>
+              <input type="number" id="tr_pref_kintou_small" class="form-input" value="${r.pref_kintou_small}" step="1000" min="0" oninput="runTaxSim()">
+            </div>
+            <div class="form-group" style="margin-bottom:6px">
+              <label style="font-size:12px">市町村民税 均等割（中小）</label>
+              <input type="number" id="tr_city_kintou_small" class="form-input" value="${r.city_kintou_small}" step="1000" min="0" oninput="runTaxSim()">
+            </div>
+            <div class="form-group" style="margin-bottom:6px">
+              <label style="font-size:12px">道府県民税 均等割（大法人）</label>
+              <input type="number" id="tr_pref_kintou_large" class="form-input" value="${r.pref_kintou_large}" step="1000" min="0" oninput="runTaxSim()">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label style="font-size:12px">市町村民税 均等割（大法人）</label>
+              <input type="number" id="tr_city_kintou_large" class="form-input" value="${r.city_kintou_large}" step="1000" min="0" oninput="runTaxSim()">
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">法人事業税</div>
+            <div class="form-group" style="margin-bottom:6px">
+              <label style="font-size:12px">年400万以下 %</label>
+              <input type="number" id="tr_biz_low" class="form-input" value="${pctV(r.biz_low)}" step="0.001" min="0" max="30" oninput="runTaxSim()">
+            </div>
+            <div class="form-group" style="margin-bottom:6px">
+              <label style="font-size:12px">年400万〜800万 %</label>
+              <input type="number" id="tr_biz_mid" class="form-input" value="${pctV(r.biz_mid)}" step="0.001" min="0" max="30" oninput="runTaxSim()">
+            </div>
+            <div class="form-group" style="margin-bottom:6px">
+              <label style="font-size:12px">年800万超 %</label>
+              <input type="number" id="tr_biz_high" class="form-input" value="${pctV(r.biz_high)}" step="0.001" min="0" max="30" oninput="runTaxSim()">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label style="font-size:12px">特別法人事業税（所得割の）%</label>
+              <input type="number" id="tr_biz_special" class="form-input" value="${pctV(r.biz_special)}" step="0.1" min="0" max="100" oninput="runTaxSim()">
+            </div>
+          </div>
+
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+          <button class="btn-solid" onclick="saveTaxSettingsFromUI()">💾 この設定を保存</button>
+          <button class="btn btn-sm btn-outline" onclick="resetTaxSettings()">デフォルトに戻す</button>
+        </div>
+      </div>
+    </details>`;
+
   container.innerHTML = `
     <div class="sim-panel">
       <h2 class="section-title">法人税額シミュレーション</h2>
+      ${taxSettingsHtml}
       <div class="sim-grid">
 
         <div class="card-h" style="display:flex;flex-direction:column;gap:0">
@@ -203,29 +346,34 @@ function renderTaxSimulator(container) {
           <h3 style="margin-top:14px">📝 税務調整</h3>
           <div class="form-group">
             <label>役員賞与（損金不算入・加算）</label>
-            <input type="number" id="tax_adj_exec_bonus" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
+            <input type="number" id="tax_adj_exec_bonus" value="${savedAdj.exec_bonus || ''}" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
           </div>
           <div class="form-group">
             <label>交際費等（損金不算入・加算）</label>
-            <input type="number" id="tax_adj_entertainment" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
+            <input type="number" id="tax_adj_entertainment" value="${savedAdj.entertainment || ''}" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
           </div>
           <div class="form-group">
             <label>その他加算項目</label>
-            <input type="number" id="tax_adj_add" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
+            <input type="number" id="tax_adj_add" value="${savedAdj.add || ''}" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
           </div>
           <div class="form-group">
             <label>当期事業税支払額（減算）</label>
-            <input type="number" id="tax_adj_biztax" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
+            <input type="number" id="tax_adj_biztax" value="${savedAdj.biztax || ''}" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
             <div style="font-size:10px;color:var(--text-muted);margin-top:3px">※ 前期確定分・予定納税など当期中に支払った事業税</div>
           </div>
           <div class="form-group">
             <label>その他減算項目</label>
-            <input type="number" id="tax_adj_sub" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
+            <input type="number" id="tax_adj_sub" value="${savedAdj.sub || ''}" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0">
           </div>
           <div class="form-group">
             <label>繰越欠損金控除（マイナスで入力）</label>
-            <input type="number" id="tax_nol" value="0" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0（控除する場合は入力）">
+            <input type="number" id="tax_nol" value="${savedAdj.nol || ''}" class="form-input" step="100000" oninput="runTaxSim()" placeholder="0（控除する場合は入力）">
             <div style="font-size:10px;color:var(--text-muted);margin-top:3px">※ 所得の最大50%まで控除可（中小法人は100%）</div>
+          </div>
+          <div class="form-group">
+            <label>税額控除（所得税額控除等）</label>
+            <input type="number" id="tax_credit" value="${savedAdj.tax_credit || ''}" class="form-input" step="10000" oninput="runTaxSim()" placeholder="0">
+            <div style="font-size:10px;color:var(--text-muted);margin-top:3px">※ 法人税額から直接控除（所得税額控除・外国税額控除等）</div>
           </div>
 
           <h3 style="margin-top:14px">💳 中間申告納付（税目別入力）</h3>
@@ -254,6 +402,45 @@ function renderTaxSimulator(container) {
   runTaxSim();
 }
 
+function _readTaxSettingsFromUI() {
+  const g = id => document.getElementById(id);
+  if (!g('tr_corp_small_low')) return null;
+  const pct = id => (parseFloat(g(id)?.value) || 0) / 100;
+  const num = id => parseFloat(g(id)?.value) || 0;
+  return {
+    corp_small_low:     pct('tr_corp_small_low'),
+    corp_small_high:    pct('tr_corp_small_high'),
+    corp_large:         pct('tr_corp_large'),
+    local_corp:         pct('tr_local_corp'),
+    pref_wari:          pct('tr_pref_wari'),
+    city_wari:          pct('tr_city_wari'),
+    pref_kintou_small:  num('tr_pref_kintou_small'),
+    city_kintou_small:  num('tr_city_kintou_small'),
+    pref_kintou_large:  num('tr_pref_kintou_large'),
+    city_kintou_large:  num('tr_city_kintou_large'),
+    biz_low:            pct('tr_biz_low'),
+    biz_mid:            pct('tr_biz_mid'),
+    biz_high:           pct('tr_biz_high'),
+    biz_special:        pct('tr_biz_special'),
+  };
+}
+
+function saveTaxSettingsFromUI() {
+  const companyId = window.App?.currentCompany?.id;
+  const settings = _readTaxSettingsFromUI();
+  if (!settings) return;
+  saveTaxSettings(companyId, settings);
+  _showToast('税率設定を保存しました');
+}
+
+function resetTaxSettings() {
+  const companyId = window.App?.currentCompany?.id;
+  localStorage.removeItem(`taxSettings_v1_${companyId || ''}`);
+  // UIを再描画してデフォルト値に戻す
+  const container = document.querySelector('.sim-panel')?.parentElement;
+  if (container) renderTaxSimulator(container);
+}
+
 function updateCorpInterim(key, val) {
   const company = window.App?.currentCompany;
   const curYear = window.App?.currentYear || new Date().getFullYear();
@@ -277,12 +464,30 @@ function runTaxSim() {
   const totalEl = document.getElementById('taxp_total');
   if (totalEl) totalEl.textContent = prepaid1 > 0 ? prepaid1.toLocaleString('ja-JP') : '0';
 
+  // カスタム税率を画面から読む
+  const companyId = window.App?.currentCompany?.id;
+  const rates = _readTaxSettingsFromUI() || loadTaxSettings(companyId);
+
   const adjExecBonus     = parseFloat(document.getElementById('tax_adj_exec_bonus')?.value     || 0);
   const adjEntertainment = parseFloat(document.getElementById('tax_adj_entertainment')?.value   || 0);
   const adjAdd           = parseFloat(document.getElementById('tax_adj_add')?.value             || 0);
   const adjBizTax        = parseFloat(document.getElementById('tax_adj_biztax')?.value          || 0);
   const adjSub           = parseFloat(document.getElementById('tax_adj_sub')?.value             || 0);
   const nolRaw           = parseFloat(document.getElementById('tax_nol')?.value                 || 0);
+  const taxCredit        = parseFloat(document.getElementById('tax_credit')?.value              || 0);
+
+  // 税務調整を保存（ページ移動後も復元できるよう）
+  const _adjCompanyId = window.App?.currentCompany?.id;
+  const _adjYear = window.App?.currentYear || new Date().getFullYear();
+  saveTaxAdj(_adjCompanyId, _adjYear, {
+    exec_bonus: adjExecBonus || undefined,
+    entertainment: adjEntertainment || undefined,
+    add: adjAdd || undefined,
+    biztax: adjBizTax || undefined,
+    sub: adjSub || undefined,
+    nol: nolRaw || undefined,
+    tax_credit: taxCredit || undefined,
+  });
 
   const totalAdd = adjExecBonus + adjEntertainment + adjAdd;
   const totalSub = adjBizTax + adjSub;
@@ -296,7 +501,8 @@ function runTaxSim() {
   const taxableIncome = Math.max(0, incomeBeforeNol - nolDeduction);
 
   const includeDefense = document.getElementById('tax_defense')?.checked || false;
-  const taxes = calcAllTax(taxableIncome, capital, { includeDefense });
+  const taxes = calcAllTax(taxableIncome, capital, { includeDefense, rates, taxCredit });
+
   const prepaid = prepaid1;
   const balance = taxes.total - prepaid;
 
@@ -321,47 +527,48 @@ function runTaxSim() {
       </div>`;
   }
 
-  // 計算内訳テキスト生成
+  // 計算内訳テキスト生成（taxBase = 千円未満切捨て済の課税標準）
+  const taxBase = trunc1000(taxableIncome);
   const sub = s => `<div style="font-size:10px;color:var(--text-muted);margin-top:1px">${s}</div>`;
-  const pct = v => (v * 100).toFixed(1) + '%';
+  const pct = v => parseFloat((v * 100).toFixed(3)) + '%';
   const fmtM = v => (v / 10000).toFixed(0) + '万';
 
   let corpDetail;
   if (small) {
-    if (taxableIncome <= THRESHOLD_800) {
-      corpDetail = `課税所得 ${fmtM(taxableIncome)} × ${pct(TAX_RATES.corp.small_low)}`;
+    if (taxBase <= THRESHOLD_800) {
+      corpDetail = `課税所得 ${fmtM(taxBase)} × ${pct(rates.corp_small_low)}`;
     } else {
-      corpDetail = `800万 × ${pct(TAX_RATES.corp.small_low)} ＋ ${fmtM(taxableIncome - THRESHOLD_800)} × ${pct(TAX_RATES.corp.small_high)}`;
+      corpDetail = `800万 × ${pct(rates.corp_small_low)} ＋ ${fmtM(taxBase - THRESHOLD_800)} × ${pct(rates.corp_small_high)}`;
     }
   } else {
-    corpDetail = `課税所得 ${fmtM(taxableIncome)} × ${pct(TAX_RATES.corp.large)}（大法人）`;
+    corpDetail = `課税所得 ${fmtM(taxBase)} × ${pct(rates.corp_large)}（大法人）`;
   }
 
-  const localCorpDetail = `法人税 ${fmt(taxes.corp)} × ${pct(TAX_RATES.local_corp)}`;
-
-  const prefWariDetail  = `法人税 ${fmt(taxes.corp)} × ${pct(TAX_RATES.inhabitant.pref.small)}`;
+  const localCorpDetail  = `課税標準 ${fmt(taxes.localCorpBase)} × ${pct(rates.local_corp)}`;
+  const prefWariDetail   = `法人税 ${fmt(taxes.wariBase)} × ${pct(rates.pref_wari)}`;
   const prefKintouDetail = `均等割（道府県）`;
-  const cityWariDetail  = `法人税 ${fmt(taxes.corp)} × ${pct(TAX_RATES.inhabitant.city.small)}`;
+  const cityWariDetail   = `法人税 ${fmt(taxes.wariBase)} × ${pct(rates.city_wari)}`;
   const cityKintouDetail = `均等割（市町村）`;
 
   let bizDetail;
   if (small) {
-    if (taxableIncome <= THRESHOLD_400) {
-      bizDetail = `${fmtM(taxableIncome)} × ${pct(TAX_RATES.business.small_low)}`;
-    } else if (taxableIncome <= THRESHOLD_800) {
-      bizDetail = `400万×${pct(TAX_RATES.business.small_low)} ＋ ${fmtM(taxableIncome-THRESHOLD_400)}×${pct(TAX_RATES.business.small_mid)}`;
+    if (taxBase <= THRESHOLD_400) {
+      bizDetail = `${fmtM(taxBase)} × ${pct(rates.biz_low)}`;
+    } else if (taxBase <= THRESHOLD_800) {
+      bizDetail = `400万×${pct(rates.biz_low)} ＋ ${fmtM(taxBase-THRESHOLD_400)}×${pct(rates.biz_mid)}`;
     } else {
-      bizDetail = `400万×${pct(TAX_RATES.business.small_low)} ＋ 400万×${pct(TAX_RATES.business.small_mid)} ＋ ${fmtM(taxableIncome-THRESHOLD_800)}×${pct(TAX_RATES.business.small_high)}`;
+      bizDetail = `400万×${pct(rates.biz_low)} ＋ 400万×${pct(rates.biz_mid)} ＋ ${fmtM(taxBase-THRESHOLD_800)}×${pct(rates.biz_high)}`;
     }
   } else {
-    bizDetail = `課税所得 ${fmtM(taxableIncome)} × ${pct(TAX_RATES.business.small_high)}（外形非対象）`;
+    bizDetail = `課税所得 ${fmtM(taxBase)} × ${pct(rates.biz_high)}（外形非対象）`;
   }
-  const specialDetail = `事業税 ${fmt(taxes.business)} × ${pct(TAX_RATES.business.special)}`;
+  const specialDetail = `軽減ベース ${fmt(taxes.specialBase)} × ${pct(rates.biz_special)}`;
 
   const tbody = document.getElementById('tax_tbody');
   if (!tbody) return;
+  const corpCreditNote = taxCredit > 0 ? sub(`税額控除 ${fmt(taxCredit)} 控除後`) : '';
   tbody.innerHTML = `
-    <tr><td>法人税${sub(corpDetail)}</td><td class="num">${fmt(taxes.corp)}</td></tr>
+    <tr><td>法人税${sub(corpDetail)}${corpCreditNote}</td><td class="num">${fmt(taxes.corp)}</td></tr>
     <tr><td>地方法人税${sub(localCorpDetail)}</td><td class="num">${fmt(taxes.localCorp)}</td></tr>
     <tr style="color:var(--text-muted)"><td style="padding-left:8px;font-size:12px">道府県民税　法人税割${sub(prefWariDetail)}</td><td class="num" style="font-size:12px">${fmt(taxes.prefWari)}</td></tr>
     <tr style="color:var(--text-muted)"><td style="padding-left:8px;font-size:12px">道府県民税　均等割${sub(prefKintouDetail)}</td><td class="num" style="font-size:12px">${fmt(taxes.prefKintou)}</td></tr>
