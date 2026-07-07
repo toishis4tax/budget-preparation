@@ -341,6 +341,7 @@ function renderCashFlow(container, budget) {
     const matching = b.dynamicAccounts.filter(a =>
       a.section === 'bs_asset' &&
       a.type !== 'section' &&
+      !a.cashGroup &&
       CASH_RE.test((a.name || '').replace(/\s/g,''))
     );
     const matchingIds = new Set(matching.map(a => a.id));

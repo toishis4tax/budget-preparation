@@ -23,6 +23,7 @@ function renderCashPlan(container) {
     const all = b.dynamicAccounts.filter(a =>
       a.section === 'bs_asset' &&
       a.type !== 'section' &&
+      !a.cashGroup &&
       CASH_RE.test((a.name || '').replace(/\s/g, ''))
     );
     const ids = new Set(all.map(a => a.id));
