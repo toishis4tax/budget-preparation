@@ -19,14 +19,15 @@ function _bepSummarizeBudgetOnly(budget) {
   const av    = calcAllValuesDynamic(budget);
   const accts = budget.dynamicAccounts;
   const sum13 = id => (av[id] || []).slice(0, 13).reduce((s, v) => s + (v || 0), 0);
-  const sgaSec     = _sbsFindSec(accts, 'sec_sga',        /販売費|一般管理費/);
+  const sgaSec      = _sbsFindSec(accts, 'sec_sga',        /販売費|一般管理費/);
   const nonOpIncSec = _sbsFindSec(accts, 'sec_non_op_inc', /営業外収益/);
   const nonOpExpSec = _sbsFindSec(accts, 'sec_non_op_exp', /営業外費用/);
+  const _s13 = (key, sec) => (av[key] !== undefined ? sum13(key) : (sec ? sum13(sec.id) : 0));
   const sales    = sum13('sec_revenue');
   const cogs     = sum13('sec_cogs');
-  const sga      = sum13('sec_sga')        ?? (sgaSec     ? sum13(sgaSec.id)     : 0);
-  const nonOpInc = sum13('sec_non_op_inc') ?? (nonOpIncSec ? sum13(nonOpIncSec.id) : 0);
-  const nonOpExp = sum13('sec_non_op_exp') ?? (nonOpExpSec ? sum13(nonOpExpSec.id) : 0);
+  const sga      = _s13('sec_sga',        sgaSec);
+  const nonOpInc = _s13('sec_non_op_inc', nonOpIncSec);
+  const nonOpExp = _s13('sec_non_op_exp', nonOpExpSec);
   const ord      = sum13('calc_ord');
   return {
     sales, varTotal: cogs, marginal: sales - cogs,
