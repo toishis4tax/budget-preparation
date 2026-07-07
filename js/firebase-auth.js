@@ -116,37 +116,33 @@ async function _pullFromFirestoreInner(profile, db) {
   // admin → 全件
   // staff で allowedCompanyIds あり → その会社のみ
   // staff で allowedCompanyIds 空 → 0件（明示的に許可されていない = アクセス不可）
-  let companiesQuery = null;
-  if (profile.role === 'admin') {
-    companiesQuery = db.collection('companies');
-  } else if (profile.allowedCompanyIds?.length > 0) {
-    companiesQuery = db.collection('companies').where(
-      firebase.firestore.FieldPath.documentId(), 'in',
-      profile.allowedCompanyIds.slice(0, 30)
-    );
-  } else {
-    // 許可会社ゼロ → Firestoreから何も取得しない
-    companiesQuery = null;
-  }
-  // ※ pending はこの関数に到達しない（_onLoggedIn で弾かれる）
+  const companies = [];
+  const budgetPromises = [];
 
-  // companiesQuery が null = 許可ゼロ → localStorage も空にして終了
-  if (!companiesQuery) {
+  if (profile.role === 'admin') {
+    const snap = await db.collection('companies').get();
+    snap.forEach(doc => {
+      companies.push(doc.data());
+      budgetPromises.push(db.collection('budgets').where('companyId', '==', doc.id).get());
+    });
+  } else if (profile.allowedCompanyIds?.length > 0) {
+    // Firestoreの`in`演算子は最大30件のため、30件ずつチャンクに分割して並列取得
+    const ids = profile.allowedCompanyIds;
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += 30) chunks.push(ids.slice(i, i + 30));
+    const snaps = await Promise.all(chunks.map(chunk =>
+      db.collection('companies').where(firebase.firestore.FieldPath.documentId(), 'in', chunk).get()
+    ));
+    snaps.forEach(snap => snap.forEach(doc => {
+      companies.push(doc.data());
+      budgetPromises.push(db.collection('budgets').where('companyId', '==', doc.id).get());
+    }));
+  } else {
+    // 許可会社ゼロ → Firestoreから何も取得しない（pending はここに到達しない）
     localStorage.setItem('budget_app_v1', JSON.stringify({ companies: [], budgets: [] }));
     localStorage.removeItem('revenue_clients_v1');
     return;
   }
-
-  const companiesSnap = await companiesQuery.get();
-  const companies = [];
-  const budgetPromises = [];
-
-  companiesSnap.forEach(doc => {
-    companies.push(doc.data());
-    budgetPromises.push(
-      db.collection('budgets').where('companyId', '==', doc.id).get()
-    );
-  });
 
   const budgetResults = await Promise.all(budgetPromises);
   const budgets = [];
@@ -202,12 +198,17 @@ async function _pullRevenueFromFirestore(companyIds) {
   if (!companyIds.length) return;
   const db = window._fbDb;
   try {
-    const snap = await db.collection('revenues')
-      .where('companyId', 'in', companyIds.slice(0, 30)).get();
-    if (snap.empty) return;
+    const chunks = [];
+    for (let i = 0; i < companyIds.length; i += 30) chunks.push(companyIds.slice(i, i + 30));
+    const snaps = await Promise.all(chunks.map(chunk =>
+      db.collection('revenues').where('companyId', 'in', chunk).get()
+    ));
+    const allDocs = [];
+    snaps.forEach(snap => snap.forEach(doc => allDocs.push(doc)));
+    if (!allDocs.length) return;
     const raw = localStorage.getItem('revenue_clients_v1');
     const local = raw ? JSON.parse(raw) : {};
-    snap.forEach(doc => {
+    allDocs.forEach(doc => {
       const d = doc.data();
       const key = `${d.companyId}_${d.year}`;
       const localMeta = local[`_meta_${key}`] || {};
@@ -270,15 +271,23 @@ function fbSaveBudget(budget) {
 
 function fbDeleteCompany(companyId) {
   if (!window._fbDb) return;
-  window._fbDb.collection('companies').doc(companyId).delete()
+  const db = window._fbDb;
+  db.collection('companies').doc(companyId).delete()
     .catch(e => console.warn('Firestore delete error:', e));
-  // 関連予算も削除
-  window._fbDb.collection('budgets').where('companyId', '==', companyId).get()
+  // 関連予算を削除
+  db.collection('budgets').where('companyId', '==', companyId).get()
     .then(snap => {
-      const batch = window._fbDb.batch();
+      const batch = db.batch();
       snap.forEach(doc => batch.delete(doc.ref));
       return batch.commit();
     }).catch(e => console.warn('Firestore budget delete error:', e));
+  // 顧問先売上データを削除
+  db.collection('revenues').where('companyId', '==', companyId).get()
+    .then(snap => {
+      const batch = db.batch();
+      snap.forEach(doc => batch.delete(doc.ref));
+      return batch.commit();
+    }).catch(e => console.warn('Firestore revenues delete error:', e));
 }
 
 // ===== 会社フィルタ =====

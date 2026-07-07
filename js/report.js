@@ -241,7 +241,7 @@ function _buildPLRows(budget, av, isD) {
         id:     a.id,
         name:   a.name || '',
         indent: a.indent || 0,
-        bold:   a.type === 'section' || a.type === 'calc',
+        bold:   a.type === 'section' || a.type === 'calculated',
         _hasData: hasData,
       };
     }).filter(r => r.sep || r.bold || r._hasData);

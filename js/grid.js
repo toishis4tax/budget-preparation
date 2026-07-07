@@ -503,6 +503,8 @@ function attachGridEvents() {
     showContextMenu(e.clientX, e.clientY, accId);
   });
 
+  document.removeEventListener('paste', handlePaste);
+  document.removeEventListener('copy', handleCopy);
   document.addEventListener('paste', handlePaste);
   document.addEventListener('copy', handleCopy);
 }

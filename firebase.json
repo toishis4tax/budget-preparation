@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "budget-preparation-a9082",
     "public": ".",
     "ignore": [
       "firebase.json",

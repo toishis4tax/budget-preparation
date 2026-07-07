@@ -43,7 +43,7 @@ function renderCashPlan(container) {
   }
 
   // 保存済み設定を復元
-  const _key = `cashplan_${company?.id || ''}_${budget?.year || ''}`;
+  const _key = `cashplan_${company?.id || ''}_${budget?.year ?? curYear}`;
   const saved = (() => { try { return JSON.parse(localStorage.getItem(_key) || '{}'); } catch { return {}; } })();
 
   const defOpen      = saved.open      ?? autoCash;
