@@ -576,6 +576,13 @@ function parseMirokuMonthlySmart(data, startMonth) {
     if (colType === '損益計算書') {
       if (hasBracket) {
         const action = PL_BRACKET_ACTIONS[nameTrim] || PL_BRACKET_ACTIONS[nameTrim.replace(/\s/g, '')];
+        // 売上なし企業（〔売上総利益〕がないまま〔営業利益〕に到達）の場合、
+        // sec_revenueに誤分類されたSGA科目をsec_sgaに移動し、calc_grossを挿入
+        if (nameTrim === '〔営業利益〕' && !accts.find(a => a.id === 'calc_gross')) {
+          ensureSection('sec_sga', PL_SECTIONS);
+          accts.filter(a => a.parentId === 'sec_revenue').forEach(a => { a.parentId = 'sec_sga'; });
+          accts.push({ id: 'calc_gross', name: '売上総利益', type: 'calculated', indent: 0, section: 'pl', formula: 'sec_revenue - sec_cogs', bold: true });
+        }
         if (action) {
           if (action.calc && !accts.find(a => a.id === action.calc.id)) {
             accts.push({ ...action.calc, type: 'calculated', indent: 0, section: 'pl' });
@@ -623,7 +630,7 @@ function parseMirokuMonthlySmart(data, startMonth) {
           ensureSection(bsSecId, BS_SECTIONS);
           const sInfo = BS_SECTIONS[bsSecId];
           bsPending.forEach(pa => {
-            pa.parentId = pa.parentId || bsSecId;
+            if (!pa.cashGroup) pa.parentId = pa.parentId || bsSecId;
             pa.section = sInfo?.section;
             accts.push(pa);
           });

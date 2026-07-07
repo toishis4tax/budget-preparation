@@ -226,7 +226,7 @@ function calcHealthMetricsDynamic(budget, capital) {
     const matching = accts.filter(a => a.type !== 'section' && re.test(a.name || ''));
     const matchingIds = new Set(matching.map(a => a.id));
     // 親も同じ正規表現にマッチする場合は子を優先し親を除外（二重計上防止）
-    const deduped = matching.filter(a => !matchingIds.has(a.parentId));
+    const deduped = matching.filter(a => !a.cashGroup && !matchingIds.has(a.parentId));
     return deduped.reduce((s, a) => s + (mode === 'last' ? last(a.id) : total(a.id)), 0);
   };
   // 親科目（indent<=1）を名前で合算（人件費の二重計上回避）
