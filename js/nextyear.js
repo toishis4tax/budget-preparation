@@ -47,7 +47,7 @@ function copyToNextYearPL() {
 
   // 計算行も含めて全値を取得（calcAllValuesDynamic で利益等を算出）
   let allVals = {};
-  try { allVals = calcAllValuesDynamic(budget); } catch {}
+  try { allVals = calcAllValuesDynamic(budget); } catch(e) { console.error('calcAllValuesDynamic failed:', e); }
 
   const rows = {};
   accounts.forEach(a => {

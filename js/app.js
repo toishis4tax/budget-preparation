@@ -481,7 +481,7 @@ function renderSimulation(container, budget) {
   const fmtBs = v => Math.round(v || 0).toLocaleString('ja-JP') + '円';
 
   if (hasDynamic) {
-    const last = id => (allVals[id] || new Array(12).fill(0))[11];
+    const last = id => { const arr = allVals[id]; return Array.isArray(arr) && arr.length > 11 ? arr[11] : 0; };
     const curAsset  = last('sec_cur_asset');
     const fixAsset  = last('sec_fix_asset');
     const otherAsset= last('sec_other_asset');
@@ -504,7 +504,7 @@ function renderSimulation(container, budget) {
     const cash = cashLeaf.reduce((s, a) => s + last(a.id), 0);
 
     bsAssetsRows = [
-      cash > 0 ? ['現金預金', cash, false] : null,
+      cashLeaf.length > 0 ? ['現金預金', cash, false] : null,
       ['流動資産合計', curAsset,   true ],
       ['固定資産合計', fixAsset,   false],
       otherAsset ? ['その他資産', otherAsset, false] : null,
