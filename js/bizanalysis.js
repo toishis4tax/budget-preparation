@@ -6,7 +6,7 @@ function extractBizMetrics(budget, company) {
   try {
     av = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
   } catch(e) { return null; }
-  const sum = id => ((av[id] || []).slice(0, 12).reduce((a, v) => a + (v || 0), 0));
+  const sum = id => ((av[id] || []).slice(0, 13).reduce((a, v) => a + (v || 0), 0));
 
   let sales, cogs, gross, sga, op, otherInc, otherExp, ord, pretax, net;
 
