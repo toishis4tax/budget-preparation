@@ -155,11 +155,11 @@ function _runCashPlan() {
   const { budget, monthLabels, _key } = meta;
 
   const openMan   = _cpSafeN(document.getElementById('cp_open')?.value);
-  const siteSales = parseInt(document.getElementById('cp_site_sales')?.value || 1);
-  const siteCogs  = parseInt(document.getElementById('cp_site_cogs')?.value  || 1);
+  const siteSales = parseInt(document.getElementById('cp_site_sales')?.value ?? 1); // selectは"0"（当月）が正当値のため??
+  const siteCogs  = parseInt(document.getElementById('cp_site_cogs')?.value  ?? 1);
   const repayMan  = _cpSafeN(document.getElementById('cp_repay')?.value);
   const taxMan    = _cpSafeN(document.getElementById('cp_tax')?.value);
-  const taxMonth  = parseInt(document.getElementById('cp_tax_month')?.value || 2);
+  const taxMonth  = parseInt(document.getElementById('cp_tax_month')?.value ?? 2); // selectは"0"が正当値のため??
 
   const open   = openMan  * 10_000;
   const repay  = repayMan * 10_000;

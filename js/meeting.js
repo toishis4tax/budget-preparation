@@ -96,7 +96,8 @@ function _mtPreset() {
 // 実績が入っている最終月を検出し、今日との差で ✅/⚠️/❌ を返す
 function _mtDataStatus(budget) {
   if (!budget) return { level: 'none', label: '予算データがありません', detail: '推移表をアップロードしてください' };
-  const cols = budget.actualCols || [];
+  // 旧形式(actualThrough)の予算にも対応するため grid.js の getActualCols を優先使用
+  const cols = (typeof getActualCols === 'function' ? getActualCols(budget) : budget.actualCols) || [];
   let lastIdx = -1;
   cols.forEach((v, i) => { if (v) lastIdx = i; });
   if (lastIdx < 0) return { level: 'none', label: '実績データがまだありません', detail: '推移表をアップロードしてください' };
@@ -115,10 +116,20 @@ function _mtDataStatus(budget) {
   return { level: 'warn', label, detail: `最新月が${monthsAgo}か月前です。新しい推移表のアップロードをおすすめします` };
 }
 
-// --- ホームに差し込む準備カード ---
-function _insertMeetingCard(container, company, budget) {
-  if (!company) return;
-  if (window.MeetingMode.active) return; // 面談中はカード非表示（バーで操作する）
+// --- ミーティング準備画面（独立ページ） ---
+function renderMeetingPrep(container) {
+  const company = window.App?.currentCompany;
+  const budget  = window.App?.currentBudget;
+
+  if (!company) {
+    container.innerHTML = `
+      <div class="home-empty">
+        <div style="font-size:56px;margin-bottom:20px">🤝</div>
+        <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:10px">顧問先を選択してください</div>
+        <button class="btn-solid" onclick="showPage('client_list')">顧問先一覧へ</button>
+      </div>`;
+    return;
+  }
 
   const status = _mtDataStatus(budget);
   const statusIcon = { ok: '✅', warn: '⚠️', none: '❌' }[status.level];
@@ -132,36 +143,42 @@ function _insertMeetingCard(container, company, budget) {
   const cards = MEETING_PRESETS.map(p => `
     <div class="mt-preset-card" data-mt-preset="${p.id}" onclick="_mtSelectPreset('${p.id}')"
          tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
-      <div style="font-size:22px">${p.icon}</div>
-      <div style="font-weight:700;font-size:12px;margin-top:2px">${p.name}</div>
+      <div style="font-size:30px">${p.icon}</div>
+      <div style="font-weight:800;font-size:13px;margin-top:4px">${p.name}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;line-height:1.5">${p.desc}</div>
     </div>`).join('');
 
-  const html = `
-  <div class="card mt-prep-card" id="mt_prep_card" style="padding:16px;margin-bottom:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div style="font-size:15px;font-weight:800">🤝 ミーティング準備</div>
-      ${lastPreset ? `<div style="font-size:11px;color:var(--text-muted)">前回: ${lastPreset.icon} ${lastPreset.name}（${new Date(last.date).toLocaleDateString('ja-JP')}）</div>` : ''}
+  container.innerHTML = `
+  <div class="mt-prep-page">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px">
+      <div>
+        <div style="font-size:20px;font-weight:800;color:var(--text)">🤝 ミーティング準備</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${escHtml(company.name)} ／ 面談の種類を選んで、流れに沿って説明できます</div>
+      </div>
+      ${lastPreset ? `<div style="font-size:12px;color:var(--text-muted)">前回: ${lastPreset.icon} ${lastPreset.name}（${new Date(last.date).toLocaleDateString('ja-JP')}）</div>` : ''}
     </div>
 
-    <div style="font-size:12px;margin-bottom:10px">
-      <span style="font-weight:700;color:var(--text-muted)">① データ確認　</span>
-      <span style="color:${statusColor}">${statusIcon} ${escHtml(status.label)}</span>
-      ${status.detail ? `<div style="margin:4px 0 0 84px;color:${statusColor}">${escHtml(status.detail)}
+    <div class="card" style="padding:16px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:800;margin-bottom:8px">① データ確認</div>
+      <div style="font-size:13px;color:${statusColor}">${statusIcon} ${escHtml(status.label)}</div>
+      ${status.detail ? `<div style="margin-top:6px;font-size:12px;color:${statusColor}">${escHtml(status.detail)}
         <button class="btn btn-sm btn-outline" style="margin-left:8px" onclick="showPage('import')">📤 アップロードへ</button></div>` : ''}
     </div>
 
-    <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px">② 面談の種類を選択</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:10px">${cards}</div>
-    <div id="mt_preset_preview"></div>
+    <div class="card" style="padding:16px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:800;margin-bottom:10px">② 面談の種類を選択</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:12px">${cards}</div>
+      <div id="mt_preset_preview"></div>
+    </div>
 
-    <div style="display:flex;gap:8px;align-items:center">
-      <span style="font-size:12px;font-weight:700;color:var(--text-muted)">③</span>
-      <button class="btn-solid" id="mt_start_btn" disabled onclick="_mtStart()">▶ ミーティングを開始</button>
+    <div class="card" style="padding:16px">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div style="font-size:13px;font-weight:800">③ 開始</div>
+        <button class="btn-solid" id="mt_start_btn" disabled onclick="_mtStart()">▶ ミーティングを開始</button>
+        <div style="font-size:11px;color:var(--text-muted)">開始すると画面上部にナビが表示され、「次へ→」で順番に画面が切り替わります（←/→キーでも操作可）</div>
+      </div>
     </div>
   </div>`;
-
-  // 資金ショートアラートより上（先頭）に配置
-  container.insertAdjacentHTML('afterbegin', html);
 
   // 前回のタイプを事前選択しておく
   if (lastPreset) _mtSelectPreset(lastPreset.id, true);
@@ -207,8 +224,10 @@ function _mtEnd() {
   const bar = document.getElementById('meeting_bar');
   if (bar) bar.remove();
   document.body.classList.remove('meeting-active');
-  // ホームに戻って準備カードを再表示
-  showPage('home');
+  const mw = document.querySelector('.main-wrapper');
+  if (mw) mw.style.paddingTop = '';
+  // 準備画面に戻る
+  showPage('meeting');
 }
 
 function _mtGoStep(i) {
@@ -244,6 +263,11 @@ function _mtRenderBar() {
     document.body.appendChild(bar);
     document.body.classList.add('meeting-active');
   }
+  // バーの実高さに合わせてコンテンツを下げる（ヒント展開・折返しで高さが変わるため実測）
+  requestAnimationFrame(() => {
+    const mw = document.querySelector('.main-wrapper');
+    if (mw && bar.isConnected) mw.style.paddingTop = bar.offsetHeight + 'px';
+  });
 
   bar.innerHTML = `
     <div class="mt-bar-row">
@@ -267,6 +291,10 @@ function _mtToggleHint() {
   window.MeetingMode.hintOpen = !window.MeetingMode.hintOpen;
   const el = document.getElementById('mt_hint');
   if (el) el.style.display = window.MeetingMode.hintOpen ? 'block' : 'none';
+  // ヒント開閉でバーの高さが変わるためpaddingを再計算
+  const bar = document.getElementById('meeting_bar');
+  const mw = document.querySelector('.main-wrapper');
+  if (bar && mw) mw.style.paddingTop = bar.offsetHeight + 'px';
 }
 
 // showPage() の末尾から呼ばれる同期フック
@@ -295,10 +323,11 @@ document.addEventListener('keydown', e => {
   .mt-preset-card:hover { border-color:var(--primary,#2563eb) }
   .mt-preset-card.mt-selected { border-color:var(--primary,#2563eb); background:var(--blue-50,#eff6ff) }
 
-  .meeting-bar { position:fixed; top:0; left:0; right:0; z-index:2000;
+  /* z-index: モーダル(1000)・ハンバーガー(1100)・サイドバー(1060)より下に置く */
+  .meeting-bar { position:fixed; top:0; left:var(--sidebar-w,224px); right:0; z-index:950;
     background:var(--surface,#fff); border-bottom:2px solid var(--primary,#2563eb);
     box-shadow:0 2px 8px rgba(0,0,0,.08); padding:6px 14px; font-size:12px }
-  body.meeting-active .main-wrapper { padding-top:46px }
+  body.meeting-active .main-wrapper { padding-top:46px } /* フォールバック（実測値がJSで上書き） */
   .mt-bar-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap }
   .mt-bar-title { font-weight:800; white-space:nowrap }
   .mt-step-label { font-weight:700; color:var(--primary,#2563eb); white-space:nowrap }
@@ -311,7 +340,11 @@ document.addEventListener('keydown', e => {
   .mt-btn-return { background:#fef3c7; border:1px solid #f59e0b; color:#92400e }
   .mt-hint { background:var(--blue-50,#eff6ff); border-radius:8px; padding:8px 12px; margin-top:6px; font-size:12px }
 
-  @media (max-width:768px) { .mt-dots { display:none } }
+  @media (max-width:900px) {
+    .mt-dots { display:none }
+    /* モバイルはサイドバーが隠れるので左端から。ハンバーガー(左上)と重ならないよう左に余白 */
+    .meeting-bar { left:0; padding-left:52px }
+  }
   @media print { .meeting-bar, .mt-prep-card { display:none !important } body.meeting-active .main-wrapper { padding-top:0 } }
   `;
   const style = document.createElement('style');

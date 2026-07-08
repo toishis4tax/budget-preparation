@@ -398,6 +398,7 @@ const PAGE_RENDERERS = {
   cccanalysis:    c      => renderCCCAnalysis(c),
   bankdoc:        c      => renderBankDoc(c),
   client_list:    c      => renderClientDashboard(c),
+  meeting:        c      => renderMeetingPrep(c),
 };
 
 function showPage(page) {
