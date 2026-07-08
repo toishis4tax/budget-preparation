@@ -419,6 +419,7 @@ function showPage(page) {
   } else {
     container.innerHTML = '<div class="no-data">ページが見つかりません</div>';
   }
+  if (typeof _meetingSync === 'function') _meetingSync();
 }
 
 // ===== 単年度シミュレーション（PL/BS） =====

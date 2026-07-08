@@ -310,6 +310,7 @@ function renderHome(container) {
     renderPhase1Home(container, budget, company);
     _insertHandoverMemo(container, company);
     _insertCashAlert(container, company, budget);
+    _insertMeetingCard(container, company, budget);
     if (_pendingHandover) { const ta = document.getElementById('handover_note_new'); if (ta) ta.value = _pendingHandover; }
     return;
   }
@@ -317,6 +318,7 @@ function renderHome(container) {
     renderPhase2Home(container, budget, company);
     _insertHandoverMemo(container, company);
     _insertCashAlert(container, company, budget);
+    _insertMeetingCard(container, company, budget);
     if (_pendingHandover) { const ta = document.getElementById('handover_note_new'); if (ta) ta.value = _pendingHandover; }
     return;
   }
@@ -324,6 +326,7 @@ function renderHome(container) {
     renderPhase3Home(container, budget, company);
     _insertHandoverMemo(container, company);
     _insertCashAlert(container, company, budget);
+    _insertMeetingCard(container, company, budget);
     if (_pendingHandover) { const ta = document.getElementById('handover_note_new'); if (ta) ta.value = _pendingHandover; }
     return;
   }
