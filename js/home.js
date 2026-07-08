@@ -313,20 +313,8 @@ function renderHome(container) {
     if (_pendingHandover) { const ta = document.getElementById('handover_note_new'); if (ta) ta.value = _pendingHandover; }
     return;
   }
-  if (phase === 2) {
-    renderPhase2Home(container, budget, company);
-    _insertHandoverMemo(container, company);
-    _insertCashAlert(container, company, budget);
-    if (_pendingHandover) { const ta = document.getElementById('handover_note_new'); if (ta) ta.value = _pendingHandover; }
-    return;
-  }
-  if (phase === 3) {
-    renderPhase3Home(container, budget, company);
-    _insertHandoverMemo(container, company);
-    _insertCashAlert(container, company, budget);
-    if (_pendingHandover) { const ta = document.getElementById('handover_note_new'); if (ta) ta.value = _pendingHandover; }
-    return;
-  }
+  // 旧フェーズ2/3専用ホームはサイドバー再編（面談フロー制）で廃止。
+  // フェーズ1（期中面談のホーム）以外はすべて汎用ダッシュボードを表示する。
 
   const capital   = company.capital || 10000000;
   const curYear   = window.App?.currentYear || new Date().getFullYear();
@@ -520,8 +508,8 @@ function renderHome(container) {
           </div>
 
           <div class="phase-tools">
-            ${toolLink('budget',   1, '📝 月次予算入力',       hasData ? `${pct}%完了` : '未入力')}
-            ${toolLink('revenue',  1, '💹 売上予算設定')}
+            ${toolLink('budget',   6, '📝 月次予算入力',       hasData ? `${pct}%完了` : '未入力')}
+            ${toolLink('revenue',  6, '💹 売上予算設定')}
             ${toolLink('cashflow', 1, '💰 CF予測')}
           </div>
 
@@ -553,10 +541,10 @@ function renderHome(container) {
           </div>
 
           <div class="phase-tools">
-            ${toolLink('bizanalysis', 2, '📊 3期比較PL',           hasPrev ? `${curYear-2}〜${curYear}年度` : '過去データ必要')}
-            ${toolLink('health',     2, '🩺 財務健康診断')}
-            ${toolLink('simulation', 2, '📐 単年度PL/BS')}
-            ${toolLink('fiveyear',   2, '🔮 5か年シミュレーション')}
+            ${toolLink('bizanalysis', 3, '📊 3期比較PL',           hasPrev ? `${curYear-2}〜${curYear}年度` : '過去データ必要')}
+            ${toolLink('health',     3, '🩺 財務健康診断')}
+            ${toolLink('simulation', 3, '📐 単年度PL/BS')}
+            ${toolLink('fiveyear',   3, '🔮 5か年シミュレーション')}
           </div>
 
           <div class="phase-kpi-mini">
@@ -826,7 +814,7 @@ function phaseHomeTopbar(company, curYear, accentColor, phaseLabel) {
       </div>
       <div class="home-meta">
         <button class="btn btn-sm" onclick="openCompanyModal('${company.id}')">会社情報を編集</button>
-        <button class="btn btn-sm btn-outline" onclick="App.currentPhase=0;showPage('home')">📋 ダッシュボード</button>
+        <button class="btn btn-sm btn-outline" onclick="setPhase(0);showPage('home')">📋 ダッシュボード</button>
       </div>
     </div>`;
 }
@@ -938,7 +926,7 @@ function renderPhase1Home(container, budget, company) {
           <button class="btn-solid" onclick="showPage('import')">📤 推移表アップロード</button>
           <button class="btn-outline" onclick="showPage('budget')">📝 月次予算入力</button>
           <button class="btn-outline" onclick="showPage('cashflow')">💰 CF予測</button>
-          <button class="btn-outline" onclick="setPhase(2);showPage('home')">② 申告・報告へ →</button>
+          <button class="btn-outline" onclick="setPhase(3);showPage('health')">③ 決算報告会へ →</button>
         </div>
       </div>
 

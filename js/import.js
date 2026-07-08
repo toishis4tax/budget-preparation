@@ -791,10 +791,8 @@ function syncImportYear(val) {
 
 function renderImport(container) {
   const prefs = Object.keys(KENPO_RATES || {});
-  const _phase = window.App?.currentPhase || 0;
-  const _guide = _phase === 3
-    ? `🧾 <strong>決算・申告フェーズ</strong>：損益計算書(PL)に加えて <strong>貸借対照表(BS)</strong> も取り込んでください。要約BS（3期比較）・財務健康診断に使用します。`
-    : `📈 <strong>予算フェーズ</strong>：<strong>損益計算書(PL)のみ</strong>のアップロードでOKです。現預金など期首残高は <strong>前期末のBSから自動で引き継ぎ</strong> ます（資金繰り予測に反映）。`;
+  const _guide = `📈 <strong>期中の面談用</strong>：<strong>損益計算書(PL)のみ</strong>でOK。期首残高は前期末BSから自動引き継ぎます。<br>
+    🧾 <strong>決算報告用</strong>：PLに加えて <strong>貸借対照表(BS)</strong> も取り込むと、要約BS（3期比較）・財務健康診断が使えます。`;
   container.innerHTML = `
     <div class="sim-panel">
       <div class="flex-between">
@@ -805,7 +803,7 @@ function renderImport(container) {
       </div>
 
       <div class="card-h">
-        <div style="background:${_phase===2?'#ecfdf5':'#eff6ff'};border:1px solid ${_phase===2?'#6ee7b7':'#bfdbfe'};border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;line-height:1.7;color:#1e3a5f">${_guide}</div>
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;line-height:1.7;color:#1e3a5f">${_guide}</div>
         <div class="source-tabs">
           <div class="source-tab active" data-src="mjs" onclick="setImportSource('mjs',this)">
             ミロク(MJS)財務大将

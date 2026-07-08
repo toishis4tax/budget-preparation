@@ -429,7 +429,7 @@ document.addEventListener('keydown', e => {
     /* モバイルはサイドバーが隠れるので左端から。ハンバーガー(左上)と重ならないよう左に余白 */
     .meeting-bar { left:0; padding-left:52px }
   }
-  @media print { .meeting-bar, .mt-prep-card { display:none !important } body.meeting-active .main-wrapper { padding-top:0 } }
+  @media print { .meeting-bar, .mt-prep-page { display:none !important } body.meeting-active .main-wrapper { padding-top:0 !important } }
   `;
   const style = document.createElement('style');
   style.textContent = css;

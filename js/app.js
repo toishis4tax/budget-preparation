@@ -336,6 +336,10 @@ function togglePhase(phase) {
     }
   });
   App.currentPhase = isOpen ? 0 : phase;
+  // 開閉に合わせてハイライトも更新（閉じた側のactiveが残らないように）
+  document.querySelectorAll('[data-page]').forEach(el =>
+    el.classList.toggle('active', el.dataset.page === App.currentPage && (!el.dataset.phase || parseInt(el.dataset.phase) === App.currentPhase))
+  );
 }
 
 function setPhase(phase) {
