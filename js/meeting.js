@@ -19,6 +19,8 @@ const MEETING_PRESETS = [
         talk: ['このままいくと利益がいくらになるか、を数字で示す', '前年との比較で良し悪しを伝える'] },
       { page: 'tax', phase: 1, title: '納税額の見込み',
         talk: ['納税額を早めに伝えて資金準備を促す', '中間納付がある場合は時期も伝える'] },
+      { page: 'cashflow', phase: 1, title: 'CF予測の確認',
+        talk: ['利益と現金の動きは別物であることを図で見せる', '大きな投資・返済の予定を確認する'] },
       { page: 'cashplan', phase: 1, title: '資金繰りの確認',
         talk: ['今後6か月の資金の山谷を見せる', '残高がマイナスになる月があれば、借入・支出削減の対策の話へ'] },
       { page: 'execcomp', phase: 1, title: '役員賞与の検討', optional: true,
@@ -31,17 +33,17 @@ const MEETING_PRESETS = [
     name: '決算前検討会',
     desc: '決算2〜3か月前。着地予測・納税額・対策の検討',
     steps: [
-      { page: 'forecastreport', phase: 1, title: '決算着地予測の共有',
+      { page: 'forecastreport', phase: 2, title: '決算着地予測の共有',
         talk: ['残り数か月の見込みを含めた着地予測を説明', '大きな変動要因（臨時収入・特別損失）を確認する'] },
-      { page: 'tax', phase: 1, title: '法人税概算の説明',
+      { page: 'tax', phase: 2, title: '法人税概算の説明',
         talk: ['このままの利益だと法人税等がいくらになるか', '対策前・対策後の比較で話すと伝わりやすい'] },
-      { page: 'ctax', phase: 1, title: '消費税概算の説明',
+      { page: 'ctax', phase: 2, title: '消費税概算の説明',
         talk: ['消費税は利益と関係なく発生することを強調', '納税資金の準備を促す'] },
-      { page: 'execcomp', phase: 1, title: '決算対策：役員賞与',
+      { page: 'execcomp', phase: 2, title: '決算対策：役員賞与',
         talk: ['役員賞与による利益圧縮の効果を試算で見せる', '社会保険料の増加もセットで説明する'] },
-      { page: 'welfare', phase: 1, title: '決算対策：従業員賞与', optional: true,
+      { page: 'welfare', phase: 2, title: '決算対策：従業員賞与', optional: true,
         talk: ['決算賞与の損金算入要件（通知・支給時期）を説明'] },
-      { page: 'cashplan', phase: 1, title: '納税資金の資金繰り確認',
+      { page: 'cashplan', phase: 2, title: '納税資金の資金繰り確認',
         talk: ['納税月に資金が足りるかを確認', '足りなければ納税資金融資の検討へ'] },
     ],
   },
@@ -51,19 +53,21 @@ const MEETING_PRESETS = [
     name: '決算報告会',
     desc: '申告後の報告。決算内容の説明と翌期方針',
     steps: [
-      { page: 'health', phase: 2, title: '財務健康診断',
+      { page: 'health', phase: 3, title: '財務健康診断',
         talk: ['まず点数で全体像をつかんでもらう', '前年より良くなった項目から伝える'] },
-      { page: 'summarypl', phase: 2, title: '3期比較PL（業績の推移)',
+      { page: 'simulation', phase: 3, title: '単年度PL/BSの説明',
+        talk: ['当期の月次推移を俯瞰して山谷の理由を説明', '季節変動か一時要因かを区別して伝える'] },
+      { page: 'summarypl', phase: 3, title: '3期比較PL（業績の推移)',
         talk: ['3期並べて「良くなっているのか悪くなっているのか」の傾向を示す', '粗利率の変化に注目してもらう'] },
-      { page: 'summarybs', phase: 2, title: '3期比較BS（財政状態）',
+      { page: 'summarybs', phase: 3, title: '3期比較BS（財政状態）',
         talk: ['現預金と借入金のバランスを説明', '自己資本が積み上がっているかを確認'] },
-      { page: 'bizanalysis', phase: 2, title: '経営分析（強み・弱み）',
+      { page: 'bizanalysis', phase: 3, title: '経営分析（強み・弱み）',
         talk: ['1人あたり売上・労働分配率など、社長が実感しやすい指標から', '弱い指標は「来期の改善テーマ」として前向きに伝える'] },
-      { page: 'bepanalysis', phase: 2, title: '損益分岐点分析',
+      { page: 'bepanalysis', phase: 3, title: '損益分岐点分析',
         talk: ['「あといくら売上が落ちても赤字にならないか」（経営安全率）を伝える', '固定費を下げると分岐点が下がることを図で見せる'] },
-      { page: 'taxsummary', phase: 2, title: '税金一覧表（納付スケジュール）',
+      { page: 'taxsummary', phase: 3, title: '税金一覧表（納付スケジュール）',
         talk: ['年間の税金を一覧で見せて資金計画に組み込んでもらう', '中間納付の時期と金額を必ず伝える'] },
-      { page: 'fiveyear', phase: 2, title: '翌期以降の計画', optional: true,
+      { page: 'fiveyear', phase: 3, title: '翌期以降の計画', optional: true,
         talk: ['5か年の方向性を共有して次回面談につなげる'] },
     ],
   },
@@ -73,17 +77,96 @@ const MEETING_PRESETS = [
     name: '銀行対応・融資相談',
     desc: '金融機関提出資料の準備と融資シミュレーション',
     steps: [
-      { page: 'bankrating', phase: 3, title: '銀行格付けの自己診断',
+      { page: 'bankrating', phase: 4, title: '銀行格付けの自己診断',
         talk: ['銀行がどこを見ているかを説明', '格付けを上げるために効く項目（自己資本・債務償還年数）を伝える'] },
-      { page: 'bankdoc', phase: 2, title: '銀行提出資料の作成',
+      { page: 'bankdoc', phase: 4, title: '銀行提出資料の作成',
         talk: ['提出前に数字の整合性を必ず確認', '5か年計画は保守的な数字で作る方が信頼される'] },
-      { page: 'loansim', phase: 3, title: '借入シミュレーション',
+      { page: 'loansim', phase: 4, title: '借入シミュレーション',
         talk: ['月々の返済額と金利負担を具体的に見せる', '据置期間の有無で資金繰りがどう変わるかを比較'] },
-      { page: 'cashplan', phase: 1, title: '返済を織り込んだ資金繰り',
+      { page: 'cashplan', phase: 4, title: '返済を織り込んだ資金繰り',
         talk: ['借入後の返済を含めて資金が回るかを確認'] },
     ],
   },
 ];
+
+// --- サイドバー自動生成 ---
+// メニューの並び＝説明する順。MEETING_PRESETS のステップ順から生成するため、
+// プリセットを変えればメニューとミーティングモードの両方に反映される。
+const PAGE_META = {
+  home:           { icon: '🏠', label: 'ホーム' },
+  budget:         { icon: '📝', label: '月次予算入力' },
+  nextyear_pl:    { icon: '📅', label: '翌期月次予算入力' },
+  revenue:        { icon: '🏢', label: '顧問先売上管理' },
+  import:         { icon: '📤', label: '推移表アップロード' },
+  monthlyreport:  { icon: '📄', label: '月次レポート' },
+  forecastreport: { icon: '📋', label: '当期決算予測報告' },
+  tax:            { icon: '🧮', label: '法人税概算' },
+  ctax:           { icon: '🧾', label: '消費税概算' },
+  cashflow:       { icon: '💰', label: 'CF予測' },
+  cashplan:       { icon: '📅', label: '資金繰り予定表' },
+  welfare:        { icon: '🏥', label: '従業員賞与' },
+  execcomp:       { icon: '👔', label: '役員賞与' },
+  health:         { icon: '🩺', label: '財務健康診断' },
+  simulation:     { icon: '📐', label: '単年度 PL/BS' },
+  summarypl:      { icon: '📈', label: '要約PL（3期比較）' },
+  summarybs:      { icon: '🏦', label: '要約BS（3期比較）' },
+  bizanalysis:    { icon: '📊', label: '経営分析表' },
+  bepanalysis:    { icon: '📉', label: '損益分岐点分析' },
+  taxsummary:     { icon: '📑', label: '税金一覧表' },
+  fiveyear:       { icon: '📅', label: '5か年計画' },
+  bankrating:     { icon: '🏦', label: '銀行格付け' },
+  bankdoc:        { icon: '🏦', label: '銀行提出資料' },
+  loansim:        { icon: '🏦', label: '借入シミュレーター' },
+  cccanalysis:    { icon: '🔄', label: 'CCC分析' },
+  subsidy:        { icon: '🎁', label: '補助金チェッカー' },
+  execopt:        { icon: '💡', label: '役員報酬最適化' },
+};
+
+// 説明に使わない入力系（事前準備）と、面談フローに属さないツール（その他）
+const MT_PREP_PAGES  = ['import', 'budget', 'nextyear_pl', 'revenue'];
+const MT_OTHER_PAGES = ['cccanalysis', 'subsidy', 'execopt'];
+
+function _mtBuildSidebar() {
+  const host = document.getElementById('sidebar_sections');
+  if (!host) return;
+
+  const navItem = (page, phase) => {
+    const m = PAGE_META[page] || { icon: '📄', label: page };
+    const extra = page === 'revenue' ? ' id="nav_revenue" style="display:none"' : '';
+    return `<div class="nav-item nav-sub-item"${extra} data-page="${page}" data-phase="${phase}"
+      tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
+      <span class="icon">${m.icon}</span>${m.label}</div>`;
+  };
+
+  const section = (phase, dotClass, title, pages, open) => `
+    <div class="sidebar-phase" id="phase-section-${phase}">
+      <div class="sidebar-phase-label" onclick="togglePhase(${phase})" tabindex="0" role="button"
+           onkeydown="if(event.key==='Enter'||event.key===' ')togglePhase(${phase})">
+        <span class="phase-dot ${dotClass}"></span>
+        <span>${title}</span>
+        <span class="phase-toggle-icon" id="phase-toggle-${phase}">${open ? '▾' : '▸'}</span>
+      </div>
+      <div class="phase-nav-items" id="phase-nav-${phase}"${open ? '' : ' style="display:none"'}>
+        ${pages.map(pg => navItem(pg, phase)).join('')}
+      </div>
+    </div>`;
+
+  // 面談プリセットのステップから重複を除いてページ順を得る
+  const presetPages = p => [...new Set(p.steps.map(s => s.page))];
+  const NUM = ['①', '②', '③', '④', '⑤'];
+  const shortName = { kichu: '期中面談', kessan_mae: '決算前検討会', kessan_hokoku: '決算報告会', bank: '銀行対応' };
+
+  let html = section(6, 'dot-6', '📥 事前準備・入力', MT_PREP_PAGES, false);
+  MEETING_PRESETS.forEach((p, i) => {
+    html += section(i + 1, `dot-${i + 1}`, `${NUM[i]} ${shortName[p.id] || p.name}`, presetPages(p), i === 0);
+  });
+  html += section(5, 'dot-5', `${NUM[4]} その他ツール`, MT_OTHER_PAGES, false);
+
+  host.innerHTML = html;
+}
+
+// サイドバーはスクリプト読込時に生成（app.js の setupNav より前に DOM が必要）
+_mtBuildSidebar();
 
 // --- 状態（メモリのみ。面談は1回きりのセッションなので永続化しない） ---
 window.MeetingMode = { active: false, presetId: null, stepIndex: 0, hintOpen: false, companyId: null };
@@ -318,6 +401,7 @@ document.addEventListener('keydown', e => {
 // --- スタイル（このファイルで完結させる） ---
 (() => {
   const css = `
+  .dot-4 { background:#f472b6 } .dot-5 { background:#a78bfa } .dot-6 { background:#94a3b8 }
   .mt-preset-card { border:2px solid var(--border,#e2e8f0); border-radius:12px; padding:10px; text-align:center;
     cursor:pointer; transition:border-color .15s, background .15s; user-select:none }
   .mt-preset-card:hover { border-color:var(--primary,#2563eb) }

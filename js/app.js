@@ -320,7 +320,7 @@ async function _deleteCompanyFromCard(id) {
 function togglePhase(phase) {
   const nav = document.getElementById(`phase-nav-${phase}`);
   const isOpen = App.currentPhase === phase;
-  [1, 2, 3].forEach(p => {
+  [1, 2, 3, 4, 5, 6].forEach(p => {
     const n = document.getElementById(`phase-nav-${p}`);
     const icon = document.getElementById(`phase-toggle-${p}`);
     const label = document.querySelector(`#phase-section-${p} .sidebar-phase-label`);
@@ -340,7 +340,7 @@ function togglePhase(phase) {
 
 function setPhase(phase) {
   App.currentPhase = phase;
-  [1, 2, 3].forEach(p => {
+  [1, 2, 3, 4, 5, 6].forEach(p => {
     const nav = document.getElementById(`phase-nav-${p}`);
     const icon = document.getElementById(`phase-toggle-${p}`);
     const label = document.querySelector(`#phase-section-${p} .sidebar-phase-label`);

@@ -792,7 +792,7 @@ function syncImportYear(val) {
 function renderImport(container) {
   const prefs = Object.keys(KENPO_RATES || {});
   const _phase = window.App?.currentPhase || 0;
-  const _guide = _phase === 2
+  const _guide = _phase === 3
     ? `🧾 <strong>決算・申告フェーズ</strong>：損益計算書(PL)に加えて <strong>貸借対照表(BS)</strong> も取り込んでください。要約BS（3期比較）・財務健康診断に使用します。`
     : `📈 <strong>予算フェーズ</strong>：<strong>損益計算書(PL)のみ</strong>のアップロードでOKです。現預金など期首残高は <strong>前期末のBSから自動で引き継ぎ</strong> ます（資金繰り予測に反映）。`;
   container.innerHTML = `
