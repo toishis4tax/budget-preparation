@@ -20,6 +20,7 @@ function _bdAutoSave() {
     const company = window.App?.currentCompany;
     if (!company) return;
     const memo = {
+      ..._bdLoadMemo(company.id), // rates 等の既存フィールドを保持
       business: document.getElementById('bd_business')?.value || '',
       purpose:  document.getElementById('bd_purpose')?.value  || '',
     };
@@ -118,6 +119,8 @@ function renderBankDoc(container) {
 
   const fiscalMonth = company.fiscalMonth || 3;
   const memo = _bdLoadMemo(company.id);
+  // 成長率は会社ごとに保持。保存があれば復元、なければ既定値にリセット（他社の設定を引きずらない）
+  Object.assign(_bdRates, { sales: 10, cogs: 5, salary: 3, rent: 0, other: 2 }, memo.rates || {});
   const cs   = (typeof computeCashSeries === 'function') ? computeCashSeries(company, budget) : null;
   if (cs) cs.loanRepay = (() => { try { return JSON.parse(localStorage.getItem(`cf_inputs_${company.id}_${curYear}`))?.loanRepay || 0; } catch { return 0; } })();
 
@@ -432,6 +435,9 @@ function _bdUpdateFY() {
   if (wrap) wrap.innerHTML = html;
   const note = document.getElementById('bdoc-fy-note');
   if (note) note.textContent = `前提：売上+${_bdRates.sales}% / 原価+${_bdRates.cogs}% / 人件費+${_bdRates.salary}% / 家賃+${_bdRates.rent}% / その他+${_bdRates.other}%（毎年）`;
+  // 会社ごとに成長率を保存（既存メモを保持したままマージ）
+  const company = window.App?.currentCompany;
+  if (company) { const m = _bdLoadMemo(company.id); m.rates = { ..._bdRates }; _bdSaveMemo(company.id, m); }
 }
 
 // --- 事業概要を保存して再描画 ---
@@ -439,6 +445,7 @@ function _bdSaveAndRender() {
   const company = window.App?.currentCompany;
   if (!company) return;
   const memo = {
+    ..._bdLoadMemo(company.id), // rates 等の既存フィールドを保持
     business: document.getElementById('bd_business')?.value || '',
     purpose:  document.getElementById('bd_purpose')?.value  || '',
   };
