@@ -292,44 +292,56 @@ function shVerdictTrend(data) {
 // 利益 = sales - Σparts。黒字は緑、赤字は赤の箱で表現。
 function shBoxPLHTML(sales, parts, opts = {}) {
   if (!(sales > 0)) return '';
-  const H = 220; // 売上の箱の高さ(px)
-  const px = v => Math.max(18, Math.round(v / sales * H)); // 最小18pxでラベルを確保
-  const cost = parts.reduce((a, p) => a + Math.max(0, p.value || 0), 0);
+  const cost   = parts.reduce((a, p) => a + Math.max(0, p.value || 0), 0);
   const profit = sales - cost;
+  // 赤字時は費用合計、黒字時は売上を全体高さの基準にする（どちらの列もはみ出さない）
+  const base = Math.max(sales, cost);
+  const H = 220;
+  const px  = v => Math.max(20, Math.round(v / base * H)); // 最小20pxでラベル1行を確保
   const fmt = v => _shMan(v) + '万円';
   const pct = v => (v / sales * 100).toFixed(0) + '%';
 
-  const blk = (label, value, color, h) => `
-    <div style="background:${color};border-radius:8px;padding:6px 10px;color:#fff;font-size:11.5px;
-         font-weight:700;line-height:1.3;height:${h}px;display:flex;flex-direction:column;justify-content:center;overflow:hidden">
-      ${escHtml(label)}<span style="font-weight:600;opacity:.9;font-variant-numeric:tabular-nums">${fmt(value)}（${pct(value)}）</span>
-    </div>`;
+  // 高さが小さい箱は金額を横並び1行にして潰れを防ぐ
+  const blk = (label, value, color, h, pctTxt) => {
+    const oneLine = h < 40;
+    const body = oneLine
+      ? `<span style="white-space:nowrap">${escHtml(label)} ${fmt(value)}${pctTxt ? `（${pctTxt}）` : ''}</span>`
+      : `${escHtml(label)}<span style="font-weight:600;opacity:.9;font-variant-numeric:tabular-nums">${fmt(value)}${pctTxt ? `（${pctTxt}）` : ''}</span>`;
+    return `<div style="background:${color};border-radius:8px;padding:4px 10px;color:#fff;font-size:11.5px;
+         font-weight:700;line-height:1.35;height:${h}px;display:flex;flex-direction:column;justify-content:center;overflow:hidden">${body}</div>`;
+  };
 
   const partBlocks = parts.filter(p => (p.value || 0) > 0)
-    .map(p => blk(p.label, p.value, p.color, px(p.value))).join('<div style="height:4px"></div>');
+    .map(p => blk(p.label, p.value, p.color, px(p.value), pct(p.value))).join('<div style="height:4px"></div>');
 
-  const profitBlock = profit >= 0
-    ? blk('利益', profit, '#059669', px(profit))
-    : `<div style="background:#dc2626;border-radius:8px;padding:6px 10px;color:#fff;font-size:11.5px;font-weight:700;height:${px(-profit)}px;
-         display:flex;flex-direction:column;justify-content:center">損失 ▲${fmt(-profit)}<span style="font-weight:600;opacity:.9;font-size:10px">費用が売上を超えています</span></div>`;
+  // 黒字: 左=売上（全高）、右=費用+利益（緑）
+  // 赤字: 左=売上+損失（赤）で費用と同じ高さに、右=費用のみ
+  const salesBlk = `
+    <div style="background:var(--primary,#2563eb);border-radius:8px;padding:6px 10px;color:#fff;font-size:12px;
+         font-weight:700;height:${px(sales)}px;display:flex;flex-direction:column;justify-content:flex-end">
+      売上高<span style="font-weight:600;opacity:.9;font-variant-numeric:tabular-nums">${fmt(sales)}</span>
+    </div>`;
+  const leftCol = profit >= 0
+    ? salesBlk
+    : salesBlk + '<div style="height:4px"></div>' +
+      blk('損失（不足分）', -profit, '#dc2626', px(-profit), null);
+  const rightCol = profit >= 0
+    ? partBlocks + '<div style="height:4px"></div>' + blk('利益', profit, '#059669', px(profit), pct(profit))
+    : partBlocks;
+
+  const lossNote = profit < 0
+    ? `<div style="font-size:11px;font-weight:700;color:#dc2626;margin-top:8px">⚠️ 費用が売上を ${fmt(-profit)} 上回っています（赤字）。</div>`
+    : '';
 
   return `
   <div class="card sh-boxpl" style="padding:16px;margin-bottom:14px">
     <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px">${escHtml(opts.title || '損益の構造（' + (opts.periodLabel || '年間') + '）')}</div>
     <div style="display:flex;gap:14px;align-items:flex-start;max-width:560px">
-      <div style="flex:1;max-width:44%">
-        <div style="background:var(--primary,#2563eb);border-radius:8px;padding:8px 10px;color:#fff;font-size:12px;
-             font-weight:700;height:${H}px;display:flex;flex-direction:column;justify-content:flex-end">
-          売上高<span style="font-weight:600;opacity:.9;font-variant-numeric:tabular-nums">${fmt(sales)}</span>
-        </div>
-      </div>
-      <div style="flex:1;display:flex;flex-direction:column">
-        ${partBlocks}
-        <div style="height:4px"></div>
-        ${profitBlock}
-      </div>
+      <div style="flex:1;max-width:44%;display:flex;flex-direction:column">${leftCol}</div>
+      <div style="flex:1;display:flex;flex-direction:column">${rightCol}</div>
     </div>
-    <div style="font-size:10.5px;color:var(--text-muted);margin-top:8px">左＝売上、右＝その内訳。箱の大きさは金額に比例します。</div>
+    ${lossNote}
+    <div style="font-size:10.5px;color:var(--text-muted);margin-top:6px">左＝売上、右＝費用の内訳${profit >= 0 ? 'と利益' : ''}。箱の大きさは金額に比例します。</div>
   </div>`;
 }
 
