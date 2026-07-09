@@ -34,18 +34,30 @@ function calcCompanyDiagnosis(company, budget) {
   try {
     if (hasData) {
       // calcAllValuesDynamic は内部で実績をマージ済み（実績月=実績、未来月=予算 → 着地予測）
-      const avMerged = calcAllValuesDynamic(budget);
-      // 予算のみ: actualCols を全falseにして実績マージを無効化
-      const avBudget = calcAllValuesDynamic({ ...budget, actualCols: new Array(12).fill(false), actualThrough: -1 });
+      let avMerged = calcAllValuesDynamic(budget);
+      // 予算のみ: 実績マージを完全に無効化（actualRowsの調整欄(index12)も除外するため空にする）
+      const avBudget = calcAllValuesDynamic({ ...budget, actualRows: {}, actualCols: new Array(12).fill(false), actualThrough: -1 });
+
+      // 実績列がONなのに実績値が空（手入力予算で実の取込がまだ等）だと
+      // 実績月が0円扱いになり着地が過小になる → その場合は予算のみで判定
+      const actCols = (typeof getActualCols === 'function' ? getActualCols(budget) : budget.actualCols) || [];
+      const actMonths = actCols.map((v, i) => v ? i : -1).filter(i => i >= 0);
+      if (actMonths.length > 0) {
+        const actSum = actMonths.reduce((s, i) =>
+          s + Math.abs(avMerged['sec_revenue']?.[i] || 0) + Math.abs(avMerged['sec_cogs']?.[i] || 0) + Math.abs(avMerged['sec_sga']?.[i] || 0), 0);
+        if (actSum === 0) avMerged = avBudget;
+      }
+
       const landingOrd = shSum13(avMerged['calc_ord']);
       const budgetOrd  = shSum13(avBudget['calc_ord']);
       landingSales     = shSum13(avMerged['sec_revenue']);
 
-      // 前年売上（取れなければ null のまま）
+      // 前年比（前年に実績がある場合のみ。予算しかない年との比較は「前年比」として誤解を招くため出さない）
       let salesYoY = null;
       try {
         const prev = getBudget(company.id, curYear - 1);
-        if (prev?.dynamicAccounts?.length) {
+        const prevActCols = prev ? ((typeof getActualCols === 'function' ? getActualCols(prev) : prev.actualCols) || []) : [];
+        if (prev?.dynamicAccounts?.length && prevActCols.some(Boolean)) {
           const prevSales = shSum13(calcAllValuesDynamic(prev)['sec_revenue']);
           if (prevSales > 0 && landingSales > 0) salesYoY = landingSales / prevSales * 100;
         }
@@ -63,7 +75,9 @@ function calcCompanyDiagnosis(company, budget) {
         d.perf = { level: 'red', headline: '赤字ペース', landingOrd, budgetOrd, achieveRate, salesYoY,
           lines: [`経常 ▲${_shMan(-landingOrd)}万円（着地予測）`] };
       } else if ((achieveRate != null && achieveRate < 90) || (salesYoY != null && salesYoY < 85)) {
-        d.perf = { level: 'yellow', headline: '予算未達ペース', landingOrd, budgetOrd, achieveRate, salesYoY,
+        d.perf = { level: 'yellow',
+          headline: (achieveRate != null && achieveRate < 90) ? '予算未達ペース' : '前年割れペース',
+          landingOrd, budgetOrd, achieveRate, salesYoY,
           lines: [`経常 +${_shMan(landingOrd)}万円（着地予測）`,
                   achieveRate != null ? `予算達成率 ${achieveRate.toFixed(0)}%` : `売上前年比 ${salesYoY.toFixed(0)}%`] };
       } else {
@@ -81,7 +95,9 @@ function calcCompanyDiagnosis(company, budget) {
       let saved = null;
       try { saved = JSON.parse(localStorage.getItem(key) || 'null'); } catch {}
       const configured = !!saved;
-      const autoOpen = (typeof _sumCashAt === 'function' ? _sumCashAt(budget, 0) : 0) || 0;
+      // 期首残高: 資金繰り画面と同じロジック（前期末BS優先→当期首BS）で自動取得
+      const autoOpen = (typeof cpAutoOpeningCash === 'function'
+        ? cpAutoOpeningCash(company, budget, curYear).value : 0) || 0;
       const settings = {
         open:      saved?.open      ?? autoOpen,
         siteSales: saved?.siteSales ?? 1,
@@ -146,24 +162,42 @@ function calcCompanyDiagnosis(company, budget) {
 
       if (estimated != null) {
         const srcNote = source === 'estimate' ? '（自動概算）' : '';
-        // 納付月の資金残高と比較（資金カードが計算できているときのみred判定）
-        const payIdx = d.cash.series ? ((payMonth - (budget.startMonth || 4) + 12) % 12) : null;
-        const payMonthBal = (payIdx != null && d.cash.series?.rows?.[payIdx]) ? d.cash.series.rows[payIdx].closeBal : null;
 
-        // 決算まで2か月以内か
+        // 「次の納付」までの残月数：直近の決算月＋2か月の納付月を過去→未来で探す
+        // （従来の「次の決算まで」基準だと、決算直後＝納付直前なのに green になる逆転が起きる）
         const now = new Date();
-        const fyEnd = new Date(now.getFullYear() + (fiscalMonth < now.getMonth() + 1 ? 1 : 0), fiscalMonth - 1, 1);
-        const monthsToEnd = (fyEnd.getFullYear() - now.getFullYear()) * 12 + (fyEnd.getMonth() - now.getMonth());
+        let monthsToPay = null, payDate = null;
+        for (const y of [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1]) {
+          const pd = new Date(y, fiscalMonth - 1 + 2, 1); // 決算月の2か月後（年跨ぎはDateが自動処理）
+          const diff = (pd.getFullYear() - now.getFullYear()) * 12 + (pd.getMonth() - now.getMonth());
+          if (diff >= 0 && (monthsToPay == null || diff < monthsToPay)) { monthsToPay = diff; payDate = pd; }
+        }
+        const payLabel2 = payDate ? `${payDate.getFullYear()}年${payDate.getMonth() + 1}月` : payMonthLabel;
 
-        if (payMonthBal != null && estimated > payMonthBal) {
+        // 納付月の資金残高との比較は「資金繰り設定に税金支払が含まれていない」場合のみ行う
+        // （含まれている場合は残高から既に税額が引かれており、二重カウントで誤ってredになる）
+        const cpKey = `cashplan_${company.id}_${budget.year ?? curYear}`;
+        let cpSaved = null;
+        try { cpSaved = JSON.parse(localStorage.getItem(cpKey) || 'null'); } catch {}
+        const taxInSeries = (cpSaved?.tax || 0) > 0;
+        // 消費税（ctax/localCtax）は資金繰り表がパススルー前提のため、残高比較は法人税等のみで行う
+        const corpOnly = source === 'taxsim'
+          ? ANNUAL_KEYS.filter(k => k !== 'ctax' && k !== 'localCtax')
+              .reduce((a, k) => { try { return a + (parseFloat(loadTaxSummaryData(company.id, curYear)[k]) || 0); } catch { return a; } }, 0)
+          : estimated;
+        const payIdx = d.cash.series ? ((payMonth - (budget.startMonth || 4) + 12) % 12) : null;
+        const payMonthBal = (!taxInSeries && payIdx != null && d.cash.series?.rows?.[payIdx])
+          ? d.cash.series.rows[payIdx].closeBal : null;
+
+        if (payMonthBal != null && corpOnly > payMonthBal) {
           d.tax = { level: 'red', headline: '納税資金が不足', estimated, source, payMonthLabel,
             lines: [`概算 ${_shMan(estimated)}万円${srcNote}`, `${payMonthLabel}の資金が不足見込み`] };
-        } else if (monthsToEnd >= 0 && monthsToEnd <= 2) {
+        } else if (monthsToPay != null && monthsToPay <= 2) {
           d.tax = { level: 'yellow', headline: 'もうすぐ納税', estimated, source, payMonthLabel,
-            lines: [`概算 ${_shMan(estimated)}万円${srcNote}`, `納付は ${payMonthLabel}`] };
+            lines: [`概算 ${_shMan(estimated)}万円${srcNote}`, `納付は ${payLabel2}`] };
         } else {
           d.tax = { level: 'green', headline: '準備OK', estimated, source, payMonthLabel,
-            lines: [`概算 ${_shMan(estimated)}万円${srcNote}`, `納付は ${payMonthLabel}`] };
+            lines: [`概算 ${_shMan(estimated)}万円${srcNote}`, `納付は ${payLabel2}`] };
         }
       }
     }
@@ -292,10 +326,12 @@ function shVerdictTrend(data) {
 // 利益 = sales - Σparts。黒字は緑、赤字は赤の箱で表現。
 function shBoxPLHTML(sales, parts, opts = {}) {
   if (!(sales > 0)) return '';
+  const extraIncome = Math.max(0, opts.extraIncome?.value || 0); // 営業外収益等（左列に積む収入）
   const cost   = parts.reduce((a, p) => a + Math.max(0, p.value || 0), 0);
-  const profit = sales - cost;
-  // 赤字時は費用合計、黒字時は売上を全体高さの基準にする（どちらの列もはみ出さない）
-  const base = Math.max(sales, cost);
+  const income = sales + extraIncome;
+  const profit = income - cost;
+  // 赤字時は費用合計、黒字時は収入合計を全体高さの基準にする（どちらの列もはみ出さない）
+  const base = Math.max(income, cost);
   const H = 220;
   const px  = v => Math.max(20, Math.round(v / base * H)); // 最小20pxでラベル1行を確保
   const fmt = v => _shMan(v) + '万円';
@@ -321,9 +357,12 @@ function shBoxPLHTML(sales, parts, opts = {}) {
          font-weight:700;height:${px(sales)}px;display:flex;flex-direction:column;justify-content:flex-end">
       売上高<span style="font-weight:600;opacity:.9;font-variant-numeric:tabular-nums">${fmt(sales)}</span>
     </div>`;
+  const extraBlk = extraIncome > 0
+    ? '<div style="height:4px"></div>' + blk(opts.extraIncome.label || '営業外収益', extraIncome, '#0891b2', px(extraIncome), null)
+    : '';
   const leftCol = profit >= 0
-    ? salesBlk
-    : salesBlk + '<div style="height:4px"></div>' +
+    ? salesBlk + extraBlk
+    : salesBlk + extraBlk + '<div style="height:4px"></div>' +
       blk('損失（不足分）', -profit, '#dc2626', px(-profit), null);
   const rightCol = profit >= 0
     ? partBlocks + '<div style="height:4px"></div>' + blk('利益', profit, '#059669', px(profit), pct(profit))
@@ -353,13 +392,16 @@ function shBoxPLForBudget(budget) {
     const sales = shSum13(av['sec_revenue']);
     const cogs  = Math.max(0, shSum13(av['sec_cogs']));
     const sga   = Math.max(0, shSum13(av['sec_sga']));
-    const nonOp = Math.max(0, shSum13(av['sec_non_op_exp'])) - Math.max(0, shSum13(av['sec_non_op_inc']));
+    const nonOpExp = Math.max(0, shSum13(av['sec_non_op_exp']));
+    const nonOpInc = Math.max(0, shSum13(av['sec_non_op_inc']));
     const parts = [
       { label: '売上原価', value: cogs, color: '#64748b' },
       { label: '販管費',   value: sga,  color: '#94a3b8' },
-      { label: '営業外（純額）', value: nonOp, color: '#cbd5e1' },
+      { label: '営業外費用', value: nonOpExp, color: '#cbd5e1' },
     ];
-    return shBoxPLHTML(sales, parts, { periodLabel: '年間・着地予測' });
+    // 営業外収益は左（収入側）に積む → 利益の箱が経常利益と一致する
+    return shBoxPLHTML(sales, parts, { periodLabel: '年間・着地予測',
+      extraIncome: nonOpInc > 0 ? { label: '営業外収益', value: nonOpInc } : null });
   } catch (e) { console.error('boxpl failed:', e); return ''; }
 }
 
@@ -391,7 +433,7 @@ function renderSmartHome(container, budget, company) {
     const lv = SH_LEVEL[c.level] || SH_LEVEL.gray;
     return `
     <div class="sh-card ${lv.cls}" onclick="${onclick}" tabindex="0" role="button"
-         onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
       <div class="sh-card-head"><span>${icon} ${name}</span>
         <span class="sh-lamp-wrap"><span class="sh-lamp"></span><span class="sh-lamp-label">${lv.label}</span></span></div>
       <div class="sh-big">${escHtml(c.headline)}</div>
@@ -501,7 +543,14 @@ function _shRenderDetail() {
   .sh-detail summary::-webkit-details-marker { display:none }
   .sh-detail[open] summary { margin-bottom:10px }
 
-  @media print { .sh-actions, .sh-detail summary { display:none !important } .sh-detail:not([open]) { display:none } }
+  @media print {
+    .sh-actions, .sh-detail summary { display:none !important }
+    .sh-detail:not([open]) { display:none }
+    /* 結論バー（🟢🟡🔴）は所内向け。お客様に渡す印刷物には出さない */
+    .sh-verdict { display:none !important }
+    /* ボックス図はページ境界で分割しない */
+    .sh-boxpl { page-break-inside:avoid; break-inside:avoid }
+  }
   `;
   const style = document.createElement('style');
   style.textContent = css;

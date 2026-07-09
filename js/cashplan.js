@@ -1,5 +1,38 @@
 // ===== 資金繰り予定表 =====
 
+// 指定budgetの現預金残高（idx月時点）を集計（画面・スマートホーム診断の共通ヘルパー）
+function _sumCashAt(b, idx) {
+  if (!b?.dynamicAccounts?.length) return 0;
+  const av2 = calcAllValuesDynamic(b);
+  const CASH_RE = /現金|預金|信金|銀行|信用組合/;
+  const all = b.dynamicAccounts.filter(a =>
+    a.section === 'bs_asset' &&
+    a.type !== 'section' &&
+    !a.cashGroup &&
+    CASH_RE.test((a.name || '').replace(/\s/g, ''))
+  );
+  const ids = new Set(all.map(a => a.id));
+  const leaf = all.filter(a => !ids.has(a.parentId));
+  return leaf.reduce((s, a) => {
+    const v = (av2[a.id] || [])[idx];
+    return s + (_cpSafeN(v));
+  }, 0);
+}
+
+// 期首現預金の自動取得（前期末BS優先→当期首BS）。renderCashPlanと診断で共通
+function cpAutoOpeningCash(company, budget, curYear) {
+  const budgetPrev = (typeof getBudget === 'function') ? getBudget(company?.id, curYear - 1) : null;
+  if (budgetPrev?.dynamicAccounts?.length) {
+    const v = _sumCashAt(budgetPrev, 11);
+    if (v) return { value: v, source: '前期末BS残高（自動取得）' };
+  }
+  if (budget?.dynamicAccounts?.length) {
+    const v = _sumCashAt(budget, 0);
+    if (v) return { value: v, source: '当期首BS残高（自動取得）' };
+  }
+  return { value: 0, source: '未設定（手動入力してください）' };
+}
+
 function renderCashPlan(container) {
   const budget  = window.App?.currentBudget;
   const company = window.App?.currentCompany;
@@ -12,36 +45,9 @@ function renderCashPlan(container) {
 
   const monthLabels = getMonthLabels(budget.startMonth || 4);
 
-  // 期首現預金を前期末BSから取得
-  let autoCash = 0, cashSource = '未設定（手動入力してください）';
-  const budgetPrev = (typeof getBudget === 'function') ? getBudget(company?.id, curYear - 1) : null;
-
-  const _sumCashAt = (b, idx) => {
-    if (!b?.dynamicAccounts?.length) return 0;
-    const av2 = calcAllValuesDynamic(b);
-    const CASH_RE = /現金|預金|信金|銀行|信用組合/;
-    const all = b.dynamicAccounts.filter(a =>
-      a.section === 'bs_asset' &&
-      a.type !== 'section' &&
-      !a.cashGroup &&
-      CASH_RE.test((a.name || '').replace(/\s/g, ''))
-    );
-    const ids = new Set(all.map(a => a.id));
-    const leaf = all.filter(a => !ids.has(a.parentId));
-    return leaf.reduce((s, a) => {
-      const v = (av2[a.id] || [])[idx];
-      return s + (_cpSafeN(v));
-    }, 0);
-  };
-
-  if (budgetPrev?.dynamicAccounts?.length) {
-    const v = _sumCashAt(budgetPrev, 11);
-    if (v) { autoCash = v; cashSource = '前期末BS残高（自動取得）'; }
-  }
-  if (!autoCash && budget.dynamicAccounts?.length) {
-    const v = _sumCashAt(budget, 0);
-    if (v) { autoCash = v; cashSource = '当期首BS残高（自動取得）'; }
-  }
+  // 期首現預金を前期末BSから取得（共通ヘルパー）
+  const _auto = cpAutoOpeningCash(company, budget, curYear);
+  const autoCash = _auto.value, cashSource = _auto.source;
 
   // 保存済み設定を復元
   const _key = `cashplan_${company?.id || ''}_${budget?.year ?? curYear}`;

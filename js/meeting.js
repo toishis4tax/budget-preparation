@@ -172,7 +172,7 @@ function _mtBuildSidebar() {
   // 質問ナビ（フェーズのアコーディオンとは独立した開閉）
   const qItems = MT_QUESTIONS.map(x => `
     <div class="nav-item nav-sub-item" onclick="setPhase(${x.phase});showPage('${x.page}')"
-         tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
+         tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
       ${x.q}</div>`).join('');
   const qSection = `
     <div class="sidebar-phase">
