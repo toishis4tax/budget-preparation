@@ -24,6 +24,11 @@ function renderMonthlyReport(container) {
     ? calcAllValuesDynamic(budget)
     : calcAllValues(budget.rows);
 
+  // 予算専用（実績マージを無効化）。実績月でも「予算」列に予算値を表示するため
+  const avBudget = budget.dynamicAccounts
+    ? calcAllValuesDynamic({ ...budget, actualRows: {}, actualCols: new Array(12).fill(false), actualThrough: -1 })
+    : av;
+
   const getArr = (...keys) => {
     for (const k of keys) { const a = av[k]; if (a?.some(v => v !== 0)) return a; }
     return new Array(13).fill(0);
@@ -35,11 +40,17 @@ function renderMonthlyReport(container) {
   }
   const selIdx = container._reportMonth;
 
-  _renderReport(container, { company, budget, curYear, startMonth, fiscalMonth, actIdxs, calM, calMLabel, av, getArr, selIdx });
+  _renderReport(container, { company, budget, curYear, startMonth, fiscalMonth, actIdxs, calM, calMLabel, av, avBudget, getArr, selIdx });
 }
 
 function _renderReport(container, ctx) {
-  const { company, budget, curYear, startMonth, fiscalMonth, actIdxs, calM, calMLabel, av, getArr, selIdx } = ctx;
+  const { company, budget, curYear, startMonth, fiscalMonth, actIdxs, calM, calMLabel, av, avBudget, getArr, selIdx } = ctx;
+
+  // 予算専用の配列取得（実績マージなし）
+  const getArrB = (...keys) => {
+    for (const k of keys) { const a = avBudget[k]; if (a?.some(v => v !== 0)) return a; }
+    return new Array(13).fill(0);
+  };
 
   const fmt  = v => Math.round(v || 0).toLocaleString();
   const fmtS = v => (v >= 0 ? '' : '▼') + Math.abs(Math.round(v || 0)).toLocaleString();
@@ -50,7 +61,7 @@ function _renderReport(container, ctx) {
 
   // 当月・累計の予算・実績
   const monthBudget = id => {
-    const arr = getArr(id, id.replace(/^calc_/, ''));
+    const arr = getArrB(id, id.replace(/^calc_/, ''));
     return arr[selIdx] || 0;
   };
   const monthActual = id => {
@@ -62,7 +73,7 @@ function _renderReport(container, ctx) {
   // 累計（期首〜selIdx）
   const cumIdxs = Array.from({ length: selIdx + 1 }, (_, i) => i);
   const cumBudget = id => {
-    const arr = getArr(id, id.replace(/^calc_/, ''));
+    const arr = getArrB(id, id.replace(/^calc_/, ''));
     return cumIdxs.reduce((s, i) => s + (arr[i] || 0), 0);
   };
   const cumActual = id => {
