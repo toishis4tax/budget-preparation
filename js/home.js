@@ -314,7 +314,22 @@ function renderHome(container) {
     return;
   }
   // 旧フェーズ2/3専用ホームはサイドバー再編（面談フロー制）で廃止。
-  // フェーズ1（期中面談のホーム）以外はすべて汎用ダッシュボードを表示する。
+  // フェーズ1以外はスマートホーム（信号3カード＋自動サマリー）。
+  // 従来の汎用ダッシュボードは renderLegacyDashboard として「詳しく見る」内に残す。
+  if (typeof renderSmartHome === 'function') {
+    renderSmartHome(container, budget, company);
+    _insertHandoverMemo(container, company);
+    if (_pendingHandover) { const ta = document.getElementById('handover_note_new'); if (ta) ta.value = _pendingHandover; }
+    return;
+  }
+  renderLegacyDashboard(container);
+}
+
+// 従来の汎用ダッシュボード（スマートホームの「詳しく見る」から呼ばれる）
+function renderLegacyDashboard(container) {
+  const budget  = window.App?.currentBudget;
+  const company = window.App?.currentCompany;
+  if (!company) { container.innerHTML = ''; return; }
 
   const capital   = company.capital || 10000000;
   const curYear   = window.App?.currentYear || new Date().getFullYear();

@@ -149,27 +149,17 @@ function _cpFmt(v) {
   return Math.round(n / 1000).toLocaleString('ja-JP');
 }
 
-function _runCashPlan() {
-  const meta = window._cpMeta;
-  if (!meta) return;
-  const { budget, monthLabels, _key } = meta;
-
-  const openMan   = _cpSafeN(document.getElementById('cp_open')?.value);
-  const siteSales = parseInt(document.getElementById('cp_site_sales')?.value ?? 1); // selectは"0"（当月）が正当値のため??
-  const siteCogs  = parseInt(document.getElementById('cp_site_cogs')?.value  ?? 1);
-  const repayMan  = _cpSafeN(document.getElementById('cp_repay')?.value);
-  const taxMan    = _cpSafeN(document.getElementById('cp_tax')?.value);
-  const taxMonth  = parseInt(document.getElementById('cp_tax_month')?.value ?? 2); // selectは"0"が正当値のため??
-
-  const open   = openMan  * 10_000;
-  const repay  = repayMan * 10_000;
-  const taxAmt = taxMan   * 10_000;
-
-  try {
-    localStorage.setItem(_key, JSON.stringify({
-      open, siteSales, siteCogs, repay, tax: taxAmt, taxMonth
-    }));
-  } catch {}
+// 資金繰り計算コア（純関数・DOM非依存）
+// settings: { open, siteSales, siteCogs, repay, tax, taxMonth }（金額は円単位）
+// 画面（_runCashPlan）とスマートホーム診断（calcCompanyDiagnosis）の両方から使う
+function calcCashPlanSeries(budget, settings) {
+  if (!budget) return null;
+  const open      = _cpSafeN(settings?.open);
+  const siteSales = _cpSafeN(settings?.siteSales);
+  const siteCogs  = _cpSafeN(settings?.siteCogs);
+  const repay     = _cpSafeN(settings?.repay);
+  const taxAmt    = _cpSafeN(settings?.tax);
+  const taxMonth  = _cpSafeN(settings?.taxMonth);
 
   // 予算データ取得（動的・旧形式両対応）
   const hasDynamic = budget.dynamicAccounts?.length > 0;
@@ -218,11 +208,40 @@ function _runCashPlan() {
     rows.push({ i, openBal, inTotal, cashIn: cashIn[i], cashCogs: cashCogs[i], cashSga: cashSga[i], repay, taxOut, outTotal, net, closeBal: balance });
   }
 
-  const totalIn   = rows.reduce((s,r) => s + r.inTotal, 0);
-  const totalOut  = rows.reduce((s,r) => s + r.outTotal, 0);
-  const minBal    = Math.min(...rows.map(r => r.closeBal));
-  const finalBal  = rows[11]?.closeBal ?? 0;
-  const minMonth  = monthLabels[rows.findIndex(r => r.closeBal === minBal)];
+  const totalIn  = rows.reduce((s,r) => s + r.inTotal, 0);
+  const totalOut = rows.reduce((s,r) => s + r.outTotal, 0);
+  const minBal   = Math.min(...rows.map(r => r.closeBal));
+  const minIdx   = rows.findIndex(r => r.closeBal === minBal);
+  const finalBal = rows[11]?.closeBal ?? 0;
+  return { rows, totalIn, totalOut, minBal, minIdx, finalBal, open };
+}
+
+function _runCashPlan() {
+  const meta = window._cpMeta;
+  if (!meta) return;
+  const { budget, monthLabels, _key } = meta;
+
+  const openMan   = _cpSafeN(document.getElementById('cp_open')?.value);
+  const siteSales = parseInt(document.getElementById('cp_site_sales')?.value ?? 1); // selectは"0"（当月）が正当値のため??
+  const siteCogs  = parseInt(document.getElementById('cp_site_cogs')?.value  ?? 1);
+  const repayMan  = _cpSafeN(document.getElementById('cp_repay')?.value);
+  const taxMan    = _cpSafeN(document.getElementById('cp_tax')?.value);
+  const taxMonth  = parseInt(document.getElementById('cp_tax_month')?.value ?? 2); // selectは"0"が正当値のため??
+
+  const open   = openMan  * 10_000;
+  const repay  = repayMan * 10_000;
+  const taxAmt = taxMan   * 10_000;
+
+  try {
+    localStorage.setItem(_key, JSON.stringify({
+      open, siteSales, siteCogs, repay, tax: taxAmt, taxMonth
+    }));
+  } catch {}
+
+  const series = calcCashPlanSeries(budget, { open, siteSales, siteCogs, repay, tax: taxAmt, taxMonth });
+  if (!series) return;
+  const { rows, totalIn, totalOut, minBal, minIdx, finalBal } = series;
+  const minMonth  = monthLabels[minIdx];
   const hasShort  = minBal < 0;
   const hasWarn   = !hasShort && minBal < 3_000_000;
 
