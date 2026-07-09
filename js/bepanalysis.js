@@ -171,6 +171,7 @@ function renderBEPAnalysis(container) {
       </div>
       <button class="btn btn-sm btn-outline" onclick="window.print()">🖨 印刷</button>
     </div>
+    ${typeof shVerdictBEP === 'function' ? verdictBarHTML(shVerdictBEP(cur)) : ''}
     <div class="card" style="padding:16px;margin-bottom:12px;overflow-x:auto">${chart}</div>
     <div class="card" style="padding:0;overflow-x:auto">${table}</div>
     <div class="wf-note">単位：千円。変動費＝売上原価。固定費＝販管費＋営業外費用－営業外収益。経営安全率＝（売上高－損益分岐点売上高）÷売上高×100。</div>

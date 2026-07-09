@@ -126,6 +126,19 @@ const PAGE_META = {
 const MT_PREP_PAGES  = ['import', 'budget', 'nextyear_pl', 'revenue'];
 const MT_OTHER_PAGES = ['cccanalysis', 'subsidy', 'execopt'];
 
+// 質問ナビ：機能名を知らなくても「知りたいこと」から画面にたどり着ける
+// 8個まで。増やしたくなったら既存を削る（指標の出しすぎは使われなくなる最大要因）
+const MT_QUESTIONS = [
+  { q: '💰 儲かってる？',               page: 'monthlyreport',  phase: 1 },
+  { q: '🔮 今期どうなりそう？',         page: 'forecastreport', phase: 1 },
+  { q: '🏦 お金は足りる？',             page: 'cashplan',       phase: 1 },
+  { q: '🧾 税金いくら払う？',           page: 'tax',            phase: 1 },
+  { q: '📉 売上いくらまで耐えられる？', page: 'bepanalysis',    phase: 3 },
+  { q: '📊 去年と比べてどう？',         page: 'summarypl',      phase: 3 },
+  { q: '🏅 銀行からどう見られてる？',   page: 'bankrating',     phase: 4 },
+  { q: '💴 借入したらどうなる？',       page: 'loansim',        phase: 4 },
+];
+
 function _mtBuildSidebar() {
   const host = document.getElementById('sidebar_sections');
   if (!host) return;
@@ -156,13 +169,38 @@ function _mtBuildSidebar() {
   const NUM = ['①', '②', '③', '④', '⑤'];
   const shortName = { kichu: '期中面談', kessan_mae: '決算前検討会', kessan_hokoku: '決算報告会', bank: '銀行対応' };
 
-  let html = section(6, 'dot-6', '📥 事前準備・入力', MT_PREP_PAGES, false);
+  // 質問ナビ（フェーズのアコーディオンとは独立した開閉）
+  const qItems = MT_QUESTIONS.map(x => `
+    <div class="nav-item nav-sub-item" onclick="setPhase(${x.phase});showPage('${x.page}')"
+         tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
+      ${x.q}</div>`).join('');
+  const qSection = `
+    <div class="sidebar-phase">
+      <div class="sidebar-phase-label" onclick="_mtToggleQnav()" tabindex="0" role="button"
+           onkeydown="if(event.key==='Enter'||event.key===' ')_mtToggleQnav()">
+        <span class="phase-dot" style="background:#fbbf24"></span>
+        <span>❓ 知りたいことから</span>
+        <span class="phase-toggle-icon" id="mt_qnav_icon">▸</span>
+      </div>
+      <div id="mt_qnav" style="display:none">${qItems}</div>
+    </div>`;
+
+  let html = qSection + section(6, 'dot-6', '📥 事前準備・入力', MT_PREP_PAGES, false);
   MEETING_PRESETS.forEach((p, i) => {
     html += section(i + 1, `dot-${i + 1}`, `${NUM[i]} ${shortName[p.id] || p.name}`, presetPages(p), i === 0);
   });
   html += section(5, 'dot-5', `${NUM[4]} その他ツール`, MT_OTHER_PAGES, false);
 
   host.innerHTML = html;
+}
+
+function _mtToggleQnav() {
+  const nav = document.getElementById('mt_qnav');
+  const icon = document.getElementById('mt_qnav_icon');
+  if (!nav) return;
+  const open = nav.style.display !== 'none';
+  nav.style.display = open ? 'none' : 'block';
+  if (icon) icon.textContent = open ? '▸' : '▾';
 }
 
 // サイドバーはスクリプト読込時に生成（app.js の setupNav より前に DOM が必要）

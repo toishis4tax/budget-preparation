@@ -137,6 +137,9 @@ function _renderReport(container, ctx) {
       </div>
       <hr class="rpt-rule">
 
+      ${typeof shVerdictPerf === 'function' ? verdictBarHTML(shVerdictPerf(company, budget)) : ''}
+      ${typeof shBoxPLForBudget === 'function' ? shBoxPLForBudget(budget) : ''}
+
       <!-- KPIサマリー -->
       <div class="rpt-kpi-title">当月サマリー（${reportMonth}）</div>
       <div class="rpt-kpi-grid">

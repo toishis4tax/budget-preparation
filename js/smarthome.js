@@ -215,6 +215,154 @@ function _shBuildSummary(d) {
   return { text: `${main}${caution}`, tone };
 }
 
+// ---- 結論バー（v2）: 分析画面の冒頭に「🟢🟡🔴＋一言」を統一フォーマットで出す ----
+function verdictBarHTML(v) {
+  if (!v || v.level === 'none') return '';
+  const color = { green: '#059669', yellow: '#d97706', red: '#dc2626' }[v.level] || '#94a3b8';
+  const bg    = { green: '#ecfdf5', yellow: '#fffbeb', red: '#fef2f2' }[v.level] || 'var(--surface-2)';
+  const bd    = { green: '#a7f3d0', yellow: '#fde68a', red: '#fecaca' }[v.level] || 'var(--border)';
+  const label = { green: '良好', yellow: '注意', red: '要対応' }[v.level] || '';
+  return `
+  <div class="sh-verdict" style="display:flex;gap:12px;align-items:flex-start;border-radius:12px;
+       padding:12px 16px;border:1.5px solid ${bd};background:${bg};margin-bottom:14px">
+    <span style="width:15px;height:15px;border-radius:50%;background:${color};flex-shrink:0;margin-top:3px"></span>
+    <div>
+      <div style="font-size:14px;font-weight:800;color:var(--text)">${escHtml(v.title)}
+        <span style="font-weight:700;font-size:10.5px;color:${color};margin-left:6px">${label}</span>
+        ${v.benchmark ? `<span style="font-weight:600;color:var(--text-muted);font-size:11.5px;margin-left:8px">${escHtml(v.benchmark)}</span>` : ''}
+      </div>
+      ${v.comment ? `<div style="font-size:12.5px;color:var(--text);margin-top:2px">${escHtml(v.comment)}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+// 損益分岐点: 経営安全率で判定（bepanalysis の _bepCalc 結果を受け取る）
+function shVerdictBEP(cur) {
+  if (!cur || cur.safety == null || isNaN(cur.safety)) return { level: 'none' };
+  const s = cur.safety;
+  const title = `経営安全率 ${s.toFixed(1)}%`;
+  if (s < 5)  return { level: 'red', title, benchmark: '目安 15%以上',
+    comment: s < 0 ? '損益分岐点を下回っています。固定費の見直しか売上増加が必要です。'
+                   : `売上が ${Math.max(0, s).toFixed(0)}% 落ちると赤字です。余裕がほとんどありません。` };
+  if (s < 15) return { level: 'yellow', title, benchmark: '目安 15%以上',
+    comment: `売上が ${s.toFixed(0)}% 落ちると赤字になります。もう少し余裕が欲しい水準です。` };
+  return { level: 'green', title, benchmark: '目安 15%以上',
+    comment: `売上が ${s.toFixed(0)}% 落ちても黒字を保てます。良好な水準です。` };
+}
+
+// 月次レポート: 業績診断（達成率）を流用
+function shVerdictPerf(company, budget) {
+  try {
+    const d = calcCompanyDiagnosis(company, budget);
+    const p = d.perf;
+    if (p.level === 'gray') return { level: 'none' };
+    const rateTxt = p.achieveRate != null ? `予算達成率 ${p.achieveRate.toFixed(0)}%` : p.headline;
+    return {
+      level: p.level, title: rateTxt,
+      benchmark: p.landingOrd != null ? `着地予測 経常${p.landingOrd >= 0 ? '+' : '▲'}${_shMan(Math.abs(p.landingOrd))}万円` : '',
+      comment: d.summary.text.replace(/<\/?b>/g, ''),
+    };
+  } catch (e) { console.error('verdict perf failed:', e); return { level: 'none' }; }
+}
+
+// 要約PL: 経常利益の3期トレンドで判定（data = [前々期, 前期, 当期] の summarizePL 結果）
+function shVerdictTrend(data) {
+  const ords = (data || []).map(d => d?.ord);
+  const [o0, o1, o2] = ords;
+  if (o2 == null || isNaN(o2)) return { level: 'none' };
+  const title = `経常利益 ${o2 >= 0 ? '+' : '▲'}${_shMan(Math.abs(o2))}万円（当期）`;
+  if (o0 != null && o1 != null) {
+    if (o2 > o1 && o1 > o0) return { level: 'green', title, benchmark: '2期連続改善',
+      comment: '経常利益が2期連続で改善しています。良い流れです。' };
+    if (o2 < o1 && o1 < o0) return { level: 'red', title, benchmark: '2期連続悪化',
+      comment: '経常利益が2期連続で悪化しています。要因の確認が必要です。' };
+  }
+  if (o1 != null && !isNaN(o1)) {
+    if (o2 >= o1) return { level: 'green', title, benchmark: '前期比 改善',
+      comment: `前期（${o1 >= 0 ? '+' : '▲'}${_shMan(Math.abs(o1))}万円）から改善しています。` };
+    return { level: 'yellow', title, benchmark: '前期比 悪化',
+      comment: `前期（${o1 >= 0 ? '+' : '▲'}${_shMan(Math.abs(o1))}万円）から減益です。` };
+  }
+  return { level: o2 >= 0 ? 'green' : 'red', title, benchmark: '',
+    comment: o2 >= 0 ? '' : '当期は赤字見込みです。' };
+}
+
+// ---- ボックス図PL（v3）: 売上と費用・利益を箱の大きさで見せる ----
+// sales: 売上高（円）, parts: [{label, value, color}]（費用の内訳）
+// 利益 = sales - Σparts。黒字は緑、赤字は赤の箱で表現。
+function shBoxPLHTML(sales, parts, opts = {}) {
+  if (!(sales > 0)) return '';
+  const H = 220; // 売上の箱の高さ(px)
+  const px = v => Math.max(18, Math.round(v / sales * H)); // 最小18pxでラベルを確保
+  const cost = parts.reduce((a, p) => a + Math.max(0, p.value || 0), 0);
+  const profit = sales - cost;
+  const fmt = v => _shMan(v) + '万円';
+  const pct = v => (v / sales * 100).toFixed(0) + '%';
+
+  const blk = (label, value, color, h) => `
+    <div style="background:${color};border-radius:8px;padding:6px 10px;color:#fff;font-size:11.5px;
+         font-weight:700;line-height:1.3;height:${h}px;display:flex;flex-direction:column;justify-content:center;overflow:hidden">
+      ${escHtml(label)}<span style="font-weight:600;opacity:.9;font-variant-numeric:tabular-nums">${fmt(value)}（${pct(value)}）</span>
+    </div>`;
+
+  const partBlocks = parts.filter(p => (p.value || 0) > 0)
+    .map(p => blk(p.label, p.value, p.color, px(p.value))).join('<div style="height:4px"></div>');
+
+  const profitBlock = profit >= 0
+    ? blk('利益', profit, '#059669', px(profit))
+    : `<div style="background:#dc2626;border-radius:8px;padding:6px 10px;color:#fff;font-size:11.5px;font-weight:700;height:${px(-profit)}px;
+         display:flex;flex-direction:column;justify-content:center">損失 ▲${fmt(-profit)}<span style="font-weight:600;opacity:.9;font-size:10px">費用が売上を超えています</span></div>`;
+
+  return `
+  <div class="card sh-boxpl" style="padding:16px;margin-bottom:14px">
+    <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px">${escHtml(opts.title || '損益の構造（' + (opts.periodLabel || '年間') + '）')}</div>
+    <div style="display:flex;gap:14px;align-items:flex-start;max-width:560px">
+      <div style="flex:1;max-width:44%">
+        <div style="background:var(--primary,#2563eb);border-radius:8px;padding:8px 10px;color:#fff;font-size:12px;
+             font-weight:700;height:${H}px;display:flex;flex-direction:column;justify-content:flex-end">
+          売上高<span style="font-weight:600;opacity:.9;font-variant-numeric:tabular-nums">${fmt(sales)}</span>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column">
+        ${partBlocks}
+        <div style="height:4px"></div>
+        ${profitBlock}
+      </div>
+    </div>
+    <div style="font-size:10.5px;color:var(--text-muted);margin-top:8px">左＝売上、右＝その内訳。箱の大きさは金額に比例します。</div>
+  </div>`;
+}
+
+// 月次レポート用: 着地予測ベースの年間損益ボックス
+function shBoxPLForBudget(budget) {
+  try {
+    if (!budget?.dynamicAccounts?.length) return '';
+    const av = calcAllValuesDynamic(budget);
+    const sales = shSum13(av['sec_revenue']);
+    const cogs  = Math.max(0, shSum13(av['sec_cogs']));
+    const sga   = Math.max(0, shSum13(av['sec_sga']));
+    const nonOp = Math.max(0, shSum13(av['sec_non_op_exp'])) - Math.max(0, shSum13(av['sec_non_op_inc']));
+    const parts = [
+      { label: '売上原価', value: cogs, color: '#64748b' },
+      { label: '販管費',   value: sga,  color: '#94a3b8' },
+      { label: '営業外（純額）', value: nonOp, color: '#cbd5e1' },
+    ];
+    return shBoxPLHTML(sales, parts, { periodLabel: '年間・着地予測' });
+  } catch (e) { console.error('boxpl failed:', e); return ''; }
+}
+
+// 要約PL用: summarizePL の当期データから
+function shBoxPLForSummary(d) {
+  try {
+    if (!d || !(d.sales > 0)) return '';
+    const parts = [
+      { label: '変動費',   value: Math.max(0, d.varTotal || 0),  color: '#64748b' },
+      { label: '固定費',   value: Math.max(0, d.fixedTotal || 0), color: '#94a3b8' },
+    ];
+    return shBoxPLHTML(d.sales, parts, { periodLabel: '当期' });
+  } catch (e) { console.error('boxpl summary failed:', e); return ''; }
+}
+
 // ---- 画面描画 ----
 const SH_LEVEL = {
   green:  { label: '良好',  cls: 'sh-g' },

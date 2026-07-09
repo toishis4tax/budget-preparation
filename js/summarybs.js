@@ -272,6 +272,8 @@ function renderSummaryPL(container) {
           <button class="btn btn-sm btn-outline" onclick="showPage('home')">← ホームに戻る</button>
         </div>
       </div>
+      ${typeof shVerdictTrend === 'function' ? verdictBarHTML(shVerdictTrend(data)) : ''}
+      ${typeof shBoxPLForSummary === 'function' ? shBoxPLForSummary(data[2]) : ''}
       <div class="card" style="padding:0;overflow-x:auto">${tbl}</div>
       <div class="wf-note">単位：千円。変動費＝売上原価、固定費＝販管費＋営業外費用−営業外収益。「他の〜」は残差です（限界利益・固定費合計・経常利益は必ず整合）。</div>
     </div>
