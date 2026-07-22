@@ -257,17 +257,46 @@ function fbSaveRevenue(companyId, year, clients, updatedAt) {
 }
 
 // ===== Firestoreへ保存（非同期・非ブロッキング） =====
-function fbSaveCompany(company) {
+// 競合検知つき保存の共通処理。
+// baseUpdatedAt = この編集を始めた時点の版。リモートがそれより新しければ
+// 「編集開始後に他の人が保存した」＝競合とみなし、黙って上書きしない。
+// フェイルセーフ: トランザクションが例外時は従来どおり console.warn のみ（ローカル保存は既に完了済み）。
+async function _fbSaveWithConflictCheck(collection, docId, dataObj, baseUpdatedAt, label) {
   if (!window._fbDb) return;
-  window._fbDb.collection('companies').doc(company.id).set(company)
-    .catch(e => console.warn('Firestore company save error:', e));
+  const ref = window._fbDb.collection(collection).doc(docId);
+  try {
+    const res = await window._fbDb.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      if (snap.exists && ((snap.data().updatedAt || 0) > (baseUpdatedAt || 0))) {
+        return { conflict: true }; // 読むだけで書かない＝トランザクションはno-opでコミット
+      }
+      tx.set(ref, dataObj);
+      return { conflict: false };
+    });
+    if (res.conflict) {
+      const ok = (typeof confirm === 'function') && confirm(
+        `この${label}は、あなたが編集を始めた後に他の端末／スタッフによって更新されています。\n\n` +
+        `「OK」= あなたの変更で上書きする（相手の変更は失われます）\n` +
+        `「キャンセル」= 保存を中止（ページを再読込して最新を取り込んでください）`
+      );
+      if (ok) {
+        await ref.set(dataObj); // 明示的な上書き（ユーザーが選択）
+      } else if (typeof showToast === 'function') {
+        showToast(`${label}のクラウド保存を中止しました。ページを再読込して最新を取得してください。`, 'warn', 7000);
+      }
+    }
+  } catch (e) {
+    console.warn(`Firestore ${collection} save error:`, e);
+  }
 }
 
-function fbSaveBudget(budget) {
-  if (!window._fbDb) return;
+function fbSaveCompany(company, baseUpdatedAt) {
+  _fbSaveWithConflictCheck('companies', company.id, company, baseUpdatedAt, '会社情報');
+}
+
+function fbSaveBudget(budget, baseUpdatedAt) {
   const key = `${budget.companyId}_${budget.year}`;
-  window._fbDb.collection('budgets').doc(key).set(budget)
-    .catch(e => console.warn('Firestore budget save error:', e));
+  _fbSaveWithConflictCheck('budgets', key, budget, baseUpdatedAt, '予算');
 }
 
 function fbDeleteCompany(companyId) {

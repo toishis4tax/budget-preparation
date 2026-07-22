@@ -41,13 +41,15 @@ function saveData(data) {
 function getCompanies() { return loadData().companies; }
 
 function saveCompany(company) {
-  company.updatedAt = Date.now();
   const data = loadData();
   const idx = data.companies.findIndex(c => c.id === company.id);
+  // 上書き前の版（＝この編集の起点）を控えておき、競合検知に使う
+  const baseUpdatedAt = idx >= 0 ? (data.companies[idx].updatedAt || 0) : 0;
+  company.updatedAt = Date.now();
   if (idx >= 0) data.companies[idx] = company;
   else data.companies.push(company);
   saveData(data);
-  if (typeof fbSaveCompany === 'function') fbSaveCompany(company);
+  if (typeof fbSaveCompany === 'function') fbSaveCompany(company, baseUpdatedAt);
 }
 
 function deleteCompany(id) {
@@ -69,11 +71,13 @@ function getBudget(companyId, year) {
 function saveBudget(budget) {
   const data = loadData();
   const idx = data.budgets.findIndex(b => b.companyId === budget.companyId && b.year === budget.year);
+  // 上書き前の版（＝この編集の起点）を控えておき、競合検知に使う
+  const baseUpdatedAt = idx >= 0 ? (data.budgets[idx].updatedAt || 0) : 0;
   budget.updatedAt = Date.now();
   if (idx >= 0) data.budgets[idx] = budget;
   else data.budgets.push(budget);
   saveData(data);
-  if (typeof fbSaveBudget === 'function') fbSaveBudget(budget);
+  if (typeof fbSaveBudget === 'function') fbSaveBudget(budget, baseUpdatedAt);
 }
 
 function getYearsForCompany(companyId) {
