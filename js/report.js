@@ -88,20 +88,25 @@ function _renderReport(container, ctx) {
   const opId     = isD ? 'calc_op'     : 'operating_profit';
   const ordId    = isD ? 'calc_ord'    : 'ordinary_profit';
 
-  const CASH_RE  = /現金|預金|現預金/;
-  let cashId = 'cash';
+  // 現預金: leaf科目を合算（単一findだと複数口座の会社で1口座しか出ない）
+  let cashLeafReport = [];
   if (isD && budget.dynamicAccounts) {
-    const cashAcc = budget.dynamicAccounts.find(a =>
-      a.section === 'bs_asset' && a.type !== 'section' && CASH_RE.test((a.name || '').replace(/\s/g, ''))
+    const ca = budget.dynamicAccounts.filter(a =>
+      a.section === 'bs_asset' && a.type !== 'section' && !a.cashGroup &&
+      CASH_ACCOUNT_RE.test((a.name || '').replace(/\s/g, ''))
     );
-    if (cashAcc) cashId = cashAcc.id;
+    const ids = new Set(ca.map(a => a.id));
+    cashLeafReport = ca.filter(a => !ids.has(a.parentId));
   }
+  const cashAt = idx => isD
+    ? cashLeafReport.reduce((s, a) => s + ((av[a.id] || [])[idx] || 0), 0)
+    : (av['cash']?.[idx] ?? null);
 
   const kpi = {
     salesB: monthBudget(salesId), salesA: monthActual(salesId),
     opB:    monthBudget(opId),    opA:    monthActual(opId),
     ordB:   monthBudget(ordId),   ordA:   monthActual(ordId),
-    cashA:  actIdxs.includes(selIdx) ? (av[cashId]?.[selIdx] ?? null) : null,
+    cashA:  actIdxs.includes(selIdx) ? cashAt(selIdx) : null,
     salesCumB: cumBudget(salesId), salesCumA: cumActual(salesId),
     ordCumB:   cumBudget(ordId),   ordCumA:   cumActual(ordId),
   };

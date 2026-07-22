@@ -4,12 +4,11 @@
 function _sumCashAt(b, idx) {
   if (!b?.dynamicAccounts?.length) return 0;
   const av2 = calcAllValuesDynamic(b);
-  const CASH_RE = /現金|預金|信金|銀行|信用組合/;
   const all = b.dynamicAccounts.filter(a =>
     a.section === 'bs_asset' &&
     a.type !== 'section' &&
     !a.cashGroup &&
-    CASH_RE.test((a.name || '').replace(/\s/g, ''))
+    CASH_ACCOUNT_RE.test((a.name || '').replace(/\s/g, ''))
   );
   const ids = new Set(all.map(a => a.id));
   const leaf = all.filter(a => !ids.has(a.parentId));

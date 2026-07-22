@@ -139,7 +139,7 @@ function summarizeBS(budget) {
   const fixLiab  = _bal('sec_fix_liab',  fixLiabId);
   const equity   = _bal('sec_equity',    equityId);
 
-  const cash      = scDeep(curAssetId, /現金|預金/);
+  const cash      = scDeep(curAssetId, CASH_ACCOUNT_RE);
   const ar        = scDeep(curAssetId, /売掛金|受取手形|電子記録債権|売上債権/);
   const inv       = scDeep(curAssetId, /商品|製品|仕掛品|半製品|原材料|貯蔵品|棚卸/);
   const land      = scDeep(fixAssetId, /土地/);

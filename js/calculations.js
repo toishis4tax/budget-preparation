@@ -1,5 +1,10 @@
 // 財務計算エンジン
 
+// 現預金科目の判定に使う共通正規表現（全画面で同一定義にして残高のブレをなくす）
+// 注意: これでマッチさせるのは必ず section==='bs_asset' の科目に限定すること
+//       （「銀行借入金」等の負債科目を現預金に含めないため）
+const CASH_ACCOUNT_RE = /現金|預金|信金|信用金庫|銀行|信用組合/;
+
 // 月ラベル生成（startMonth=4なら「4月,5月...3月」）
 function getMonthLabels(startMonth) {
   const labels = [];
@@ -241,7 +246,13 @@ function calcHealthMetricsDynamic(budget, capital) {
   const totalEquity   = last('sec_equity');
   const currentAssets = last('sec_cur_asset');
   const currentLiab   = last('sec_cur_liab');
-  const cash          = leafSum(/現金|預金/, 'last');
+  // 現預金は資産セクション限定（負債の「預金担保借入金」等を除外）＋共通正規表現
+  const cash          = (() => {
+    const matching = accts.filter(a => a.type !== 'section' && !a.cashGroup &&
+      a.section === 'bs_asset' && CASH_ACCOUNT_RE.test((a.name || '').replace(/\s/g, '')));
+    const ids = new Set(matching.map(a => a.id));
+    return matching.filter(a => !ids.has(a.parentId)).reduce((s, a) => s + last(a.id), 0);
+  })();
   const ar            = leafSum(/売掛|受取手形/, 'last');
   const sales         = total('sec_revenue');
   const ordProfit     = total('calc_ord');

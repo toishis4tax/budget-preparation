@@ -190,7 +190,7 @@ function runFiveYearSim() {
 
   const getRate = (id, y) => parseFloat(document.getElementById(`${id}_${y}`)?.value || 100) / 100;
   const getVal  = (id, y) => parseFloat(document.getElementById(`${id}_${y}`)?.value || 0) * 10000;
-  const annSum  = (arr) => arr ? arr.slice(0,13).reduce((a,b)=>a+b,0) : 0;
+  const annSum  = (arr) => arr ? arr.slice(0,13).reduce((a,b)=>a+(b||0),0) : 0;
 
   // ベースライン（動的/静的どちらも対応）
   let curSales, curCogs, curSalary, curRent, curOther, curCash, curLoan;
@@ -339,12 +339,11 @@ function renderCashFlow(container, budget) {
   const _sumCashAt = (b, idx) => {
     if (!b?.dynamicAccounts) return 0;
     const av = calcAllValuesDynamic(b);
-    const CASH_RE = /現金|預金|信金|銀行|信用組合/;
     const matching = b.dynamicAccounts.filter(a =>
       a.section === 'bs_asset' &&
       a.type !== 'section' &&
       !a.cashGroup &&
-      CASH_RE.test((a.name || '').replace(/\s/g,''))
+      CASH_ACCOUNT_RE.test((a.name || '').replace(/\s/g,''))
     );
     const matchingIds = new Set(matching.map(a => a.id));
     const deduped = matching.filter(a => !matchingIds.has(a.parentId));

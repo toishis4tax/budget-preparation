@@ -122,7 +122,8 @@ function renderBankDoc(container) {
   // 成長率は会社ごとに保持。保存があれば復元、なければ既定値にリセット（他社の設定を引きずらない）
   Object.assign(_bdRates, { sales: 10, cogs: 5, salary: 3, rent: 0, other: 2 }, memo.rates || {});
   const cs   = (typeof computeCashSeries === 'function') ? computeCashSeries(company, budget) : null;
-  if (cs) cs.loanRepay = (() => { try { return JSON.parse(localStorage.getItem(`cf_inputs_${company.id}_${curYear}`))?.loanRepay || 0; } catch { return 0; } })();
+  // cf_inputs の保存キーは budget.year 基準（書き込み側 simulation.js と統一。curYearだと別年度を読む）
+  if (cs) cs.loanRepay = (() => { try { return JSON.parse(localStorage.getItem(`cf_inputs_${company.id}_${budget.year ?? curYear}`))?.loanRepay || 0; } catch { return 0; } })();
 
   _renderBankDocFull(container, company, budget, curYear, fiscalMonth, memo, cs);
 }

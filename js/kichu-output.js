@@ -293,11 +293,10 @@ function renderKichuMonthly(container, budget, company) {
 function _getPrevYearCash(budgetPrev1) {
   if (!budgetPrev1 || !budgetPrev1.dynamicAccounts || !budgetPrev1.dynamicAccounts.length) return null;
   var av = calcAllValuesDynamic(budgetPrev1);
-  var CASH_RE = /現金|預金|信金|銀行|信用組合/;
   var matching = budgetPrev1.dynamicAccounts.filter(function(a) {
-    return a.section && a.section.startsWith('bs') &&
-           a.type !== 'section' &&
-           CASH_RE.test((a.name || '').replace(/\s/g,''));
+    return a.section === 'bs_asset' &&
+           a.type !== 'section' && !a.cashGroup &&
+           CASH_ACCOUNT_RE.test((a.name || '').replace(/\s/g,''));
   });
   var matchingIds = new Set(matching.map(function(a){ return a.id; }));
   var deduped = matching.filter(function(a){ return !matchingIds.has(a.parentId); });

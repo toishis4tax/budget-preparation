@@ -47,9 +47,8 @@ function renderClientDashboard(container) {
         const cashIdx = actIdxs.length > 0 ? Math.max(...actIdxs) : 11;
         const lastCash = id => (allVals[id] || new Array(12).fill(0))[cashIdx];
         if (budget.dynamicAccounts) {
-          const CASH_RE = /現金|預金|現預金/;
           const cashAccs = budget.dynamicAccounts.filter(a =>
-            a.section === 'bs_asset' && a.type !== 'section' && CASH_RE.test((a.name || '').replace(/\s/g,''))
+            a.section === 'bs_asset' && a.type !== 'section' && !a.cashGroup && CASH_ACCOUNT_RE.test((a.name || '').replace(/\s/g,''))
           );
           const cashIds = new Set(cashAccs.map(a => a.id));
           const cashLeaf = cashAccs.filter(a => !cashIds.has(a.parentId));
@@ -348,9 +347,8 @@ function renderLegacyDashboard(container) {
     const sum12 = id => (allVals[id] || []).reduce((a, v) => a + v, 0);
     const last  = id => (allVals[id] || new Array(12).fill(0))[11];
     if (b.dynamicAccounts) {
-      const CASH_RE = /現金|預金|現預金/;
       const cashAccs = b.dynamicAccounts.filter(a =>
-        a.section?.startsWith('bs') && a.type !== 'section' && CASH_RE.test((a.name || '').replace(/\s/g,''))
+        a.section === 'bs_asset' && a.type !== 'section' && !a.cashGroup && CASH_ACCOUNT_RE.test((a.name || '').replace(/\s/g,''))
       );
       const cashIds  = new Set(cashAccs.map(a => a.id));
       const cashLeaf = cashAccs.filter(a => !cashIds.has(a.parentId));
@@ -877,10 +875,9 @@ function renderPhase1Home(container, budget, company) {
     : null;
 
   // CF現預金（findだと最初の1科目しか拾わない → leaf科目を合算する）
-  const CASH_RE_KPI = /現金|預金|現預金/;
   const cashAccsKpi = (budget?.dynamicAccounts || []).filter(a =>
-    a.section?.startsWith('bs') && a.type !== 'section' && !a.cashGroup &&
-    CASH_RE_KPI.test((a.name || '').replace(/\s/g,''))
+    a.section === 'bs_asset' && a.type !== 'section' && !a.cashGroup &&
+    CASH_ACCOUNT_RE.test((a.name || '').replace(/\s/g,''))
   );
   const cashIdsKpi = new Set(cashAccsKpi.map(a => a.id));
   const cashLeafKpi = cashAccsKpi.filter(a => !cashIdsKpi.has(a.parentId));

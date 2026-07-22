@@ -500,10 +500,9 @@ function renderSimulation(container, budget) {
     const equity    = last('sec_equity');
 
     // 現預金を動的科目から探す（leaf科目のみ合算して二重計上を防ぐ）
-    const CASH_RE_HOME = /現金|預金|現預金|信金|信用組合/;
     const cashAccs = budget.dynamicAccounts.filter(a =>
       a.section === 'bs_asset' && a.type !== 'section' && !a.cashGroup &&
-      CASH_RE_HOME.test((a.name || '').replace(/\s/g,''))
+      CASH_ACCOUNT_RE.test((a.name || '').replace(/\s/g,''))
     );
     const cashIds = new Set(cashAccs.map(a => a.id));
     const cashLeaf = cashAccs.filter(a => !cashIds.has(a.parentId));
