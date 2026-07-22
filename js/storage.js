@@ -182,8 +182,17 @@ function createNextYearBudget(companyId, fromYear) {
   // 繰越利益剰余金の期首残高 = 期末残高 + 当期純利益
   //  （推移表では当期純利益が剰余金に未振替のため、翌期首に足し込む）
   try {
-    const retained = (src.dynamicAccounts || []).find(a =>
+    // 子を持つ親科目に足しても calcAllValuesDynamic が子合計で上書きするため、
+    // leaf（子を持たない）の繰越利益剰余金を優先して選ぶ。無ければ利益剰余金leafにフォールバック
+    const bsRetained = (src.dynamicAccounts || []).filter(a =>
       a.section?.startsWith('bs') && /繰越利益剰余金|利益剰余金/.test(a.name || ''));
+    const parentIds = new Set(bsRetained.map(a => a.parentId).filter(Boolean));
+    const isLeaf = a => !(src.dynamicAccounts || []).some(x => x.parentId === a.id);
+    const retained =
+      bsRetained.find(a => /繰越利益剰余金/.test(a.name || '') && isLeaf(a)) ||
+      bsRetained.find(a => isLeaf(a)) ||
+      bsRetained.find(a => /繰越利益剰余金/.test(a.name || '')) ||
+      bsRetained[0];
     if (retained && newRows[retained.id] && typeof calcAllValuesDynamic === 'function') {
       const av  = calcAllValuesDynamic(src);
       const net = (av['calc_net'] || []).slice(0, 12).reduce((s, v) => s + (v || 0), 0);

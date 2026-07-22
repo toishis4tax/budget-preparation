@@ -354,7 +354,8 @@ function _wfCalcBreakdown(pref, startMonth) {
       bonusSI[i]   += Math.max(0, calMonthly[calIdx] - baseSI);
     }
     (emp.bonuses || []).forEach(b => {
-      const bi = ((b.month - 1) - (startMonth - 1) + 12) % 12;
+      const bmonth = b.month || 1; // month欠落（旧・取込データ）でNaN indexにならないよう既定1月
+      const bi = ((bmonth - 1) - (startMonth - 1) + 12) % 12;
       bonusSalary[bi] += b.amount || 0;
     });
   });

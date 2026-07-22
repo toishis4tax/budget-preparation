@@ -534,7 +534,7 @@ function renderRevTable(startMonth, months) {
         ${_renderRetainerCell(c, ci)}
         <div style="display:flex;gap:3px;margin-top:3px;align-items:center;flex-wrap:wrap">
           <select class="form-input" style="width:36px;font-size:10px;padding:1px 2px"
-            onchange="(function(el){const oldIndiv=c.indiv;_revClients[${ci}].indiv=el.value==='1';const newIndiv=_revClients[${ci}].indiv;const fm=_revClients[${ci}].filingCalMonth;if(fm>0){const dm=(((fm-1+(oldIndiv?9:10))%12)+1);_revClients[${ci}].filingCalMonth=calcFilingMonth(dm,newIndiv);}  _revRefresh();})(this)">
+            onchange="(function(el){const cli=_revClients[${ci}];const oldIndiv=cli.indiv;cli.indiv=el.value==='1';const newIndiv=cli.indiv;const fm=cli.filingCalMonth;if(fm>0){const dm=(((fm-1+(oldIndiv?9:10))%12)+1);cli.filingCalMonth=calcFilingMonth(dm,newIndiv);}_revRefresh();})(this)">
             <option value="0"${!c.indiv?' selected':''}>法人</option>
             <option value="1"${c.indiv?' selected':''}>個人</option>
           </select>
@@ -914,10 +914,10 @@ function applyRevenueToBudget() {
   _revClients.filter(c => c.name).forEach(c => {
     const revId = `rev_${c.id}`;
     budget.ctaxClassification[revId] = c.taxable !== false;
-    // 名前一致で既存dynamicAccounts行にも反映
+    // 名前一致で既存dynamicAccounts行にも反映（解決済みcatIdで検索。生のcategoryだと動的科目に当たらない）
     if (budget.dynamicAccounts) {
-      const cat = c.category || 'sales_advisory';
-      const existing = budget.dynamicAccounts.find(a => a.parentId === cat && a.name === c.name);
+      const catId = ensureCategoryInDynamic(c.category || 'sales_advisory');
+      const existing = budget.dynamicAccounts.find(a => a.parentId === catId && a.name === c.name);
       if (existing) budget.ctaxClassification[existing.id] = c.taxable !== false;
     }
   });
