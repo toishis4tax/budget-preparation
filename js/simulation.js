@@ -225,6 +225,18 @@ function runFiveYearSim() {
     curLoan   = baseBS ? ((baseBS.fixed_liab[11]||0)+(budget.rows.short_loan?.[11]||0)) : 0;
   }
 
+  // 減価償却費（CF加算用）: 当期実績ベースの定額近似。ループ内で毎年再計算しても
+  // 同じ値になるため事前に1回だけ計算する（新規投資による増加は織り込まない簡易モデル）
+  const depr = (() => {
+    if (budget?.dynamicAccounts?.length) {
+      const av = calcAllValuesDynamic(budget);
+      return budget.dynamicAccounts
+        .filter(a => /減価償却/.test(a.name || '') && a.type === 'input')
+        .reduce((s, a) => s + annSum(av[a.id] || []), 0);
+    }
+    return budget?.rows?.sga_depr ? annSum(budget.rows.sga_depr) : 0;
+  })();
+
   const years = [];
   for (let y = 1; y <= 5; y++) {
     curSales   = Math.round(curSales  * getRate('fy_sales',  y));
@@ -239,16 +251,6 @@ function runFiveYearSim() {
     const invest    = getVal('fy_invest', y);
     const loanRepay = getVal('fy_loan_r', y);
 
-    // 概算CF
-    const depr = (() => {
-      if (budget?.dynamicAccounts?.length) {
-        const av = calcAllValuesDynamic(budget);
-        return budget.dynamicAccounts
-          .filter(a => /減価償却/.test(a.name || '') && a.type === 'input')
-          .reduce((s, a) => s + annSum(av[a.id] || []), 0);
-      }
-      return budget?.rows?.sga_depr ? annSum(budget.rows.sga_depr) : 0;
-    })();
     const opCF  = opP + depr;
     const invCF = -invest;
     const finCF = -loanRepay;

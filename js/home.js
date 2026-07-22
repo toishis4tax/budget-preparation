@@ -876,11 +876,16 @@ function renderPhase1Home(container, budget, company) {
     ? (budgetMonths === 1 ? mLabel(bdgIdxs[0]) : `${mLabel(bdgIdxs[0])}～${mLabel(bdgIdxs[bdgIdxs.length-1])}`)
     : null;
 
-  // CF現預金
-  const cashAcc = budget?.dynamicAccounts?.find(a =>
-    a.section?.startsWith('bs') && (a.name || '').replace(/\s/g,'').match(/現金|預金|現預金/)
+  // CF現預金（findだと最初の1科目しか拾わない → leaf科目を合算する）
+  const CASH_RE_KPI = /現金|預金|現預金/;
+  const cashAccsKpi = (budget?.dynamicAccounts || []).filter(a =>
+    a.section?.startsWith('bs') && a.type !== 'section' && !a.cashGroup &&
+    CASH_RE_KPI.test((a.name || '').replace(/\s/g,''))
   );
-  const cashEnd = cashAcc ? (allVals[cashAcc.id] || [])[actualThrough >= 0 ? Math.min(actualThrough, 11) : 11] || 0 : 0;
+  const cashIdsKpi = new Set(cashAccsKpi.map(a => a.id));
+  const cashLeafKpi = cashAccsKpi.filter(a => !cashIdsKpi.has(a.parentId));
+  const cashMonthIdx = actualThrough >= 0 ? Math.min(actualThrough, 11) : 11;
+  const cashEnd = cashLeafKpi.reduce((s, a) => s + ((allVals[a.id] || [])[cashMonthIdx] || 0), 0);
 
   // サマリーは千円統一（列ごとに単位が変わると加算が合わなくなるため）
   const fmtKpi = (v, isProfit) => {

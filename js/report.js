@@ -22,12 +22,12 @@ function renderMonthlyReport(container) {
 
   const av = budget.dynamicAccounts
     ? calcAllValuesDynamic(budget)
-    : calcAllValues(budget.rows);
+    : calcAllValues(getMergedRows(budget)); // 旧形式も実績月は実績値で表示
 
   // 予算専用（実績マージを無効化）。実績月でも「予算」列に予算値を表示するため
   const avBudget = budget.dynamicAccounts
     ? calcAllValuesDynamic({ ...budget, actualRows: {}, actualCols: new Array(12).fill(false), actualThrough: -1 })
-    : av;
+    : calcAllValues(budget.rows);
 
   const getArr = (...keys) => {
     for (const k of keys) { const a = av[k]; if (a?.some(v => v !== 0)) return a; }

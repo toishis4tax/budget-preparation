@@ -452,10 +452,11 @@ function refreshCalcRows() {
     }
   });
 
+  const mergedRows = getMergedRows(budget); // 実績月は実績値で合計する（rows直読みだと実績混在行の合計が予算のみになる）
   document.querySelectorAll('#grid_tbody tr.input-row').forEach(tr => {
     const accId = tr.dataset.accId;
     if (!accId) return;
-    const vals = budget.rows[accId] || new Array(13).fill(0);
+    const vals = mergedRows[accId] || new Array(13).fill(0);
     const total = vals.reduce((a,b)=>a+(b ?? 0),0);
     const totalTd = tr.querySelector('td.total-col');
     if (totalTd) totalTd.textContent = total === 0 ? '' : safeRound(total).toLocaleString();
@@ -761,10 +762,11 @@ function applyFill() {
         break;
     }
 
-    // 該当行のinputを更新
+    // 該当行のinputを更新（実績列は実績値表示のまま触らない。上書きするとblur時に予算値が実績へ混入する）
     const tr = document.querySelector(`#grid_tbody tr[data-acc-id="${accId}"]`);
     if (tr) {
       tr.querySelectorAll('.cell-input').forEach((inp, i) => {
+        if (_fillActualCols[i]) return;
         const v = vals[i] || 0;
         inp.value = v === 0 ? '' : safeRound(v).toLocaleString();
         inp.dataset.raw = v;

@@ -625,11 +625,6 @@ function applyExecToBudget() {
 
   const { scenarios } = last;
 
-  // 役員報酬: 月次に均等配分
-  const execMonthly = _execState.officers.find(o => o.name.includes('代表') || o.name.includes('役員'))?.monthly
-    || _execState.officers[0]?.monthly || 0;
-  const empMonthly  = scenarios.slice(1).reduce((a, s) => a + s.monthly, 0);
-
   // 全役員合計月額
   const totalExec = _execState.officers.reduce((a, o) => a + o.monthly, 0);
 

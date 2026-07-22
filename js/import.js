@@ -186,7 +186,8 @@ function matchAccount(name) {
 
 function parseNum(v) {
   if (v === null || v === undefined || v === '') return 0;
-  const s = String(v).replace(/,/g,'').replace(/[^\d.\-]/g,'');
+  // 会計CSVの △/▲ はマイナス表記（減価償却累計額など）。記号除去前にマイナスへ変換する
+  const s = String(v).replace(/[△▲]/g, '-').replace(/,/g,'').replace(/[^\d.\-]/g,'');
   return parseFloat(s) || 0;
 }
 

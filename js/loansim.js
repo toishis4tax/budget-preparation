@@ -150,10 +150,9 @@ function _lsUpdate() {
       ? calcAllValuesDynamic(budget)
       : calcAllValues(budget.rows || {});
     const annualSales = (av['sec_revenue'] || av['calc_sales'] || []).slice(0, 12).reduce((s, v) => s + (v || 0), 0);
-    const annualOrd   = (av['calc_ord'] || []).slice(0, 12).reduce((s, v) => s + (v || 0), 0);
     if (annualSales > 0) {
-      const annualDebt  = firstPayment * 12;
-      const newOrd      = annualOrd - totalInterest / (termYr);
+      // 初年度12回分の実返済額（元金均等は月ごとに減るため、初回×12だと過大になる）
+      const annualDebt = schedule.slice(0, 12).reduce((s, r) => s + r.payment, 0);
       budgetImpact = `
         <div style="margin-top:10px;padding:10px 12px;background:var(--bg-warning);border-radius:8px;border:1px solid var(--border-warning)">
           <div style="font-size:11px;font-weight:700;color:var(--text-warning);margin-bottom:6px">現在の予算への影響（年間）</div>

@@ -302,7 +302,8 @@ async function _mfaApply(matched) {
   const matchedData = typeof matched === 'string' ? JSON.parse(matched) : matched;
   let count = 0;
   matchedData.filter(r => r.matchedId).forEach(r => {
-    if (!budget.actualRows[r.matchedId]) budget.actualRows[r.matchedId] = new Array(13).fill(0);
+    // 長さ12で作る（index12=調整欄を0で埋めると、rows側に入力済みの決算整理仕訳を0で隠してしまう）
+    if (!budget.actualRows[r.matchedId]) budget.actualRows[r.matchedId] = new Array(12).fill(0);
     targetMonths.forEach(mi => {
       budget.actualRows[r.matchedId][mi] = r.vals[mi] || 0;
     });

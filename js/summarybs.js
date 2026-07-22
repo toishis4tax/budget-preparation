@@ -111,8 +111,9 @@ function summarizeBS(budget) {
 
   // フォールバック: input科目を secOf で特定して合算
   const scDeep = (secId, re) => {
-    const direct = sc(secId, re);
-    if (direct !== 0) return direct;
+    // 直接子にマッチする科目が存在するかで判定（合計が偶然0でも深掘りしない）
+    const hasDirect = accts.some(a => a.parentId === secId && re.test(a.name || ''));
+    if (hasDirect) return sc(secId, re);
     return accts
       .filter(a => (a.type === 'input' || a.type === 'rev_display') &&
                    _sbsSecOf(byId, a.id) === secId && re.test(a.name || ''))
@@ -158,7 +159,7 @@ function summarizeBS(budget) {
     otherCurAsset: curAsset - cash - ar - inv,
     curAsset,
     land, depr, deprAccum,
-    otherFixAsset: fixAsset - land - depr + Math.abs(deprAccum),
+    otherFixAsset: fixAsset - land - depr - deprAccum, // 累計額は符号どおり控除（負で入れば加算・正なら減算で恒等的に正しい）
     fixAsset,
     totalAssets,
     payable, shortLoan,

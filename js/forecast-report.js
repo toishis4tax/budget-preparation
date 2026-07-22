@@ -208,9 +208,9 @@ function renderForecastReport(container) {
 
   const fyS = startMonth;
   const fyE = fiscalMonth;
-  // 期首年・期末年（西暦）
-  const fyStartYear = fyS <= fyE ? curYear : curYear - 1;
-  const fyEndYear   = curYear;
+  // 期首年・期末年（西暦）。アプリの規約は curYear = 期首の暦年（bankdoc/summarybs と同じ）
+  const fyStartYear = curYear;
+  const fyEndYear   = fyS <= fyE ? curYear : curYear + 1;
   const lastD = new Date(fyEndYear, fyE, 0).getDate();
 
   container.innerHTML = `

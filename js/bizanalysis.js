@@ -288,19 +288,19 @@ function renderBizAnalysis(container) {
             </thead>
             <tbody>
               ${anaRow('流動比率（%）',
-                mPrev2?.currentRatio   || null,
-                mPrev?.currentRatio    || null,
-                mCur?.currentRatio     || null,
+                mPrev2?.currentRatio   ?? null,
+                mPrev?.currentRatio    ?? null,
+                mCur?.currentRatio     ?? null,
                 1, '%', '流動資産 ÷ 流動負債')}
               ${anaRow('借入金対月商倍率（倍）',
-                mPrev2?.debtMonthRatio || null,
-                mPrev?.debtMonthRatio  || null,
-                mCur?.debtMonthRatio   || null,
+                mPrev2?.debtMonthRatio ?? null,
+                mPrev?.debtMonthRatio  ?? null,
+                mCur?.debtMonthRatio   ?? null,
                 1, '倍', '借入金残高 ÷ 月商（売上高 ÷ 12）')}
               ${anaRow('自己資本比率（%）',
-                mPrev2?.equityRatio    || null,
-                mPrev?.equityRatio     || null,
-                mCur?.equityRatio      || null,
+                mPrev2?.equityRatio    ?? null,
+                mPrev?.equityRatio     ?? null,
+                mCur?.equityRatio      ?? null,
                 1, '%', '自己資本 ÷ 総資産')}
             </tbody>
           </table>
