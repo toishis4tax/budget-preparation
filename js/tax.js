@@ -29,7 +29,7 @@ const TAX_RATES_DEFAULT = {
   biz_low:          0.035,  // 法人事業税 年400万以下
   biz_mid:          0.053,  // 法人事業税 年400万〜800万
   biz_high:         0.070,  // 法人事業税 年800万超
-  biz_special:      0.374,  // 特別法人事業税（所得割×37.4%）
+  biz_special:      0.37,   // 特別法人事業税（普通法人: 所得割×37%）
 };
 
 // 会社別税率設定のロード/セーブ
@@ -963,7 +963,8 @@ function renderCtaxJudge(container) {
             if (b2) {
               const av2 = b2.dynamicAccounts ? calcAllValuesDynamic(b2) : calcAllValues(b2.rows);
               const arr2 = av2['sec_revenue'] || av2['sales'] || [];
-              baseSalesAuto = arr2.reduce((a,v)=>a+v,0);
+              const s2 = arr2.reduce((a,v)=>a+(v||0),0);
+              baseSalesAuto = s2 > 0 ? s2 : null; // 0円=データなし扱い（誤って免税判定＆自動取得バッジを出さない）
             }
             // 特定期間 = 前期の開始6ヶ月の売上合計
             const b1 = company ? getBudget(company.id, curYear - 1) : null;
@@ -971,7 +972,8 @@ function renderCtaxJudge(container) {
             if (b1) {
               const av1 = b1.dynamicAccounts ? calcAllValuesDynamic(b1) : calcAllValues(b1.rows);
               const arr1 = av1['sec_revenue'] || av1['sales'] || [];
-              specSalesAuto = arr1.slice(0, 6).reduce((a,v)=>a+v,0);
+              const s1 = arr1.slice(0, 6).reduce((a,v)=>a+(v||0),0);
+              specSalesAuto = s1 > 0 ? s1 : null;
             }
             const baseSalesVal = baseSalesAuto ?? company?.kijunUriage ?? 30000000;
             const specSalesVal = specSalesAuto ?? 0;

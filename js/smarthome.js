@@ -149,7 +149,7 @@ function calcCompanyDiagnosis(company, budget) {
         const avMerged = calcAllValuesDynamic(budget);
         const pretax = shSum13(avMerged['calc_pretax']) || shSum13(avMerged['calc_ord']);
         if (pretax > 0 && typeof _frCalcDetailedTax === 'function') {
-          const t = _frCalcDetailedTax(pretax, company.capital || 10_000_000);
+          const t = _frCalcDetailedTax(pretax, company.capital || 10_000_000, company.id);
           if (t) {
             estimated = t.corp + t.localCorp + t.inhabitant + t.business + t.special;
             source = 'estimate';

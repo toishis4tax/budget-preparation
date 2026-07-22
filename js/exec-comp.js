@@ -1115,6 +1115,10 @@ function _execApplyZeroToBudget(bonus1, bonus2, welfare1, welfare2) {
     const curBonus = budget.rows['sga_bonus'] || Array(12).fill(0);
     curBonus[bonusMonth] = (curBonus[bonusMonth]||0) + bonus1 + bonus2;
     budget.rows['sga_bonus'] = curBonus;
+    // 法定福利費（賞与分）も反映（動的パスと同様。落とすと法定福利費が過少になる）
+    const curWelfare = budget.rows['sga_welfare'] || Array(12).fill(0);
+    curWelfare[bonusMonth] = (curWelfare[bonusMonth]||0) + welfare1 + welfare2;
+    budget.rows['sga_welfare'] = curWelfare;
   }
 
   saveBudget(budget);

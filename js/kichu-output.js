@@ -302,7 +302,7 @@ function _getPrevYearCash(budgetPrev1) {
   var matchingIds = new Set(matching.map(function(a){ return a.id; }));
   var deduped = matching.filter(function(a){ return !matchingIds.has(a.parentId); });
   var total = deduped.reduce(function(s, a){ return s + ((av[a.id] || [])[11] || 0); }, 0);
-  return total || null;
+  return deduped.length > 0 ? total : null; // 残高0円は有効値（||だとnull化してフォールバックが誤発動）
 }
 
 function renderKichuCashflow(container, budget, company) {
@@ -716,10 +716,13 @@ function renderKichuExecComp(container, budget, company) {
   // Try to get current exec comp from execcomp localStorage
   var currentMonthlyComp = 0;
   try {
-    var ecData = JSON.parse(localStorage.getItem('execcomp_v1') || '{}');
+    // exec-comp.js の保存キー（exec_comp_state_v2）から役員月額合計を取得
+    var ecData = JSON.parse(localStorage.getItem('exec_comp_state_v2') || '{}');
     var ecForCompany = ecData[companyId];
-    if (ecForCompany && ecForCompany.monthly) {
-      currentMonthlyComp = ecForCompany.monthly;
+    var ecMonthly = ecForCompany && Array.isArray(ecForCompany.officers)
+      ? ecForCompany.officers.reduce(function(a, o){ return a + (o.monthly || 0); }, 0) : 0;
+    if (ecMonthly > 0) {
+      currentMonthlyComp = ecMonthly;
     } else {
       // Try to find from SGA entries in budget
       var allVals = budget.dynamicAccounts ? calcAllValuesDynamic(budget) : calcAllValues(budget.rows);
@@ -856,11 +859,13 @@ function renderKichuSocialIns(container, budget, company) {
   var _kichuKaigoRate = (typeof KAIGO_RATE !== 'undefined') ? KAIGO_RATE : 0.0162;
   var _kichuShienRate = (typeof SHIENKIN_RATE !== 'undefined') ? SHIENKIN_RATE : 0.0023;
 
-  // 標準報酬月額表（円）
+  // 標準報酬月額表（円）。健保は139万円まで、厚生年金は65万円で頭打ち（上限が異なる）
   var HYOJUN_M = [88000,98000,104000,110000,118000,126000,134000,142000,
     150000,160000,170000,180000,190000,200000,220000,240000,260000,280000,
     300000,320000,340000,360000,380000,410000,440000,470000,500000,530000,
-    560000,590000,620000,650000];
+    560000,590000,620000,650000,680000,710000,750000,790000,830000,880000,
+    930000,980000,1030000,1090000,1150000,1210000,1270000,1330000,1390000];
+  var NENKIN_CAP_M = 650000;
 
   function getHyojunM(salary) {
     for (var i = 0; i < HYOJUN_M.length; i++) {
@@ -878,11 +883,12 @@ function renderKichuSocialIns(container, budget, company) {
     var shienRate  = (typeof SHIENKIN_RATE !== 'undefined') ? SHIENKIN_RATE : 0.0023; // 子ども・子育て支援金
 
     var hyojunM = getHyojunM(monthlyComp);
+    var hyojunMNenkin = Math.min(hyojunM, NENKIN_CAP_M); // 厚生年金の標準報酬上限は65万円
 
     // 月額
     var kenpoTotal   = Math.floor(hyojunM * kenpoRate / 2) * 2;  // 労使折半後の合計
     var kaigoTotal   = Math.floor(hyojunM * kaigoRate / 2) * 2;
-    var nenkinTotal  = Math.floor(hyojunM * nenkinRate / 2) * 2;
+    var nenkinTotal  = Math.floor(hyojunMNenkin * nenkinRate / 2) * 2;
     var shienTotal   = Math.floor(hyojunM * shienRate / 2) * 2;
     var monthlyTotal = kenpoTotal + kaigoTotal + nenkinTotal + shienTotal;
     var companyM     = monthlyTotal / 2;
@@ -997,6 +1003,7 @@ function renderKichuSocialIns(container, budget, company) {
         kenpoTotal:   r1.kenpoTotal,
         kaigoTotal:   r1.kaigoTotal,
         nenkinTotal:  r1.nenkinTotal,
+        shienTotal:   r1.shienTotal, // 表示行で使用（欠落すると月額の内訳が合計と合わない）
         monthlyTotal: r1.monthlyTotal,
         companyM:     r1.companyM,
         employeeM:    r1.employeeM,

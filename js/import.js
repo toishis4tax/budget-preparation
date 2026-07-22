@@ -476,7 +476,7 @@ function parseMirokuMonthlySmart(data, startMonth) {
   const cumCols = {};
   for (let i = 0; i < hdrRow.length; i++) {
     const s = String(hdrRow[i] || '').trim();
-    const m = s.match(/累計推移[\/\/](\d+)月/);
+    const m = s.match(/累計推移[\/／](\d+)月/); // 全角スラッシュ表記にも対応
     if (m) cumCols[parseInt(m[1])] = i;
   }
   if (Object.keys(cumCols).length < 6) {
@@ -570,16 +570,20 @@ function parseMirokuMonthlySmart(data, startMonth) {
     const colName = colNameRaw.trim();
     if (!colType || !colName) continue;
 
-    const isIndented = colNameRaw !== colName;   // Bug(3): check leading space BEFORE trim
+    const isIndented = /^[\s　]/.test(colNameRaw);   // 先頭の空白のみで判定（末尾空白で誤って子科目化しない）
     const nameTrim = colName;
     const hasBracket = /^【|^〔|^（/.test(nameTrim);  // Bug(1): （有形固定資産）等の小計行もスキップ
+    // ブラケットなしの合計行・繰越行は取り込まない（二重計上防止）
+    if (!hasBracket && /(合計|前月繰越|次月繰越|翌月繰越)$/.test(nameTrim)) continue;
 
     if (colType === '損益計算書') {
       if (hasBracket) {
         const action = PL_BRACKET_ACTIONS[nameTrim] || PL_BRACKET_ACTIONS[nameTrim.replace(/\s/g, '')];
         // 売上なし企業（〔売上総利益〕がないまま〔営業利益〕に到達）の場合、
-        // sec_revenueに誤分類されたSGA科目をsec_sgaに移動し、calc_grossを挿入
-        if (nameTrim === '〔営業利益〕' && !accts.find(a => a.id === 'calc_gross')) {
+        // sec_revenueに誤分類されたSGA科目をsec_sgaに移動し、calc_grossを挿入。
+        // ただし途中で売上系ブラケット（【純売上高】等）を通過済み＝plSectionが進んでいる場合、
+        // sec_revenue配下は本物の売上科目なので移動しない（原価なしサービス業の売上を消さない）
+        if (nameTrim === '〔営業利益〕' && !accts.find(a => a.id === 'calc_gross') && plSection === 'sec_revenue') {
           ensureSection('sec_sga', PL_SECTIONS);
           accts.filter(a => a.parentId === 'sec_revenue').forEach(a => { a.parentId = 'sec_sga'; });
           accts.push({ id: 'calc_gross', name: '売上総利益', type: 'calculated', indent: 0, section: 'pl', formula: 'sec_revenue - sec_cogs', bold: true });
@@ -667,6 +671,14 @@ function parseMirokuMonthlySmart(data, startMonth) {
       }
       rows[aid] = vals;
     }
+  }
+
+  // ループ終了時に未確定のBS科目が残っていたら警告（最後のセクションブラケット欠落など）
+  if (bsPending.length > 0) {
+    console.warn('[import] 未確定のBS科目がスキップされました（セクション見出しが見つからないため）:',
+      bsPending.map(pa => pa.name).join(', '));
+    bsPending.forEach(pa => { delete rows[pa.id]; }); // 孤児データを残さない
+    bsPending = [];
   }
 
   // post-process: 補助科目を持つ親をtypeをparentに

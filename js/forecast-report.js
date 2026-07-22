@@ -1,23 +1,16 @@
 // ===== 当期決算予測報告書 =====
 
-function _frCalcDetailedTax(pretax, capital) {
+function _frCalcDetailedTax(pretax, capital, companyId) {
   if (!pretax || pretax <= 0) return null;
-  // calcAllTax と同じロジック（法人税概算ページと一致）
-  const base      = Math.floor(pretax / 1000) * 1000;
-  const corp      = calcCorpTax(base, capital);
-  const localCorp = calcLocalCorpTax(corp);
-  const prefWari  = Math.floor(corp * 0.032 / 100) * 100;
-  const cityWari  = Math.floor(corp * 0.096 / 100) * 100;
-  const small     = (capital || 10_000_000) <= 100_000_000;
-  const prefKintou = small ? 20_000 : 100_000;
-  const cityKintou = small ? 50_000 : 130_000;
-  const { income: business, special } = calcBusinessTax(base, capital);
+  // 法人税概算ページと完全に同一ロジック・同一税率（会社別設定があればそれを使用）
+  const rates = (typeof loadTaxSettings === 'function') ? loadTaxSettings(companyId) : null;
+  const t = calcAllTax(pretax, capital || 10_000_000, { rates });
   return {
-    corp, localCorp,
-    pref: prefWari + prefKintou,
-    city: cityWari + cityKintou,
-    business, special,
-    inhabitant: prefWari + cityWari + prefKintou + cityKintou,
+    corp: t.corp, localCorp: t.localCorp,
+    pref: t.prefWari + t.prefKintou,
+    city: t.cityWari + t.cityKintou,
+    business: t.business, special: t.special,
+    inhabitant: t.inhabitant,
   };
 }
 
@@ -146,8 +139,8 @@ function renderForecastReport(container) {
   const pPretax = pSum('calc_pretax','pretax_profit');
 
   // 税額
-  const tax     = _frCalcDetailedTax(landPretax, capital);
-  const prevTax = _frCalcDetailedTax(pPretax, capital);
+  const tax     = _frCalcDetailedTax(landPretax, capital, company?.id);
+  const prevTax = _frCalcDetailedTax(pPretax, capital, company?.id);
 
   // 税引後当期純利益 = 税引前 − 予測法人税等（消費税は当期純利益に影響しないため除く）
   // ※PLに法人税科目を計上していなくても、予測税額を差し引いて正しく表示する
