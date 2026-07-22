@@ -978,7 +978,7 @@ function renderKichuSocialIns(container, budget, company) {
     var bonus      = parseFloat(document.getElementById('si_bonus')?.value || 0);
     var bonusTimes = parseInt(document.getElementById('si_bonus_times')?.value || 1);
 
-    localStorage.setItem(lsKey, JSON.stringify({ monthlyComp:comp, kaigo, bonusAmt:bonus, bonusTimes }));
+    saveAuxData(lsKey, company.id, { monthlyComp:comp, kaigo, bonusAmt:bonus, bonusTimes }); // ローカル＋Firestore同期
 
     // 2回払いの場合: 1回あたりbonus/2で計算。
     // 健保年間累計上限(573万)を考慮: 1回目の標準賞与額を引いた残りを2回目上限とする

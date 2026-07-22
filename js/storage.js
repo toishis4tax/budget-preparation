@@ -37,6 +37,22 @@ function saveData(data) {
   }
 }
 
+// ===== 補助データ同期（会社ごとに分かれたキー専用。全社まとめキーは対象外） =====
+// 資金繰り・税率設定・銀行メモ等を端末/スタッフ間で共有する。
+// ローカルは即時保存、Firestoreはデバウンス（入力連打で書き込みが殺到しないように）。
+const _auxSaveTimers = {};
+function saveAuxData(key, companyId, dataObj) {
+  const updatedAt = Date.now();
+  try {
+    localStorage.setItem(key, JSON.stringify(dataObj));
+    localStorage.setItem(`_auxmeta_${key}`, String(updatedAt)); // pull時の新旧判定に使う
+  } catch (e) { console.warn('[storage] aux local save error:', e); }
+  if (typeof fbSaveAux === 'function') {
+    clearTimeout(_auxSaveTimers[key]);
+    _auxSaveTimers[key] = setTimeout(() => fbSaveAux(key, companyId, dataObj, updatedAt), 1500);
+  }
+}
+
 // 会社
 function getCompanies() { return loadData().companies; }
 

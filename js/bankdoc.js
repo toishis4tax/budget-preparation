@@ -10,7 +10,7 @@ function _bdLoadMemo(companyId) {
   try { return JSON.parse(localStorage.getItem(_bdMemoKey(companyId))) || {}; } catch { return {}; }
 }
 function _bdSaveMemo(companyId, memo) {
-  localStorage.setItem(_bdMemoKey(companyId), JSON.stringify(memo));
+  saveAuxData(_bdMemoKey(companyId), companyId, memo); // ローカル＋Firestore同期
 }
 
 let _bdAutoSaveTimer = null;

@@ -191,6 +191,8 @@ async function _pullFromFirestoreInner(profile, db) {
 
   // 顧問先売上データをFirestoreから同期
   await _pullRevenueFromFirestore(companies.map(c => c.id));
+  // 補助データ（資金繰り・税率設定・銀行メモ等）をFirestoreから同期
+  await _pullAuxFromFirestore(companies.map(c => c.id));
 }
 
 // ===== 顧問先売上データをFirestoreから取得 → localStorage =====
@@ -297,6 +299,43 @@ function fbSaveCompany(company, baseUpdatedAt) {
 function fbSaveBudget(budget, baseUpdatedAt) {
   const key = `${budget.companyId}_${budget.year}`;
   _fbSaveWithConflictCheck('budgets', key, budget, baseUpdatedAt, '予算');
+}
+
+// ===== 補助データ（会社ごとに分かれたキー）のFirestore同期 =====
+// docId = localStorageのキー名そのもの。companyIdを持たせ、pull時に許可会社で絞る（権限/漏洩防止）。
+function fbSaveAux(key, companyId, dataObj, updatedAt) {
+  if (!window._fbDb) return;
+  window._fbDb.collection('auxData').doc(key).set({
+    key, companyId: companyId || '', data: dataObj, updatedAt: updatedAt || Date.now(),
+  }).catch(e => console.warn('Firestore aux save error:', e));
+}
+
+async function _pullAuxFromFirestore(companyIds) {
+  if (!companyIds.length || !window._fbDb) return;
+  const db = window._fbDb;
+  try {
+    const chunks = [];
+    for (let i = 0; i < companyIds.length; i += 30) chunks.push(companyIds.slice(i, i + 30));
+    const snaps = await Promise.all(chunks.map(chunk =>
+      db.collection('auxData').where('companyId', 'in', chunk).get()
+    ));
+    snaps.forEach(snap => snap.forEach(doc => {
+      const d = doc.data();
+      if (!d.key) return;
+      const metaKey = `_auxmeta_${d.key}`;
+      let localMeta = 0;
+      try { localMeta = parseInt(localStorage.getItem(metaKey) || '0', 10) || 0; } catch {}
+      // リモートが厳密に新しい時だけローカルへ反映（オフライン編集を消さない）
+      if ((d.updatedAt || 0) > localMeta) {
+        try {
+          localStorage.setItem(d.key, JSON.stringify(d.data));
+          localStorage.setItem(metaKey, String(d.updatedAt || 0));
+        } catch {}
+      }
+    }));
+  } catch (e) {
+    console.warn('Firestore aux pull error:', e);
+  }
 }
 
 function fbDeleteCompany(companyId) {

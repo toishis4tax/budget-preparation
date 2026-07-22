@@ -40,7 +40,7 @@ function loadTaxSettings(companyId) {
   } catch(e) { return { ...TAX_RATES_DEFAULT }; }
 }
 function saveTaxSettings(companyId, settings) {
-  localStorage.setItem(`taxSettings_v1_${companyId || ''}`, JSON.stringify(settings));
+  saveAuxData(`taxSettings_v1_${companyId || ''}`, companyId, settings); // ローカル＋Firestore同期
 }
 
 function loadTaxAdj(companyId, year) {
@@ -50,7 +50,7 @@ function loadTaxAdj(companyId, year) {
   } catch(e) { return {}; }
 }
 function saveTaxAdj(companyId, year, data) {
-  localStorage.setItem(`taxAdj_v1_${companyId || ''}_${year || ''}`, JSON.stringify(data));
+  saveAuxData(`taxAdj_v1_${companyId || ''}_${year || ''}`, companyId, data); // ローカル＋Firestore同期
 }
 
 // 後方互換用エイリアス（calcCorpTax等から参照）
@@ -1117,7 +1117,7 @@ function _kaniSave(company, year) {
   const otherType = document.getElementById('kani_other_type');
   data._otherSales = parseFloat(otherEl?.value) || 0;
   data._otherType  = parseInt(otherType?.value) || 4;
-  localStorage.setItem(_kaniKey(company, year), JSON.stringify(data));
+  saveAuxData(_kaniKey(company, year), company?.id, data); // ローカル＋Firestore同期
   _kaniCalc(company, year);
 }
 

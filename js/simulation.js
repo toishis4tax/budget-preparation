@@ -501,7 +501,7 @@ function cfResetOpenCash(autoCash) {
     try {
       const saved = JSON.parse(localStorage.getItem(state._cfKey) || '{}');
       saved.openCash = autoCash;
-      localStorage.setItem(state._cfKey, JSON.stringify(saved));
+      saveAuxData(state._cfKey, state.budget?.companyId, saved); // ローカル＋Firestore同期
     } catch {}
   }
 }
@@ -527,12 +527,10 @@ function runCashFlow() {
     prevCorp, tax1Amt, tax1Month,
   });
   if (state._cfKey) {
-    try {
-      localStorage.setItem(state._cfKey, JSON.stringify({
-        openCash, loanRepay, newLoan: newLoan*12, invest: invest*12,
-        prevCorp, tax1Amt, tax1Month,
-      }));
-    } catch {}
+    saveAuxData(state._cfKey, budget.companyId, {  // ローカル＋Firestore同期
+      openCash, loanRepay, newLoan: newLoan*12, invest: invest*12,
+      prevCorp, tax1Amt, tax1Month,
+    });
   }
   // 営業利益・減価償却
   const hasDynamic = !!(budget.dynamicAccounts?.length);

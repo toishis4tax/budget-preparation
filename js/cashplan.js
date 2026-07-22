@@ -224,7 +224,7 @@ function calcCashPlanSeries(budget, settings) {
 function _runCashPlan() {
   const meta = window._cpMeta;
   if (!meta) return;
-  const { budget, monthLabels, _key } = meta;
+  const { budget, company, monthLabels, _key } = meta;
 
   const openMan   = _cpSafeN(document.getElementById('cp_open')?.value);
   const siteSales = parseInt(document.getElementById('cp_site_sales')?.value ?? 1); // selectは"0"（当月）が正当値のため??
@@ -237,11 +237,8 @@ function _runCashPlan() {
   const repay  = repayMan * 10_000;
   const taxAmt = taxMan   * 10_000;
 
-  try {
-    localStorage.setItem(_key, JSON.stringify({
-      open, siteSales, siteCogs, repay, tax: taxAmt, taxMonth
-    }));
-  } catch {}
+  // ローカル保存＋Firestore同期（会社ごとキーなので共有安全）
+  saveAuxData(_key, company?.id, { open, siteSales, siteCogs, repay, tax: taxAmt, taxMonth });
 
   const series = calcCashPlanSeries(budget, { open, siteSales, siteCogs, repay, tax: taxAmt, taxMonth });
   if (!series) return;
