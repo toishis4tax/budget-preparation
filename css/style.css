@@ -407,7 +407,7 @@ body {
 .result-table tr:hover td { background: var(--blue-50); }
 .result-table .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
 .result-table .total-row td { background: var(--blue-50); font-weight: 700; color: var(--blue-800); border-top: 1.5px solid var(--blue-200); }
-.bold-row td { font-weight: 700; background: var(--blue-50); }
+.result-table .bold-row td { font-weight: 700; background: var(--blue-50); }
 .table-scroll { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
 
 /* ===== BADGES & TAGS ===== */
@@ -793,6 +793,12 @@ input[type=range]::-webkit-slider-thumb {
   .kichu-output-toolbar { display: none; }
   #kichu_output_modal { position: static; background: #fff !important; }
   #kichu_output_body  { padding: 20px !important; max-width: 100% !important; }
+  /* 成果物モーダルを印刷する時は背後のアプリ画面を隠す（先頭に余計なページが出るのを防ぐ） */
+  body.kichu-open .main-wrapper { display: none !important; }
+  /* 分析表のmin-widthが印刷幅を超えないように */
+  .bep-table, .sbs-table { min-width: 0 !important; }
+  /* 銀行提出資料の資金繰り表(13列)はA4縦で溢れるため縮小 */
+  .bdoc-cf { font-size: 9px !important; table-layout: fixed !important; }
 }
 
 /* ===== TOAST NOTIFICATIONS ===== */
@@ -836,7 +842,8 @@ input[type=range]::-webkit-slider-thumb {
   .sidebar.open { display: flex; }
   .sidebar-overlay.open { display: block; }
   .hamburger { display: flex; }
-  .main { margin-left: 0 !important; }
+  .main-wrapper { margin-left: 0 !important; }
+  .app-header { padding-left: 60px; }  /* ハンバーガー(左上40px)と先頭の会社/年度セレクトが重ならないように */
   .sim-grid { grid-template-columns: 1fr; }
 }
 
@@ -867,7 +874,7 @@ input[type=range]::-webkit-slider-thumb {
 }
 .rpt-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px; }
 .rpt-header-left {}
-.rpt-company { font-size: 20px; font-weight: 800; color: var(--primary-dark); }
+.rpt-company { font-size: 20px; font-weight: 800; color: var(--primary-hover); }
 .rpt-subtitle { font-size: 14px; color: var(--text-muted); margin-top: 2px; }
 .rpt-header-right { text-align: right; }
 .rpt-meta { font-size: 12px; color: var(--text-muted); line-height: 1.7; }
@@ -885,7 +892,7 @@ input[type=range]::-webkit-slider-thumb {
 .rpt-kpi-actual.rpt-kpi-na { color: var(--text-muted); font-size: 14px; }
 .rpt-kpi-diff { font-size: 12px; font-weight: 600; margin-top: 2px; }
 
-.rpt-section-title { font-size: 13px; font-weight: 700; color: var(--primary-dark); border-left: 3px solid var(--primary); padding-left: 8px; margin-bottom: 10px; }
+.rpt-section-title { font-size: 13px; font-weight: 700; color: var(--primary-hover); border-left: 3px solid var(--primary); padding-left: 8px; margin-bottom: 10px; }
 .rpt-table-wrap { overflow-x: auto; }
 .rpt-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 .rpt-table th {
@@ -899,7 +906,7 @@ input[type=range]::-webkit-slider-thumb {
 .rpt-pos { color: #059669; font-weight: 600; }
 .rpt-neg { color: #e11d48; font-weight: 600; }
 .rpt-bold-row td { font-weight: 700; background: #f0f4ff; }
-.rpt-sep-row td { background: #e8edfa; font-weight: 700; font-size: 12px; color: var(--primary-dark); padding: 4px 8px; }
+.rpt-sep-row td { background: #e8edfa; font-weight: 700; font-size: 12px; color: var(--primary-hover); padding: 4px 8px; }
 .rpt-footer { display: none; justify-content: space-between; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 8px; margin-top: 20px; }
 
 @media print {
@@ -911,7 +918,7 @@ input[type=range]::-webkit-slider-thumb {
 /* ===== MF実績取込 ===== */
 .mfa-wrap { max-width: 860px; margin: 0 auto; padding: 0 4px; }
 .mfa-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-.mfa-title { font-size: 20px; font-weight: 800; color: var(--primary-dark); margin-bottom: 4px; }
+.mfa-title { font-size: 20px; font-weight: 800; color: var(--primary-hover); margin-bottom: 4px; }
 .mfa-desc { font-size: 13px; color: var(--text-muted); }
 .mfa-steps { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
 .mfa-step { display: flex; align-items: center; gap: 8px; background: var(--blue-50); border: 1px solid var(--blue-200); border-radius: var(--radius-sm); padding: 8px 14px; font-size: 12px; }

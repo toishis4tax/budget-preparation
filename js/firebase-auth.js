@@ -213,7 +213,8 @@ async function _pullRevenueFromFirestore(companyIds) {
       const key = `${d.companyId}_${d.year}`;
       const localMeta = local[`_meta_${key}`] || {};
       const localUpdatedAt = localMeta.updatedAt || 0;
-      if ((d.updatedAt || 0) >= localUpdatedAt) {
+      // リモートが厳密に新しい場合のみ上書き（>= だと同値のローカル編集を消しうる）
+      if ((d.updatedAt || 0) > localUpdatedAt) {
         local[`_meta_${key}`] = { updatedAt: d.updatedAt };
         local[key] = d.clients || [];
       }
@@ -246,12 +247,12 @@ async function _pushLocalToFirestore(existing, profile) {
 }
 
 // ===== 顧問先売上データをFirestoreへ保存 =====
-function fbSaveRevenue(companyId, year, clients) {
+function fbSaveRevenue(companyId, year, clients, updatedAt) {
   if (!window._fbDb) return;
   const key = `${companyId}_${year}`;
-  const updatedAt = Date.now();
+  const ts = updatedAt || Date.now(); // ローカルmetaと同一のタイムスタンプを使う
   window._fbDb.collection('revenues').doc(key).set({
-    companyId, year, clients, updatedAt,
+    companyId, year, clients, updatedAt: ts,
   }).catch(e => console.warn('Firestore revenue save error:', e));
 }
 

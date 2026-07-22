@@ -12,13 +12,17 @@ function loadRevenueClients(companyId, year) {
 }
 
 function saveRevenueClients(companyId, year, clients) {
+  // ローカル編集のタイムスタンプを記録（これがないと、オフライン編集が
+  // pull時に古いリモートで上書きされてしまう）。リモートにも同じ値を書いて整合させる
+  const updatedAt = Date.now();
   try {
     const raw = localStorage.getItem(REVENUE_KEY);
     const all = raw ? JSON.parse(raw) : {};
     all[`${companyId}_${year}`] = clients;
+    all[`_meta_${companyId}_${year}`] = { updatedAt };
     localStorage.setItem(REVENUE_KEY, JSON.stringify(all));
   } catch {}
-  if (typeof fbSaveRevenue === 'function') fbSaveRevenue(companyId, year, clients);
+  if (typeof fbSaveRevenue === 'function') fbSaveRevenue(companyId, year, clients, updatedAt);
 }
 
 // 顧問先売上・課税設定を翌年度へ引き継ぐ

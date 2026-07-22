@@ -40,6 +40,7 @@ function showKichuOutput(type) {
   }
 
   modal.style.display = 'block';
+  document.body.classList.add('kichu-open'); // 印刷時に背後のアプリ画面を隠す
   body.innerHTML = '';
   renderKichuOutput(type, body);
 }
@@ -47,6 +48,7 @@ function showKichuOutput(type) {
 function closeKichuOutput() {
   const _km = document.getElementById('kichu_output_modal');
   if (_km) _km.style.display = 'none';
+  document.body.classList.remove('kichu-open'); // 印刷時に背後を隠すためのフラグ解除
 }
 
 function renderKichuOutput(type, container) {
