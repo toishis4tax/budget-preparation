@@ -181,17 +181,21 @@ function calcCompanyDiagnosis(company, budget) {
         try { cpSaved = JSON.parse(localStorage.getItem(cpKey) || 'null'); } catch {}
         const taxInSeries = (cpSaved?.tax || 0) > 0;
         // 消費税（ctax/localCtax）は資金繰り表がパススルー前提のため、残高比較は法人税等のみで行う
-        const corpOnly = source === 'taxsim'
-          ? ANNUAL_KEYS.filter(k => k !== 'ctax' && k !== 'localCtax')
-              .reduce((a, k) => { try { return a + (parseFloat(loadTaxSummaryData(company.id, curYear)[k]) || 0); } catch { return a; } }, 0)
-          : estimated;
+        let corpOnly = estimated;
+        if (source === 'taxsim') {
+          try {
+            const ts = loadTaxSummaryData(company.id, curYear);
+            corpOnly = ANNUAL_KEYS.filter(k => k !== 'ctax' && k !== 'localCtax')
+              .reduce((a, k) => a + (parseFloat(ts[k]) || 0), 0);
+          } catch (e) { console.error('corpOnly calc failed:', e); }
+        }
         const payIdx = d.cash.series ? ((payMonth - (budget.startMonth || 4) + 12) % 12) : null;
         const payMonthBal = (!taxInSeries && payIdx != null && d.cash.series?.rows?.[payIdx])
           ? d.cash.series.rows[payIdx].closeBal : null;
 
         if (payMonthBal != null && corpOnly > payMonthBal) {
           d.tax = { level: 'red', headline: '納税資金が不足', estimated, source, payMonthLabel,
-            lines: [`概算 ${_shMan(estimated)}万円${srcNote}`, `${payMonthLabel}の資金が不足見込み`] };
+            lines: [`概算 ${_shMan(estimated)}万円${srcNote}`, `納付月（${payLabel2}）の資金が不足見込み`] };
         } else if (monthsToPay != null && monthsToPay <= 2) {
           d.tax = { level: 'yellow', headline: 'もうすぐ納税', estimated, source, payMonthLabel,
             lines: [`概算 ${_shMan(estimated)}万円${srcNote}`, `納付は ${payLabel2}`] };
