@@ -157,10 +157,11 @@ function _eoCorporateTax(pretax) {
 function _eoCalc(monthly, companyPretaxBefore, age40plus) {
   const annualSalary     = monthly * 12;
   const salaryDeduction  = _eoSalaryDeduction(annualSalary);
-  const personalIncome   = Math.max(0, annualSalary - salaryDeduction - 480_000);
+  const socialIns        = _eoSocialIns(monthly, age40plus);
+  // 課税所得＝給与収入−給与所得控除−社会保険料控除（全額控除）−基礎控除
+  const personalIncome   = Math.max(0, annualSalary - salaryDeduction - socialIns - 480_000);
   const incomeTax        = _eoIncomeTax(personalIncome);
   const residTax         = Math.round(personalIncome * 0.10) + 5_000;
-  const socialIns        = _eoSocialIns(monthly, age40plus);
   const companySocialIns = _eoSocialInsCompany(monthly, age40plus);
   // 法人の課税所得 = 利益 − 役員報酬 − 会社負担の社会保険料
   const companyPretax    = companyPretaxBefore - annualSalary - companySocialIns;

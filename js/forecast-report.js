@@ -218,7 +218,7 @@ function renderForecastReport(container) {
     <!-- ヘッダー -->
     <div class="frp-header-band">
       <div class="frp-header-title">当期決算予測報告書</div>
-      <div class="frp-header-sub">${company.name}　／　${fyEndYear}年${fyE}月期（${fyStartYear}年${fyS}月〜${fyEndYear}年${fyE}月）</div>
+      <div class="frp-header-sub">${escHtml(company.name)}　／　${fyEndYear}年${fyE}月期（${fyStartYear}年${fyS}月〜${fyEndYear}年${fyE}月）</div>
     </div>
 
     <p class="frp-lead">

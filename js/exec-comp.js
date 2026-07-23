@@ -362,7 +362,7 @@ function renderOfficerList() {
     <div class="exec-card" id="officer_${i}">
       <div class="flex-between">
         <input type="text" class="form-input" style="width:140px;font-weight:700"
-          value="${o.name}" oninput="_execState.officers[${i}].name=this.value;updateExecCalc()">
+          value="${escHtml(o.name)}" oninput="_execState.officers[${i}].name=this.value;updateExecCalc()">
         ${i > 0 ? `<button class="btn-outline btn-xs btn-danger-outline" onclick="removeOfficer(${i})">削除</button>` : ''}
       </div>
       <div style="margin-top:10px;display:grid;grid-template-columns:1fr 80px;gap:8px;flex-wrap:wrap">
@@ -488,7 +488,7 @@ function renderExecSliderResult(scenarios, pretax, adjustedPretax, taxResult, to
     return `
       <div style="margin-bottom:16px;padding:14px;background:var(--gray-50);border-radius:10px;border:1px solid var(--border)">
         <div class="flex-between" style="margin-bottom:8px">
-          <strong>${o.name}</strong>
+          <strong>${escHtml(o.name)}</strong>
           <span class="tag tag-blue">月額 ${fmt(s.monthly)}</span>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:12px">

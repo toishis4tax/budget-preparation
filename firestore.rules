@@ -11,10 +11,10 @@ service cloud.firestore {
       return userDoc().role == 'admin';
     }
 
-    // 指定会社へのアクセス権チェック
+    // 指定会社へのアクセス権チェック（pendingは許可会社が空でも念のため除外）
     function isAllowed(companyId) {
       let u = userDoc();
-      return u.role == 'admin' || companyId in u.allowedCompanyIds;
+      return u.role == 'admin' || (u.role != 'pending' && companyId in u.allowedCompanyIds);
     }
 
     // ===== セットアップ設定コレクション =====
@@ -32,11 +32,13 @@ service cloud.firestore {
       // 初回ログイン時に自分のドキュメントを作成できる
       // role=admin は setup/initialized が存在しない（初回のみ）場合のみ許可
       // それ以外は role=pending のみ許可（自己昇格防止）
+      // 作成時: adminは初回のみ。それ以外はpendingかつ許可会社は空で開始（自己付与を防ぐ）
       allow create: if request.auth != null && request.auth.uid == uid
         && (
           (request.resource.data.role == 'admin'
             && !exists(/databases/$(database)/documents/setup/initialized))
-          || request.resource.data.role == 'pending'
+          || (request.resource.data.role == 'pending'
+            && request.resource.data.allowedCompanyIds.size() == 0)
         );
       // 自分のプロファイルは読める。管理者は全ユーザー読める
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
@@ -51,21 +53,32 @@ service cloud.firestore {
     }
 
     // ===== 予算コレクション（キー: companyId_year） =====
+    // 作成/更新はdocID先頭のcompanyIdと本文companyIdの一致を必須にし、他社ドキュメントの上書きを防ぐ
     match /budgets/{budgetId} {
-      allow read:  if request.auth != null && isAllowed(resource.data.companyId);
-      allow write: if request.auth != null && isAllowed(request.resource.data.companyId);
+      allow read:   if request.auth != null && isAllowed(resource.data.companyId);
+      allow create, update: if request.auth != null
+        && isAllowed(request.resource.data.companyId)
+        && budgetId.split('_')[0] == request.resource.data.companyId;
+      allow delete: if request.auth != null && isAllowed(resource.data.companyId);
     }
 
     // ===== 売上コレクション（キー: companyId_year） =====
     match /revenues/{revenueId} {
-      allow read:  if request.auth != null && isAllowed(resource.data.companyId);
-      allow write: if request.auth != null && isAllowed(request.resource.data.companyId);
+      allow read:   if request.auth != null && isAllowed(resource.data.companyId);
+      allow create, update: if request.auth != null
+        && isAllowed(request.resource.data.companyId)
+        && revenueId.split('_')[0] == request.resource.data.companyId;
+      allow delete: if request.auth != null && isAllowed(resource.data.companyId);
     }
 
     // ===== 補助データコレクション（資金繰り・税率設定・銀行メモ等。docId=localStorageキー） =====
+    // docIDは "..._{companyId}_..." 形式。companyIdがキーのいずれかのセグメントに含まれることを必須化
     match /auxData/{auxId} {
-      allow read:  if request.auth != null && isAllowed(resource.data.companyId);
-      allow write: if request.auth != null && isAllowed(request.resource.data.companyId);
+      allow read:   if request.auth != null && isAllowed(resource.data.companyId);
+      allow create, update: if request.auth != null
+        && isAllowed(request.resource.data.companyId)
+        && request.resource.data.companyId in auxId.split('_');
+      allow delete: if request.auth != null && isAllowed(resource.data.companyId);
     }
   }
 }

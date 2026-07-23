@@ -187,13 +187,14 @@ function calcHealthMetrics(rows, capital) {
 
   const opProfit = total('op_profit');
   const ebitda = opProfit + total('sga_depr');
+  const grossP = total('gross_profit'); // 労働分配率の分母（付加価値の代理＝粗利益）
 
   const metrics = {
     equity_ratio:      totalAssets  ? (totalEquity / totalAssets * 100) : 0,
     current_ratio:     currentLiab  ? (currentAssets / currentLiab * 100) : 0,
     quick_ratio:       currentLiab  ? ((cash + ar) / currentLiab * 100) : 0,
     op_margin:         sales        ? (opProfit / sales * 100) : 0,
-    labor_ratio:       sales        ? (sga_salary / sales * 100) : 0,
+    labor_ratio:       grossP > 0   ? (sga_salary / grossP * 100) : 0,  // 労働分配率＝人件費÷粗利益
     ebitda,
     loan_month_ratio:  sales > 0    ? ((longLoan + shortLoan) / (sales / 12)) : 0,
     _detail: {
@@ -201,7 +202,7 @@ function calcHealthMetrics(rows, capital) {
       current_ratio:    { num: currentAssets,        den: currentLiab,           numLabel: '流動資産',   denLabel: '流動負債' },
       quick_ratio:      { num: cash + ar,             den: currentLiab,           numLabel: '現金+売掛金', denLabel: '流動負債' },
       op_margin:        { num: opProfit,              den: sales,                 numLabel: '営業利益',   denLabel: '売上高' },
-      labor_ratio:      { num: sga_salary,            den: sales,                 numLabel: '人件費',     denLabel: '売上高' },
+      labor_ratio:      { num: sga_salary,            den: grossP,                numLabel: '人件費',     denLabel: '粗利益' },
       ebitda:           { num: opProfit,              den: total('sga_depr'),     numLabel: '営業利益',   denLabel: '減価償却費', isSum: true },
       loan_month_ratio: { num: longLoan + shortLoan,  den: sales / 12,            numLabel: '借入金残高', denLabel: '月商' },
     },
@@ -263,12 +264,13 @@ function calcHealthMetricsDynamic(budget, capital) {
 
   const opProfit2 = total('calc_op') !== 0 ? total('calc_op') : ordProfit;
   const ebitda = opProfit2 + depr;
+  const grossP2 = total('calc_gross'); // 労働分配率の分母（粗利益）
   return {
     equity_ratio:     totalAssets ? (totalEquity / totalAssets * 100) : 0,
     current_ratio:    currentLiab ? (currentAssets / currentLiab * 100) : 0,
     quick_ratio:      currentLiab ? ((cash + ar) / currentLiab * 100) : 0,
     op_margin:        sales ? (opProfit2 / sales * 100) : 0,
-    labor_ratio:      sales ? (salary / sales * 100) : 0,
+    labor_ratio:      grossP2 > 0 ? (salary / grossP2 * 100) : 0,  // 労働分配率＝人件費÷粗利益
     ebitda,
     loan_month_ratio: sales > 0 ? (loans / (sales / 12)) : 0,
     _detail: {
@@ -276,7 +278,7 @@ function calcHealthMetricsDynamic(budget, capital) {
       current_ratio:    { num: currentAssets, den: currentLiab,  numLabel: '流動資産',    denLabel: '流動負債' },
       quick_ratio:      { num: cash + ar,      den: currentLiab,  numLabel: '現金+売掛金', denLabel: '流動負債' },
       op_margin:        { num: opProfit2,      den: sales,        numLabel: '営業利益',    denLabel: '売上高' },
-      labor_ratio:      { num: salary,         den: sales,        numLabel: '人件費',      denLabel: '売上高' },
+      labor_ratio:      { num: salary,         den: grossP2,      numLabel: '人件費',      denLabel: '粗利益' },
       ebitda:           { num: opProfit2,      den: depr,         numLabel: '営業利益',    denLabel: '減価償却費', isSum: true },
       loan_month_ratio: { num: loans,          den: sales / 12,   numLabel: '借入金残高',  denLabel: '月商' },
     },
