@@ -283,12 +283,50 @@ async function _fbSaveWithConflictCheck(collection, docId, dataObj, baseUpdatedA
       );
       if (ok) {
         await ref.set(dataObj); // 明示的な上書き（ユーザーが選択）
-      } else if (typeof showToast === 'function') {
-        showToast(`${label}のクラウド保存を中止しました。ページを再読込して最新を取得してください。`, 'warn', 7000);
+      } else {
+        // キャンセル: リモート（相手の版）をローカルへ取り込む。
+        // ここで取り込まないと、ローカルの updatedAt が新しいまま残り、
+        // (1) 再読込しても pull が上書きできない (2) 次回保存時に相手の変更を無言で消す。
+        await _restoreRemoteToLocal(collection, ref);
       }
     }
   } catch (e) {
     console.warn(`Firestore ${collection} save error:`, e);
+  }
+}
+
+// 競合キャンセル時: リモートの最新をローカルストレージ＋画面へ反映（自分の未保存編集は破棄）
+async function _restoreRemoteToLocal(collection, ref) {
+  try {
+    const snap = await ref.get();
+    if (!snap.exists) return;
+    const remote = snap.data();
+    const data = (typeof loadData === 'function') ? loadData() : null;
+    if (data) {
+      if (collection === 'budgets') {
+        const i = data.budgets.findIndex(b => b.companyId === remote.companyId && b.year === remote.year);
+        if (i >= 0) data.budgets[i] = remote; else data.budgets.push(remote);
+        if (window.App?.currentBudget &&
+            window.App.currentBudget.companyId === remote.companyId &&
+            window.App.currentBudget.year === remote.year) {
+          window.App.currentBudget = remote;
+        }
+      } else if (collection === 'companies') {
+        const i = data.companies.findIndex(c => c.id === remote.id);
+        if (i >= 0) data.companies[i] = remote; else data.companies.push(remote);
+        if (window.App?.currentCompany?.id === remote.id) window.App.currentCompany = remote;
+      }
+      if (typeof saveData === 'function') saveData(data); // ローカルのみ（fb再送しない）
+    }
+    if (typeof showToast === 'function') {
+      showToast('他の人の変更を取り込みました。あなたの未保存の変更は破棄されました。', 'warn', 7000);
+    }
+    if (typeof showPage === 'function' && window.App?.currentPage) showPage(window.App.currentPage);
+  } catch (e) {
+    console.warn('conflict restore error:', e);
+    if (typeof showToast === 'function') {
+      showToast('保存を中止しました。ページを再読込して最新を取得してください。', 'warn', 7000);
+    }
   }
 }
 

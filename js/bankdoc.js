@@ -138,7 +138,7 @@ function _renderBankDocFull(container, company, budget, curYear, fiscalMonth, me
   const ratios   = _bdCalcRatios(plCur, bsCur, cs);
   const fy       = _bdFiveYear(budget, _bdRates);
 
-  const K    = v => v == null ? '—' : Math.round(v / 1000).toLocaleString('ja-JP');
+  const K    = v => v == null ? '—' : (Math.round(v / 1000) || 0).toLocaleString('ja-JP');
   const today = new Date();
   const dstr  = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
 
@@ -420,7 +420,7 @@ function _bdUpdateFY() {
   const budget = window.App?.currentBudget;
   const fy = _bdFiveYear(budget, _bdRates);
   if (!fy) return;
-  const K = v => v == null ? '—' : Math.round(v / 1000).toLocaleString('ja-JP');
+  const K = v => v == null ? '—' : (Math.round(v / 1000) || 0).toLocaleString('ja-JP');
   const heads = ['当期','1年目','2年目','3年目','4年目','5年目'].map(h=>`<th>${h}</th>`).join('');
   const series = [fy.base, ...fy.years];
   const fyRow = (label, key, bold) => `<tr${bold?' style="font-weight:700;background:#f8fafc"':''}>

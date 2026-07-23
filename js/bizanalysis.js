@@ -99,7 +99,7 @@ function renderBizAnalysis(container) {
   const pct = v => (v == null ? null : (v * 100));
   const fmtV = (v, decimals, suffix) => {
     if (v == null || isNaN(v)) return '<span class="biz-nodata">—</span>';
-    const n = decimals != null ? v.toFixed(decimals) : Math.round(v).toLocaleString('ja-JP');
+    const n = decimals != null ? v.toFixed(decimals) : (Math.round(v) || 0).toLocaleString('ja-JP');
     return n + (suffix || '');
   };
   const fmtDiff = (cur, prev, decimals, suffix) => {
@@ -107,7 +107,7 @@ function renderBizAnalysis(container) {
     const d = cur - prev;
     const sign = d >= 0 ? '+' : '';
     const cls  = d >= 0 ? 'biz-diff-pos' : 'biz-diff-neg';
-    const n    = decimals != null ? d.toFixed(decimals) : Math.round(d).toLocaleString('ja-JP');
+    const n    = decimals != null ? d.toFixed(decimals) : (Math.round(d) || 0).toLocaleString('ja-JP');
     return `<span class="${cls}">${sign}${n}${suffix || ''}</span>`;
   };
 

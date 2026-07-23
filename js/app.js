@@ -68,8 +68,8 @@ window.App = {
 
 // 共通フォーマット関数（全モジュールから参照）
 const _safeN = v => { const n = Number(v); return (isNaN(n) || !isFinite(n)) ? 0 : n; };
-window.fmt  = v => Math.round(_safeN(v)).toLocaleString('ja-JP') + '円';
-window.fmtK = v => Math.round(_safeN(v) / 1000).toLocaleString('ja-JP');
+window.fmt  = v => (Math.round(_safeN(v)) || 0).toLocaleString('ja-JP') + '円';
+window.fmtK = v => (Math.round(_safeN(v) / 1000) || 0).toLocaleString('ja-JP');
 function escHtml(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }

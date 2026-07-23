@@ -200,7 +200,7 @@ function renderSummaryPL(container) {
     return `<th colspan="2" class="sbs-yhead">${tag}<br><span style="font-weight:400">（${y + 1}年${fiscalMonth}月期）</span></th>`;
   }).join('');
 
-  const K = v => (v == null ? null : Math.round(v / 1000));
+  const K = v => (v == null ? null : (Math.round(v / 1000) || 0));
   const fmtK = v => (v == null || isNaN(v)) ? '—' : K(v).toLocaleString('ja-JP');
   const fmtPct = (v, base) => (v == null || isNaN(v) || !base) ? '—' : (v / base * 100).toFixed(1);
 
@@ -321,7 +321,7 @@ function renderSummaryBS(container) {
     return `<th colspan="2" class="sbs-yhead">${tag}<br><span style="font-weight:400">（${endYear}年${fiscalMonth}月期）</span></th>`;
   }).join('');
 
-  const K = v => (v == null ? null : Math.round(v / 1000));
+  const K = v => (v == null ? null : (Math.round(v / 1000) || 0));
   const fmtK = v => (v == null || isNaN(v)) ? '—' : K(v).toLocaleString('ja-JP');
   const fmtPct = (v, base) => (v == null || isNaN(v) || !base) ? '—' : (v / base * 100).toFixed(1);
 

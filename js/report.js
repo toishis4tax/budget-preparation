@@ -52,7 +52,7 @@ function _renderReport(container, ctx) {
     return new Array(13).fill(0);
   };
 
-  const fmt  = v => Math.round(v || 0).toLocaleString();
+  const fmt  = v => (Math.round(v || 0) || 0).toLocaleString();
   const fmtS = v => (v >= 0 ? '' : '▼') + Math.abs(Math.round(v || 0)).toLocaleString();
 
   // PL科目（ダイナミック/固定）
